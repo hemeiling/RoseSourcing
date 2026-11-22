@@ -10,7 +10,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 
-from .api import analytics, auth, brand, commerce, competitors, copilot, projects, research, suppliers, system
+from .api import analytics, auth, brand, channels, commerce, competitors, copilot, projects, research, suppliers, system
 from .config import get_settings
 from .services.agents.opportunity import recover_interrupted_runs
 from .services.llm.base import LLMError, LLMNotConfigured, LLMRefusal, LLMTransientError
@@ -58,7 +58,7 @@ async def _llm_error(_: Request, exc: LLMError) -> JSONResponse:
     return JSONResponse(status_code=502, content={"detail": {"code": "ai_error", "message": str(exc)}})
 
 
-for r in (auth, projects, research, competitors, brand, suppliers, commerce, analytics, copilot, system):
+for r in (auth, projects, research, competitors, brand, suppliers, channels, commerce, analytics, copilot, system):
     app.include_router(r.router)
 
 

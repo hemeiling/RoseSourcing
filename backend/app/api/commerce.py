@@ -16,6 +16,12 @@ from .deps import DB, CurrentUser, ProjectDep, owned
 
 router = APIRouter(prefix="/api", tags=["commerce"])
 
+PRODUCT_DECIMALS = ("target_price", "unit_weight_kg", "carton_length_cm", "carton_width_cm", "carton_height_cm", "carton_gross_weight_kg")
+
+
+def _product_decimals(data: dict) -> dict:
+    return {k: (Decimal(str(v)) if k in PRODUCT_DECIMALS and v is not None else v) for k, v in data.items()}
+
 
 @router.get("/integrations")
 def integrations(user: CurrentUser) -> list[dict]:
@@ -29,10 +35,7 @@ def list_products(project: ProjectDep, db: DB) -> list[ProductConcept]:
 
 @router.post("/projects/{project_id}/products", response_model=ProductOut, status_code=201)
 def create_product(body: ProductIn, project: ProjectDep, db: DB, user: CurrentUser) -> ProductConcept:
-    data = body.model_dump()
-    if data.get("target_price") is not None:
-        data["target_price"] = Decimal(str(data["target_price"]))
-    p = ProductConcept(project_id=project.id, **data)
+    p = ProductConcept(project_id=project.id, **_product_decimals(body.model_dump()))
     db.add(p)
     db.flush()
     audit.record(db, "product.created", user_id=user.id, project_id=project.id, entity_type="product", entity_id=p.id)
@@ -43,9 +46,7 @@ def create_product(body: ProductIn, project: ProjectDep, db: DB, user: CurrentUs
 @router.patch("/products/{product_id}", response_model=ProductOut)
 def update_product(product_id: uuid.UUID, body: ProductPatch, db: DB, user: CurrentUser) -> ProductConcept:
     p = owned(db, ProductConcept, product_id, user)
-    data = body.model_dump(exclude_unset=True)
-    if data.get("target_price") is not None:
-        data["target_price"] = Decimal(str(data["target_price"]))
+    data = _product_decimals(body.model_dump(exclude_unset=True))
     for k, v in data.items():
         setattr(p, k, v)
     audit.record(db, "product.updated", user_id=user.id, project_id=p.project_id, entity_type="product", entity_id=p.id,

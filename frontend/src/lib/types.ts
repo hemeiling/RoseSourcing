@@ -50,7 +50,7 @@ export interface RunStep {
 export interface ResearchRun {
   id: string;
   project_id: string;
-  kind: "market_opportunity" | "competitor_discovery";
+  kind: "market_opportunity" | "competitor_discovery" | "channels_logistics";
   status: "queued" | "running" | "completed" | "completed_with_errors" | "failed" | "interrupted" | "cancelled";
   provider: string;
   model: string;
@@ -304,6 +304,12 @@ export interface Product {
     claims_to_verify: string[];
     generated_at?: string;
   } | null;
+  unit_weight_kg: number | null;
+  units_per_carton: number | null;
+  carton_length_cm: number | null;
+  carton_width_cm: number | null;
+  carton_height_cm: number | null;
+  carton_gross_weight_kg: number | null;
   created_at: string;
 }
 
@@ -434,4 +440,126 @@ export interface AuditEvent {
   entity_type: string | null;
   entity_id: string | null;
   details: Record<string, unknown>;
+}
+
+export interface ShippingOption {
+  id: string;
+  name: string;
+  leg: "international" | "domestic";
+  mode: string;
+  provider: string | null;
+  origin: string | null;
+  destination: string | null;
+  rate_basis: "per_kg" | "per_cbm" | "per_shipment" | "per_unit" | "per_order";
+  rate: number | null;
+  rate_high: number | null;
+  currency: string;
+  min_charge: number | null;
+  fixed_fees: number | null;
+  volumetric_divisor: number | null;
+  transit_days_min: number | null;
+  transit_days_max: number | null;
+  includes_duties: boolean;
+  basis: "assumption" | "quote" | "sourced_research";
+  source_url: string | null;
+  quote_date: string | null;
+  valid_until: string | null;
+  notes: string | null;
+  research_run_id: string | null;
+  created_at: string;
+}
+
+export interface ShippingRow {
+  option_id: string;
+  name: string;
+  leg: string;
+  mode: string;
+  provider: string | null;
+  basis: string;
+  source_url: string | null;
+  rate_basis: string;
+  chargeable: number | null;
+  chargeable_unit: string;
+  total_low: number | null;
+  total_high: number | null;
+  per_unit_low: number | null;
+  per_unit_high: number | null;
+  transit_days_min: number | null;
+  transit_days_max: number | null;
+  currency: string;
+  notes: string[];
+}
+
+export interface ShippingComparison {
+  shipment: { units: number; cartons: number; gross_weight_kg: number; volume_cbm: number };
+  rows: ShippingRow[];
+  base_scenario: { name: string; freight_per_unit: number; factory_cost: number };
+}
+
+export interface SalesChannel {
+  id: string;
+  name: string;
+  channel_type: string;
+  platform: string | null;
+  status: "considering" | "testing" | "active" | "paused" | "rejected";
+  price: number | null;
+  commission_pct: number | null;
+  per_order_fee: number | null;
+  payment_fee_pct: number | null;
+  payment_fee_fixed: number | null;
+  monthly_fee: number | null;
+  fulfillment_per_order: number | null;
+  marketing_cac: number | null;
+  return_rate_pct: number | null;
+  expected_monthly_units: number | null;
+  fee_basis: "assumption" | "verified" | "sourced_research";
+  fee_source_url: string | null;
+  fees_checked_at: string | null;
+  audience_fit: string | null;
+  requirements: string | null;
+  pros: string[];
+  cons: string[];
+  notes: string | null;
+  research_run_id: string | null;
+  created_at: string;
+}
+
+export interface ChannelEconomicsRow {
+  channel_id: string;
+  name: string;
+  channel_type: string;
+  status: string;
+  fee_basis: string;
+  fee_source_url: string | null;
+  fees_checked_at: string | null;
+  price: number;
+  channel_fees_per_unit: number;
+  payment_fees_per_unit: number;
+  contribution_margin: number;
+  contribution_margin_after_monthly_fee: number | null;
+  contribution_margin_pct: number | null;
+  breakeven_cac: number;
+  breakeven_units_per_month: number | null;
+  input_basis: Record<string, string>;
+  warnings: string[];
+}
+
+export interface ChannelPlan {
+  id: string;
+  created_at: string;
+  content: {
+    summary: string;
+    launch_channels: { channel: string; role: "primary" | "secondary" | "test"; rationale: string; finding_ids: string[] }[];
+    channels_to_defer: { channel: string; reason: string }[];
+    first_order_shipping: string;
+    replenishment_shipping: string;
+    shipping_finding_ids: string[];
+    fulfillment: string;
+    customs_and_compliance: string[];
+    risks: { risk: string; severity: "high" | "medium" | "low"; mitigation: string; finding_ids: string[] }[];
+    open_questions: { gap: string; why_it_matters: string; how_to_close: string }[];
+    next_steps: { action: string; rationale: string; priority: "high" | "medium" | "low" }[];
+    research_run_id: string;
+    generated_by: { model: string; generated_at: string };
+  };
 }

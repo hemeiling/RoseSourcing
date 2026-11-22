@@ -18,7 +18,7 @@ import type { AgentExecution, Experiment, ModelSpec, Scenario, UEResults } from 
 const GROUPS: { title: string; fields: string[] }[] = [
   { title: "Pricing", fields: ["retail_price", "avg_discount_pct"] },
   { title: "Product & landed cost", fields: ["factory_cost", "freight_per_unit", "duty_rate_pct", "import_clearance_per_unit", "packaging_per_unit"] },
-  { title: "Fulfillment & payments", fields: ["fulfillment_per_unit", "payment_fee_pct", "payment_fee_fixed", "units_per_order"] },
+  { title: "Fulfillment, payments & channel fees", fields: ["fulfillment_per_unit", "payment_fee_pct", "payment_fee_fixed", "channel_commission_pct", "channel_fee_per_order", "units_per_order"] },
   { title: "Marketing & returns", fields: ["marketing_cac", "return_rate_pct", "return_cost_per_unit", "unsellable_return_pct"] },
   { title: "Budget & fixed costs", fields: ["initial_investment", "monthly_fixed_costs", "moq", "sample_costs"] },
 ];
@@ -36,6 +36,7 @@ function ResultsPanel({ r }: { r: UEResults | null }) {
     { name: "Clearance+pkg", value: (lc.clearance ?? 0) + (lc.packaging ?? 0), color: "#dbe6fe" },
     { name: "Fulfillment", value: pu.fulfillment, color: "#a78bfa" },
     { name: "Payment fees", value: pu.payment_fees, color: "#c4b5fd" },
+    { name: "Channel fees", value: pu.channel_fees ?? 0, color: "#ddd6fe" },
     { name: "Returns", value: (pu.return_handling ?? 0) + (pu.unsellable_loss ?? 0), color: "#fcd34d" },
     { name: "Marketing", value: pu.marketing, color: "#fb923c" },
     { name: "Contribution", value: r.contribution_margin, color: r.contribution_margin >= 0 ? "#10b981" : "#ef4444" },

@@ -23,6 +23,7 @@ from ...config import get_settings
 from ...db import session_scope
 from ...models import (
     AgentExecution,
+    AnalysisSnapshot,
     BusinessProject,
     Competitor,
     CompetitorProduct,
@@ -31,16 +32,20 @@ from ...models import (
     EvidenceSource,
     FindingEvidence,
     MarketOpportunity,
+    SalesChannel,
+    ShippingOption,
     PriceObservation,
+    ProductConcept,
     Recommendation,
     ResearchFinding,
     ResearchRun,
 )
 from ..llm.anthropic_provider import get_llm
+from ..logistics import PackagingSpec, Shipment, channel_economics, compare_shipping
 from ..llm.base import LLMError, LLMNotConfigured, LLMRefusal, LLMUsage
 from ..research.providers import EvidenceBundle, get_research_provider
 from ..unit_economics import UnitEconomicsInputs, calculate
-from .research_schemas import ExtractedFinding, OpportunitySynthesis, StepExtraction
+from .research_schemas import ChannelLogisticsPlan, ExtractedFinding, OpportunitySynthesis, StepExtraction
 from .runtime import apply_usage, finish_execution, start_execution, with_retries
 
 log = logging.getLogger(__name__)
@@ -141,12 +146,57 @@ STEP_DEFS: dict[str, dict[str, Any]] = {
     },
 }
 
+STEP_DEFS["channels"] = {
+    "label": "Selling channels & current fees",
+    "sections": ["channels", "pricing", "other"],
+    "question": (
+        "Which sales channels are realistic for selling {category} to customers in {country}, and what does each cost a seller today? "
+        "Cover the seller's own e-commerce store (e.g. Shopify), major marketplaces (e.g. Amazon, Etsy, eBay), social commerce "
+        "(e.g. TikTok Shop, Instagram), wholesale to studios/instructors/retailers, and events. For each, find the current official "
+        "seller fee schedule for this category (referral/commission %, per-order fees, payment processing, monthly plan fees), "
+        "category restrictions or approval requirements, and evidence of how this category's customers buy there. Cite official fee pages "
+        "and note the date fees were published or updated."
+    ),
+    "hints": [
+        "Amazon seller fees clothing referral fee {year}",
+        "Etsy seller fees transaction fee payment processing",
+        "Shopify pricing plans payment processing fees {country}",
+        "TikTok Shop seller fees {country} {year}",
+        "where do dancers buy {category}",
+        "{category} wholesale to dance studios",
+    ],
+}
+STEP_DEFS["logistics"] = {
+    "label": "Shipping, import & fulfillment",
+    "sections": ["logistics", "sourcing_costs", "regulatory", "channels"],
+    "question": (
+        "How do small brands ship {category} from {sourcing} to {country}, and what does it cost? Find current benchmarks, with dates, "
+        "for express courier, air freight and sea freight (LCL/FCL) rates and transit times from {sourcing} to {country}; customs "
+        "brokerage and entry costs; the current rules for low-value / de minimis shipments of goods from {sourcing}; and domestic "
+        "fulfillment options in {country} (self-fulfillment postage, 3PL pick-pack-ship fees, marketplace fulfillment fees). Cite sources."
+    ),
+    "hints": [
+        "air freight rate per kg {sourcing} to {country} {year}",
+        "LCL sea freight cost per cbm {sourcing} to {country}",
+        "express courier rates small business import {sourcing} to {country}",
+        "de minimis rule imports from {sourcing} {year}",
+        "3PL pick and pack fees apparel {country}",
+        "customs broker fee small import {country}",
+    ],
+}
+
 RUN_STEPS = {
     "market_opportunity": ["market_size", "customers", "competitors", "sourcing", "risks", "synthesis"],
+    "channels_logistics": ["channels", "logistics", "plan"],
     "competitor_discovery": ["competitors"],
 }
 
-STEP_LABELS = {k: v["label"] for k, v in STEP_DEFS.items()} | {"synthesis": "Opportunity report synthesis"}
+STEP_LABELS = {k: v["label"] for k, v in STEP_DEFS.items()} | {
+    "synthesis": "Opportunity report synthesis",
+    "plan": "Channel & logistics plan",
+}
+SYNTHESIS_STEP = {"market_opportunity": "synthesis", "channels_logistics": "plan"}
+STEP_AGENT = {"competitors": "competitor_intelligence", "channels": "commerce", "logistics": "sourcing"}
 
 
 def initial_steps(kind: str) -> list[dict[str, Any]]:
@@ -368,10 +418,16 @@ def _persist_extraction(db, run: ResearchRun, step_key: str, bundle: EvidenceBun
                 )
             )
 
-    if ext.evidence_gaps or dropped_prices:
+    dropped_fees, dropped_rates = _persist_channels_and_shipping(db, run, bundle, ext, ref_to_id)
+
+    if ext.evidence_gaps or dropped_prices or dropped_fees or dropped_rates:
         gaps = list(ext.evidence_gaps)
         if dropped_prices:
             gaps.append(f"{dropped_prices} price(s) were discarded because they could not be tied to a retrieved source.")
+        if dropped_fees:
+            gaps.append(f"{dropped_fees} channel fee value(s) were left blank because they did not appear in the cited source excerpt.")
+        if dropped_rates:
+            gaps.append(f"{dropped_rates} shipping rate benchmark(s) were discarded because the rate did not appear in a retrieved source.")
         for g in gaps:
             db.add(
                 ResearchFinding(
@@ -389,6 +445,67 @@ def _persist_extraction(db, run: ResearchRun, step_key: str, bundle: EvidenceBun
             n_findings += 1
 
     return {"findings": n_findings, "sources": len(bundle.sources)}
+
+
+def _number_in(value: float, excerpts: list[str]) -> bool:
+    return _price_in_excerpts(value, excerpts) or f"{value:g}" in " ".join(excerpts).replace(",", "")
+
+
+def _persist_channels_and_shipping(db, run: ResearchRun, bundle: EvidenceBundle, ext: StepExtraction,
+                                   ref_to_id: dict[str, uuid.UUID]) -> tuple[int, int]:
+    """Store channel fee profiles and freight benchmarks. A number is kept only if it appears in the cited excerpt."""
+    refs = bundle.by_ref()
+    today = datetime.now(timezone.utc).date()
+    dropped_fees = dropped_rates = 0
+    fee_fields = ("commission_pct", "per_order_fee", "payment_fee_pct", "payment_fee_fixed", "monthly_fee")
+
+    for c in ext.channels:
+        src = refs.get(c.fee_source_ref or "")
+        kept: dict[str, Decimal] = {}
+        for field in fee_fields:
+            v = getattr(c, field)
+            if v is None:
+                continue
+            if src and _number_in(v, src.excerpts):
+                kept[field] = Decimal(str(v))
+            else:
+                dropped_fees += 1
+        existing = db.scalars(select(SalesChannel).where(SalesChannel.project_id == run.project_id,
+                                                         SalesChannel.name.ilike(c.name.strip()))).first()
+        ch = existing or SalesChannel(project_id=run.project_id, name=c.name.strip()[:200], channel_type=c.channel_type,
+                                      platform=c.platform, status="considering", research_run_id=run.id)
+        if existing is None:
+            db.add(ch)
+        ch.requirements = ch.requirements or c.requirements
+        ch.audience_fit = ch.audience_fit or c.audience_fit
+        # Never overwrite fees the user has verified.
+        if kept and ch.fee_basis != "verified":
+            for field, v in kept.items():
+                setattr(ch, field, v)
+            ch.fee_basis = "sourced_research"
+            ch.fee_source_url = src.url
+            ch.fees_checked_at = today
+            ch.evidence_source_id = ref_to_id[c.fee_source_ref]
+        elif not kept and existing is None:
+            ch.notes = "Fees not confirmed by a retrieved source - check the platform's fee page."
+
+    for b in ext.shipping_benchmarks:
+        src = refs.get(b.source_ref)
+        values = [v for v in (b.rate_low, b.rate_high) if v is not None]
+        if src is None or not values or not all(_number_in(v, src.excerpts) for v in values):
+            dropped_rates += 1
+            continue
+        low = b.rate_low if b.rate_low is not None else b.rate_high
+        db.add(ShippingOption(
+            project_id=run.project_id, research_run_id=run.id, evidence_source_id=ref_to_id[b.source_ref],
+            name=f"{b.mode.replace('_', ' ').title()} benchmark ({src.domain or 'source'})"[:200], leg=b.leg, mode=b.mode,
+            origin=b.origin, destination=b.destination, rate_basis=b.rate_basis, rate=Decimal(str(low)),
+            rate_high=Decimal(str(b.rate_high)) if b.rate_high is not None and b.rate_high != low else None,
+            currency=b.currency.upper()[:8], transit_days_min=b.transit_days_min, transit_days_max=b.transit_days_max,
+            basis="sourced_research", source_url=src.url,
+            notes=f"Benchmark as of {b.as_of or 'date not stated'}. {b.notes or ''} Get a real forwarder quote before ordering.".strip(),
+        ))
+    return dropped_fees, dropped_rates
 
 
 # ----------------------------------------------------------------------------- prompts
@@ -417,12 +534,16 @@ def _extraction_prompt(step_key: str, ctx: dict[str, str], bundle: EvidenceBundl
     sections = ", ".join(STEP_DEFS[step_key]["sections"])
     want_segments = step_key == "customers"
     want_competitors = step_key == "competitors"
+    want_channels = step_key == "channels"
+    want_shipping = step_key == "logistics"
     return (
         f"Business context:\n{context_block(ctx)}\n\n"
         f"Research question:\n{bundle.question}\n\n"
         f"Allowed finding sections for this step: {sections}.\n"
         f"{'Populate segments with distinct customer segments.' if want_segments else 'Return an empty segments list.'}\n"
-        f"{'Populate competitors with each brand/retailer found, including only prices visible in excerpts.' if want_competitors else 'Return an empty competitors list.'}\n\n"
+        f"{'Populate competitors with each brand/retailer found, including only prices visible in excerpts.' if want_competitors else 'Return an empty competitors list.'}\n"
+        f"{'Populate channels with each selling channel; fill fee fields only with numbers stated in the fee_source_ref excerpt, otherwise null.' if want_channels else 'Return an empty channels list.'}\n"
+        f"{'Populate shipping_benchmarks only with rates stated in an excerpt, with that excerpt as source_ref.' if want_shipping else 'Return an empty shipping_benchmarks list.'}\n\n"
         f"=== RESEARCH NOTES (analyst summary, citations in brackets) ===\n{bundle.notes or '(none - search API results only)'}\n\n"
         f"=== EVIDENCE DOSSIER (verbatim provider data) ===\n{bundle.dossier() or '(no sources were retrieved)'}\n"
     )
@@ -510,7 +631,7 @@ def execute_run(run_id: uuid.UUID) -> None:
         if spent >= settings.max_research_cost_usd:
             _update_step(run_id, key, status="skipped", error=f"Skipped: run reached the ${settings.max_research_cost_usd:.2f} cost limit.")
             continue
-        if key == "synthesis":
+        if key in SYNTHESIS_STEP.values():
             continue  # handled after research steps
         _update_step(run_id, key, status="running", started_at=datetime.now(timezone.utc).isoformat(), error=None)
         attempts = {"n": 0}
@@ -523,7 +644,7 @@ def execute_run(run_id: uuid.UUID) -> None:
             hints = [h.format(**ctx) for h in step["hints"]]
             with session_scope() as db:
                 ex = start_execution(
-                    db, agent="competitor_intelligence" if key == "competitors" else "opportunity_research",
+                    db, agent=STEP_AGENT.get(key, "opportunity_research"),
                     operation=f"research_step:{key}", project_id=project_id, user_id=user_id,
                     model=llm.model, provider=provider.name, research_run_id=run_id, input_summary=question,
                 )
@@ -568,9 +689,9 @@ def execute_run(run_id: uuid.UUID) -> None:
             _update_step(run_id, key, status="failed", error=f"{type(e).__name__}: {e}"[:1000],
                          finished_at=datetime.now(timezone.utc).isoformat())
 
-    if fatal is None and kind == "market_opportunity" and _step_status(run_id, "synthesis") == "pending" \
-            and _run_status(run_id) != "cancelled":
-        _run_synthesis(run_id, ctx)
+    synth_key = SYNTHESIS_STEP.get(kind)
+    if fatal is None and synth_key and _step_status(run_id, synth_key) == "pending" and _run_status(run_id) != "cancelled":
+        (_run_synthesis if synth_key == "synthesis" else _run_channel_plan)(run_id, ctx)
 
     with session_scope() as db:
         run = db.get(ResearchRun, run_id)
@@ -735,6 +856,99 @@ def _run_synthesis(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
         audit.record(db, "market_opportunity.created", user_id=user_id, project_id=project.id,
                      actor="agent:supervisor", entity_type="market_opportunity", entity_id=opp.id)
     _update_step(run_id, "synthesis", status="completed", finished_at=datetime.now(timezone.utc).isoformat(), findings_count=0)
+
+
+PLAN_SYSTEM = """You are an e-commerce operations advisor helping a small founder choose where to sell and how to ship.
+Rules:
+- Use the findings (F-refs) and the computed economics provided. Never invent fees, rates, transit times or regulations.
+- The per-channel and per-shipping-option numbers were computed by a deterministic calculator; quote them, do not recompute.
+- If fees or rates are assumptions or missing, say what must be confirmed before deciding.
+- Customs and trade rules change frequently; phrase compliance items as things to confirm with a customs broker or official source.
+- Favour low-commitment options for a small first order, then a cheaper mode once demand is proven."""
+
+
+def _run_channel_plan(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
+    llm = get_llm()
+    with session_scope() as db:
+        run = db.get(ResearchRun, run_id)
+        research_ok = any(s["status"] == "completed" for s in run.steps if s["key"] != "plan")
+        project = db.get(BusinessProject, run.project_id)
+        user_id, project_id = run.created_by_id, run.project_id
+        findings = db.scalars(select(ResearchFinding).where(ResearchFinding.research_run_id == run_id)
+                              .order_by(ResearchFinding.created_at)).all()
+        fmap = {f"F{i}": f for i, f in enumerate(findings, 1)}
+        f_lines = [f"{ref} [{f.section}] ({f.evidence_type}, {f.confidence}, {f.verification_status}): {f.claim}" for ref, f in fmap.items()]
+        channels = db.scalars(select(SalesChannel).where(SalesChannel.project_id == project_id,
+                                                         SalesChannel.status != "rejected")).all()
+        econ = channel_economics(db, project, list(channels))
+        c_lines = [f"- {r['name']} ({r['channel_type']}, fees: {r['fee_basis']}): price ${r['price']:.2f}, channel fees ${r['channel_fees_per_unit']:.2f}/unit, "
+                   f"contribution ${r['contribution_margin']:.2f}/unit ({r['contribution_margin_pct']}%), break-even CAC ${r['breakeven_cac']:.2f}"
+                   for r in econ["rows"]]
+        options = db.scalars(select(ShippingOption).where(ShippingOption.project_id == project_id)).all()
+        product = db.scalars(select(ProductConcept).where(ProductConcept.project_id == project_id,
+                                                          ProductConcept.units_per_carton.is_not(None))).first()
+        s_lines: list[str] = []
+        if product and all(getattr(product, k) is not None for k in ("carton_length_cm", "carton_width_cm", "carton_height_cm", "carton_gross_weight_kg")):
+            spec = PackagingSpec(units_per_carton=product.units_per_carton, carton_length_cm=float(product.carton_length_cm),
+                                 carton_width_cm=float(product.carton_width_cm), carton_height_cm=float(product.carton_height_cm),
+                                 carton_gross_weight_kg=float(product.carton_gross_weight_kg))
+            cmp = compare_shipping(list(options), Shipment(units=100, packaging=spec))
+            s_lines.append(f"(Computed for a 100-unit shipment of '{product.name}': {cmp['shipment']})")
+            for r in cmp["rows"]:
+                s_lines.append(f"- {r['name']} [{r['leg']}, {r['basis']}]: ${r['per_unit_low']}-{r['per_unit_high']}/unit, transit {r['transit_days_min']}-{r['transit_days_max']} days")
+        else:
+            for o in options:
+                s_lines.append(f"- {o.name} [{o.leg}, {o.mode}, {o.basis}]: {o.rate}{('-' + str(o.rate_high)) if o.rate_high else ''} {o.currency} {o.rate_basis}, "
+                               f"transit {o.transit_days_min}-{o.transit_days_max} days (no carton specs on file, per-unit cost not computed)")
+
+    if not research_ok:
+        _update_step(run_id, "plan", status="skipped", error="Skipped: no research step completed.")
+        return
+    _update_step(run_id, "plan", status="running", started_at=datetime.now(timezone.utc).isoformat(), attempts=1)
+    prompt = (
+        f"Business context:\n{context_block(ctx)}\n\n=== FINDINGS ===\n" + ("\n".join(f_lines) or "(none)") +
+        "\n\n=== SALES CHANNELS ON FILE (computed economics) ===\n" + ("\n".join(c_lines) or "(none)") +
+        "\n\n=== SHIPPING OPTIONS ON FILE ===\n" + ("\n".join(s_lines) or "(none)") +
+        "\n\nWrite the channel and logistics plan. Reference findings by F-ref."
+    )
+    with session_scope() as db:
+        ex = start_execution(db, agent="supervisor", operation="channel_logistics_plan", project_id=project_id, user_id=user_id,
+                             model=llm.model, research_run_id=run_id,
+                             input_summary=f"{len(f_lines)} findings, {len(c_lines)} channels, {len(s_lines)} shipping lines")
+        ex_id = ex.id
+    try:
+        plan, usage = with_retries(lambda: llm.structured(system=PLAN_SYSTEM, prompt=prompt, output_model=ChannelLogisticsPlan))
+    except Exception as e:  # noqa: BLE001
+        with session_scope() as db:
+            finish_execution(db.get(AgentExecution, ex_id), error=str(e)[:2000])
+        _update_step(run_id, "plan", status="failed", error=str(e)[:1000], finished_at=datetime.now(timezone.utc).isoformat())
+        return
+    _add_run_usage(run_id, usage)
+
+    def ids(refs: list[str]) -> list[str]:
+        return [str(fmap[r].id) for r in refs if r in fmap]
+
+    content = plan.model_dump()
+    for pick in content["launch_channels"]:
+        pick["finding_ids"] = ids(pick.pop("finding_refs"))
+    for r in content["risks"]:
+        r["finding_ids"] = ids(r.pop("finding_refs"))
+    content["shipping_finding_ids"] = ids(content.pop("shipping_finding_refs"))
+    content["research_run_id"] = str(run_id)
+    content["generated_by"] = {"model": usage.model or llm.model, "generated_at": datetime.now(timezone.utc).isoformat()}
+
+    with session_scope() as db:
+        snap = AnalysisSnapshot(project_id=project_id, kind="channel_logistics_plan", content=content, agent_execution_id=ex_id)
+        db.add(snap)
+        for n in plan.next_steps:
+            db.add(Recommendation(project_id=project_id, source="research", title=n.action[:300], body=n.rationale,
+                                  priority=n.priority, research_run_id=run_id))
+        ex = db.get(AgentExecution, ex_id)
+        apply_usage(ex, usage)
+        finish_execution(ex, output={"launch_channels": [p.channel for p in plan.launch_channels]})
+        audit.record(db, "channel_plan.created", user_id=user_id, project_id=project_id, actor="agent:supervisor",
+                     entity_type="analysis_snapshot", entity_id=snap.id)
+    _update_step(run_id, "plan", status="completed", finished_at=datetime.now(timezone.utc).isoformat())
 
 
 def recover_interrupted_runs() -> int:

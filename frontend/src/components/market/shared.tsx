@@ -25,6 +25,7 @@ export function RunStatusBadge({ status }: { status: ResearchRun["status"] }) {
 export const KIND_LABEL: Record<string, string> = {
   market_opportunity: "Market opportunity",
   competitor_discovery: "Competitor discovery",
+  channels_logistics: "Channels & shipping",
 };
 
 export const ATTRACTIVENESS_META: Record<string, { label: string; tone: Tone; help: string }> = {
@@ -58,6 +59,7 @@ export const SECTIONS = [
   "channels",
   "risks",
   "regulatory",
+  "logistics",
   "other",
 ];
 

@@ -42,6 +42,12 @@ export function ProductForm({
     status: product?.status ?? ("idea" as Product["status"]),
     inventory_on_hand: product?.inventory_on_hand?.toString() ?? "",
     reorder_point: product?.reorder_point?.toString() ?? "",
+    units_per_carton: product?.units_per_carton?.toString() ?? "",
+    carton_length_cm: product?.carton_length_cm?.toString() ?? "",
+    carton_width_cm: product?.carton_width_cm?.toString() ?? "",
+    carton_height_cm: product?.carton_height_cm?.toString() ?? "",
+    carton_gross_weight_kg: product?.carton_gross_weight_kg?.toString() ?? "",
+    unit_weight_kg: product?.unit_weight_kg?.toString() ?? "",
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +69,12 @@ export function ProductForm({
       status: f.status,
       inventory_on_hand: optNum(f.inventory_on_hand),
       reorder_point: optNum(f.reorder_point),
+      units_per_carton: optNum(f.units_per_carton),
+      carton_length_cm: optNum(f.carton_length_cm),
+      carton_width_cm: optNum(f.carton_width_cm),
+      carton_height_cm: optNum(f.carton_height_cm),
+      carton_gross_weight_kg: optNum(f.carton_gross_weight_kg),
+      unit_weight_kg: optNum(f.unit_weight_kg),
     };
     try {
       const saved = product ? await patch<Product>(`/api/products/${product.id}`, body) : await post<Product>(`/api/projects/${projectId}/products`, body);
@@ -117,6 +129,18 @@ export function ProductForm({
           <Input type="number" min={0} step="1" value={f.reorder_point} onChange={set("reorder_point")} />
         </Field>
       </div>
+      <fieldset className="rounded-lg border border-slate-200 p-3">
+        <legend className="px-1 text-xs font-semibold text-slate-600">Packaging (used by the shipping calculator)</legend>
+        <p className="mb-2 text-[11px] text-slate-500">Ask your supplier for the export carton size and packed weight.</p>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Field label="Units per carton"><Input type="number" min={1} step="1" value={f.units_per_carton} onChange={set("units_per_carton")} /></Field>
+          <Field label="Carton gross weight (kg)"><Input type="number" min={0} step="any" value={f.carton_gross_weight_kg} onChange={set("carton_gross_weight_kg")} /></Field>
+          <Field label="Unit weight (kg)"><Input type="number" min={0} step="any" value={f.unit_weight_kg} onChange={set("unit_weight_kg")} /></Field>
+          <Field label="Carton length (cm)"><Input type="number" min={0} step="any" value={f.carton_length_cm} onChange={set("carton_length_cm")} /></Field>
+          <Field label="Carton width (cm)"><Input type="number" min={0} step="any" value={f.carton_width_cm} onChange={set("carton_width_cm")} /></Field>
+          <Field label="Carton height (cm)"><Input type="number" min={0} step="any" value={f.carton_height_cm} onChange={set("carton_height_cm")} /></Field>
+        </div>
+      </fieldset>
       {error && <Alert tone="red">{error}</Alert>}
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="secondary" onClick={onCancel}>

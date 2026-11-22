@@ -8,7 +8,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from .enums import BrandKind, SupplierVerification, VerificationStatus
+from .enums import BrandKind, ChannelStatus, ChannelType, RateBasis, ShippingMode, SupplierVerification, VerificationStatus
 
 
 class ORM(BaseModel):
@@ -94,7 +94,7 @@ class ProjectOut(ORM):
 
 
 class ResearchStartIn(BaseModel):
-    kind: Literal["market_opportunity", "competitor_discovery"] = "market_opportunity"
+    kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics"] = "market_opportunity"
     category: str | None = None
     geography: str | None = None
     budget_usd: float | None = Field(None, ge=0)
@@ -417,6 +417,12 @@ class ProductIn(BaseModel):
     status: Literal["idea", "sampling", "approved", "listed", "retired"] = "idea"
     inventory_on_hand: int | None = Field(None, ge=0)
     reorder_point: int | None = Field(None, ge=0)
+    unit_weight_kg: float | None = Field(None, ge=0)
+    units_per_carton: int | None = Field(None, ge=1)
+    carton_length_cm: float | None = Field(None, gt=0)
+    carton_width_cm: float | None = Field(None, gt=0)
+    carton_height_cm: float | None = Field(None, gt=0)
+    carton_gross_weight_kg: float | None = Field(None, gt=0)
 
 
 class ProductPatch(BaseModel):
@@ -432,6 +438,13 @@ class ProductPatch(BaseModel):
     inventory_on_hand: int | None = None
     reorder_point: int | None = None
     listing_draft: dict[str, Any] | None = None
+    unit_weight_kg: float | None = Field(None, ge=0)
+    units_per_carton: int | None = Field(None, ge=1)
+    carton_length_cm: float | None = Field(None, gt=0)
+    carton_width_cm: float | None = Field(None, gt=0)
+    carton_height_cm: float | None = Field(None, gt=0)
+    carton_gross_weight_kg: float | None = Field(None, gt=0)
+
 
 
 class ProductOut(ORM):
@@ -448,6 +461,12 @@ class ProductOut(ORM):
     inventory_on_hand: int | None
     reorder_point: int | None
     listing_draft: dict[str, Any] | None
+    unit_weight_kg: float | None
+    units_per_carton: int | None
+    carton_length_cm: float | None
+    carton_width_cm: float | None
+    carton_height_cm: float | None
+    carton_gross_weight_kg: float | None
     created_at: datetime
 
 
@@ -592,3 +611,132 @@ class AuditEventOut(ORM):
     entity_type: str | None
     entity_id: str | None
     details: dict[str, Any]
+
+
+# ----------------------------------------------------------------------------- shipping & channels
+
+
+class ShippingOptionIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    leg: Literal["international", "domestic"] = "international"
+    mode: ShippingMode
+    provider: str | None = None
+    origin: str | None = None
+    destination: str | None = None
+    rate_basis: RateBasis
+    rate: float | None = Field(None, ge=0)
+    rate_high: float | None = Field(None, ge=0)
+    currency: str = "USD"
+    min_charge: float | None = Field(None, ge=0)
+    fixed_fees: float | None = Field(None, ge=0)
+    volumetric_divisor: int | None = Field(None, ge=1000, le=10000)
+    transit_days_min: int | None = Field(None, ge=0)
+    transit_days_max: int | None = Field(None, ge=0)
+    includes_duties: bool = False
+    basis: Literal["assumption", "quote", "sourced_research"] = "assumption"
+    source_url: str | None = None
+    quote_date: date | None = None
+    valid_until: date | None = None
+    notes: str | None = None
+
+
+class ShippingOptionOut(ORM):
+    id: uuid.UUID
+    name: str
+    leg: str
+    mode: str
+    provider: str | None
+    origin: str | None
+    destination: str | None
+    rate_basis: str
+    rate: float | None
+    rate_high: float | None
+    currency: str
+    min_charge: float | None
+    fixed_fees: float | None
+    volumetric_divisor: int | None
+    transit_days_min: int | None
+    transit_days_max: int | None
+    includes_duties: bool
+    basis: str
+    source_url: str | None
+    quote_date: date | None
+    valid_until: date | None
+    notes: str | None
+    research_run_id: uuid.UUID | None
+    created_at: datetime
+
+
+class PackagingIn(BaseModel):
+    units_per_carton: int = Field(gt=0)
+    carton_length_cm: float = Field(gt=0)
+    carton_width_cm: float = Field(gt=0)
+    carton_height_cm: float = Field(gt=0)
+    carton_gross_weight_kg: float = Field(gt=0)
+
+
+class ShippingCompareIn(BaseModel):
+    units: int = Field(gt=0, le=1_000_000)
+    product_id: uuid.UUID | None = None
+    packaging: PackagingIn | None = None
+    option_ids: list[uuid.UUID] | None = None
+
+
+class SalesChannelIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    channel_type: ChannelType = "marketplace"
+    platform: str | None = None
+    status: ChannelStatus = "considering"
+    price: float | None = Field(None, ge=0)
+    commission_pct: float | None = Field(None, ge=0, le=100)
+    per_order_fee: float | None = Field(None, ge=0)
+    payment_fee_pct: float | None = Field(None, ge=0, le=100)
+    payment_fee_fixed: float | None = Field(None, ge=0)
+    monthly_fee: float | None = Field(None, ge=0)
+    fulfillment_per_order: float | None = Field(None, ge=0)
+    marketing_cac: float | None = Field(None, ge=0)
+    return_rate_pct: float | None = Field(None, ge=0, le=100)
+    expected_monthly_units: int | None = Field(None, ge=1)
+    fee_basis: Literal["assumption", "verified", "sourced_research"] = "assumption"
+    fee_source_url: str | None = None
+    fees_checked_at: date | None = None
+    audience_fit: str | None = None
+    requirements: str | None = None
+    pros: list[str] = []
+    cons: list[str] = []
+    notes: str | None = None
+
+
+class SalesChannelOut(ORM):
+    id: uuid.UUID
+    name: str
+    channel_type: str
+    platform: str | None
+    status: str
+    price: float | None
+    commission_pct: float | None
+    per_order_fee: float | None
+    payment_fee_pct: float | None
+    payment_fee_fixed: float | None
+    monthly_fee: float | None
+    fulfillment_per_order: float | None
+    marketing_cac: float | None
+    return_rate_pct: float | None
+    expected_monthly_units: int | None
+    fee_basis: str
+    fee_source_url: str | None
+    fees_checked_at: date | None
+    audience_fit: str | None
+    requirements: str | None
+    pros: list[str]
+    cons: list[str]
+    notes: str | None
+    research_run_id: uuid.UUID | None
+    created_at: datetime
+
+
+class ScenarioOverridesIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    overrides: dict[str, float]
+    input_basis: dict[str, Literal["assumption", "supplier_quote", "actual", "sourced_research"]] = {}
+    notes: str | None = None

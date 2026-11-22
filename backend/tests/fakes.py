@@ -5,11 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 from app.services.agents.research_schemas import (
+    ExtractedChannel,
     ExtractedCompetitor,
     ExtractedFinding,
     ExtractedMetric,
     ExtractedPrice,
     ExtractedSegment,
+    ExtractedShipping,
     GapItem,
     NextStep,
     OpportunitySynthesis,
@@ -43,6 +45,11 @@ class FakeLLM:
                           cited_text="An estimated 1.2 million adults took part in social dance in 2025.")]),
             (" Brand A lists a practice dress at $79.",
              [WebCitation(url="https://branda.example.com/dress", title="Brand A Dress", cited_text="Practice Dress - $79.00")]),
+            (" The marketplace charges a 17% referral fee on clothing.",
+             [WebCitation(url="https://market.example.com/fees", title="Seller fees", cited_text="Clothing & Accessories: 17% referral fee")]),
+            (" Air freight costs about $5.50 to $7.00 per kg.",
+             [WebCitation(url="https://freight.example.com/rates", title="Freight index",
+                          cited_text="Air freight China to US: $5.50-$7.00 per kg, 5-8 days")]),
         ]
         r.hits = [WebSearchHit(url="https://uncited.example.net", title="Uncited result", page_age="2 months ago")]
         r.usage = LLMUsage(input_tokens=1000, output_tokens=200, search_requests=2, cost_usd=0.03, model=self.model)
@@ -51,6 +58,35 @@ class FakeLLM:
     def structured(self, *, system: str, prompt: str, output_model: type, max_tokens: int = 16000):
         self.calls.append(f"structured:{output_model.__name__}")
         usage = LLMUsage(input_tokens=500, output_tokens=300, cost_usd=0.01, model=self.model)
+        if output_model is StepExtraction and "Populate channels" in prompt:
+            return StepExtraction(
+                findings=[ExtractedFinding(section="channels", claim="The marketplace charges a 17% referral fee on clothing.", detail=None,
+                                           evidence_type="sourced", confidence="high", source_refs=["S3"],
+                                           supporting_quote="17% referral fee", metric=None)],
+                segments=[], competitors=[], shipping_benchmarks=[],
+                channels=[
+                    ExtractedChannel(name="Example Marketplace", platform="Example", channel_type="marketplace", commission_pct=17,
+                                     per_order_fee=0.99, payment_fee_pct=None, payment_fee_fixed=None, monthly_fee=None,
+                                     fee_source_ref="S3", requirements="Category approval may apply", audience_fit=None, source_refs=["S3"]),
+                    ExtractedChannel(name="Studio wholesale", platform=None, channel_type="wholesale", commission_pct=None, per_order_fee=None,
+                                     payment_fee_pct=None, payment_fee_fixed=None, monthly_fee=None, fee_source_ref=None,
+                                     requirements=None, audience_fit="Instructors recommend outfits", source_refs=[]),
+                ],
+                evidence_gaps=[],
+            ), usage
+        if output_model is StepExtraction and "Populate shipping_benchmarks" in prompt:
+            return StepExtraction(
+                findings=[], segments=[], competitors=[], channels=[],
+                shipping_benchmarks=[
+                    ExtractedShipping(mode="air_freight", leg="international", origin="China", destination="US", rate_low=5.5, rate_high=7.0,
+                                      currency="USD", rate_basis="per_kg", transit_days_min=5, transit_days_max=8, as_of="2026",
+                                      source_ref="S4", notes=None),
+                    ExtractedShipping(mode="sea_lcl", leg="international", origin="China", destination="US", rate_low=88.0, rate_high=None,
+                                      currency="USD", rate_basis="per_cbm", transit_days_min=None, transit_days_max=None, as_of=None,
+                                      source_ref="S4", notes="invented"),
+                ],
+                evidence_gaps=[],
+            ), usage
         if output_model is StepExtraction:
             return StepExtraction(
                 findings=[
@@ -73,6 +109,7 @@ class FakeLLM:
                                                                         product_url="https://branda.example.com/dress", source_ref="S2"),
                                                          ExtractedPrice(product_name="Ghost Skirt", price=55.0, currency="USD",
                                                                         product_url=None, source_ref="S42")])],
+                channels=[], shipping_benchmarks=[],
                 evidence_gaps=["No category-specific market size found."],
             ), usage
         if output_model is OpportunitySynthesis:

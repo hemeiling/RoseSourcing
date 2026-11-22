@@ -355,8 +355,81 @@ class ProductConcept(IdMixin, TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(32), default="idea")  # idea | sampling | approved | listed | retired
     inventory_on_hand: Mapped[int | None] = mapped_column(Integer)
     reorder_point: Mapped[int | None] = mapped_column(Integer)
+    # Packaging specs used by the shipping calculator
+    unit_weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
+    units_per_carton: Mapped[int | None] = mapped_column(Integer)
+    carton_length_cm: Mapped[Decimal | None] = mapped_column(Numeric(8, 1))
+    carton_width_cm: Mapped[Decimal | None] = mapped_column(Numeric(8, 1))
+    carton_height_cm: Mapped[Decimal | None] = mapped_column(Numeric(8, 1))
+    carton_gross_weight_kg: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
     # Generated listing draft: {title, description, bullets[], tags[], seo_title, seo_description}
     listing_draft: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+
+
+class ShippingOption(IdMixin, TimestampMixin, Base):
+    """A freight or fulfillment option: a forwarder quote, a carrier rate, or a sourced benchmark."""
+
+    __tablename__ = "shipping_options"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("business_projects.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    leg: Mapped[str] = mapped_column(String(16), default="international")  # international | domestic
+    # express_courier | air_freight | sea_lcl | sea_fcl | rail | truck | domestic_parcel | fulfillment_3pl | marketplace_fulfillment
+    mode: Mapped[str] = mapped_column(String(32))
+    provider: Mapped[str | None] = mapped_column(String(200))
+    origin: Mapped[str | None] = mapped_column(String(200))
+    destination: Mapped[str | None] = mapped_column(String(200))
+    rate_basis: Mapped[str] = mapped_column(String(16))  # per_kg | per_cbm | per_shipment | per_unit | per_order
+    rate: Mapped[Decimal | None] = mapped_column(Money)
+    rate_high: Mapped[Decimal | None] = mapped_column(Money)  # upper bound when only a range is known
+    currency: Mapped[str] = mapped_column(String(8), default="USD")
+    min_charge: Mapped[Decimal | None] = mapped_column(Money)
+    fixed_fees: Mapped[Decimal | None] = mapped_column(Money)  # per shipment: brokerage, docs, delivery
+    volumetric_divisor: Mapped[int | None] = mapped_column(Integer)  # cm3 per kg; blank = mode default
+    transit_days_min: Mapped[int | None] = mapped_column(Integer)
+    transit_days_max: Mapped[int | None] = mapped_column(Integer)
+    includes_duties: Mapped[bool] = mapped_column(Boolean, default=False)  # DDP
+    basis: Mapped[str] = mapped_column(String(32), default="assumption")  # assumption | quote | sourced_research
+    source_url: Mapped[str | None] = mapped_column(Text)
+    quote_date: Mapped[date | None] = mapped_column(Date)
+    valid_until: Mapped[date | None] = mapped_column(Date)
+    notes: Mapped[str | None] = mapped_column(Text)
+    evidence_source_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("evidence_sources.id", ondelete="SET NULL"))
+    research_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("research_runs.id", ondelete="SET NULL"))
+
+
+class SalesChannel(IdMixin, TimestampMixin, Base):
+    """A place to sell, with its fee structure. Blank economics fall back to the base cost scenario."""
+
+    __tablename__ = "sales_channels"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("business_projects.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    # own_store | marketplace | social_commerce | wholesale | retail_partner | events | other
+    channel_type: Mapped[str] = mapped_column(String(32), default="marketplace")
+    platform: Mapped[str | None] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(16), default="considering")  # considering | testing | active | paused | rejected
+    price: Mapped[Decimal | None] = mapped_column(Money)  # selling price on this channel (wholesale price for wholesale)
+    commission_pct: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
+    per_order_fee: Mapped[Decimal | None] = mapped_column(Money)
+    payment_fee_pct: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
+    payment_fee_fixed: Mapped[Decimal | None] = mapped_column(Money)
+    monthly_fee: Mapped[Decimal | None] = mapped_column(Money)
+    fulfillment_per_order: Mapped[Decimal | None] = mapped_column(Money)
+    marketing_cac: Mapped[Decimal | None] = mapped_column(Money)
+    return_rate_pct: Mapped[Decimal | None] = mapped_column(Numeric(6, 3))
+    expected_monthly_units: Mapped[int | None] = mapped_column(Integer)
+    # assumption | verified (you checked the fee page) | sourced_research (fee found verbatim in a retrieved source)
+    fee_basis: Mapped[str] = mapped_column(String(32), default="assumption")
+    fee_source_url: Mapped[str | None] = mapped_column(Text)
+    fees_checked_at: Mapped[date | None] = mapped_column(Date)
+    audience_fit: Mapped[str | None] = mapped_column(Text)
+    requirements: Mapped[str | None] = mapped_column(Text)
+    pros: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    cons: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    notes: Mapped[str | None] = mapped_column(Text)
+    evidence_source_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("evidence_sources.id", ondelete="SET NULL"))
+    research_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("research_runs.id", ondelete="SET NULL"))
 
 
 class CostScenario(IdMixin, TimestampMixin, Base):

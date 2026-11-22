@@ -23,12 +23,16 @@ from ...models import (
     CostScenario,
     Experiment,
     MarketOpportunity,
+    ProductConcept,
     Recommendation,
     ResearchFinding,
     ResearchRun,
+    SalesChannel,
+    ShippingOption,
     Supplier,
     User,
 )
+from ..logistics import PackagingSpec, Shipment, channel_economics, compare_shipping
 from ..llm.anthropic_provider import get_llm
 from ..llm.base import ToolSpec
 from ..unit_economics import UnitEconomicsInputs, calculate
@@ -42,6 +46,7 @@ How to work:
 - Ground answers in retrieved records. When you use a research finding, say what kind of evidence it is (sourced evidence, AI inference, assumption, or data unavailable) and link the source as [title](url) when one exists.
 - Separate clearly: what the stored evidence shows, what you infer, and what is unknown. If the data needed is missing, say so and suggest how to get it (e.g. run market research, add supplier quotes).
 - Never invent market sizes, prices, supplier quotes, reviews or growth rates. For profit or margin questions, call calculate_unit_economics - do not do the math yourself - and state which inputs are assumptions.
+- For "where should I sell" or "how should I ship" questions, use compare_sales_channels and compare_shipping_options; say whether each fee or rate is verified, sourced, or an assumption.
 - Supplier verification status is set by the founder. Never describe an unverified supplier as vetted, certified or reliable.
 - Write actions: only create_recommendation and save_cost_scenario change data. Only say something was saved if the tool result returns "ok": true with an id. You cannot publish listings, buy inventory, launch campaigns, or contact suppliers - those require the founder to act in the app with explicit approval.
 - Be concise and practical. Use short sections or bullets. End with a clear next step when useful."""
@@ -82,6 +87,11 @@ class ListRecsIn(BaseModel):
     status: str | None = None
 
 
+class ShippingIn(BaseModel):
+    units: int = Field(100, ge=1, le=1_000_000, description="Shipment size in units")
+    product_id: str | None = Field(None, description="Product whose carton specs to use; defaults to the first with specs")
+
+
 TOOLS: list[ToolSpec] = [
     ToolSpec("get_project_overview", "Project parameters (category, market, budget, price hypothesis), record counts, latest research run status.",
              {"type": "object", "properties": {}, "additionalProperties": False}),
@@ -96,6 +106,11 @@ TOOLS: list[ToolSpec] = [
              {"type": "object", "properties": {}, "additionalProperties": False}),
     ToolSpec("calculate_unit_economics", "Run the deterministic unit-economics model from a saved scenario with optional overrides (e.g. retail_price). Input names: "
              + ", ".join(UnitEconomicsInputs.model_fields), CalcIn.model_json_schema()),
+    ToolSpec("compare_sales_channels", "Sales channels on file with fee structure, fee source/verification and computed per-unit "
+             "contribution on each channel (deterministic, from the latest cost scenario).",
+             {"type": "object", "properties": {}, "additionalProperties": False}),
+    ToolSpec("compare_shipping_options", "Freight and fulfillment options on file (quotes, assumptions, sourced benchmarks) with computed "
+             "cost per unit and transit time for a shipment size, using a product's carton specs.", ShippingIn.model_json_schema()),
     ToolSpec("list_recommendations", "Saved recommendations / next steps and their status.", ListRecsIn.model_json_schema()),
     ToolSpec("list_brand_concepts", "Saved brand concepts (names, positioning, personas, palettes, messaging).",
              {"type": "object", "properties": {}, "additionalProperties": False}),
@@ -237,6 +252,39 @@ class CopilotTools:
         return {"ok": True, "base_scenario": base.name if base else "built-in example defaults (all assumptions)",
                 "inputs": inputs, "input_basis": basis, "ignored_unknown_inputs": unknown, "results": results}, \
             f"Calculated unit economics{' with ' + ', '.join(f'{k}={v}' for k, v in args.overrides.items()) if args.overrides else ''}"
+
+    def t_compare_sales_channels(self, _: dict) -> tuple[dict, str]:
+        chans = self.db.scalars(select(SalesChannel).where(SalesChannel.project_id == self.project.id)).all()
+        econ = channel_economics(self.db, self.project, list(chans))
+        meta = {str(c.id): c for c in chans}
+        for r in econ["rows"]:
+            c = meta[r["channel_id"]]
+            self._ref("channel", c.id, c.name, c.fee_source_url)
+            r.update({"requirements": c.requirements, "audience_fit": c.audience_fit, "pros": c.pros, "cons": c.cons})
+            r.pop("inputs", None)
+        return {"ok": True, **econ, "note": "fee_basis: verified = founder checked the fee page; sourced_research = fee found in a "
+                "retrieved source; assumption = unconfirmed."}, f"Compared {len(econ['rows'])} sales channels"
+
+    def t_compare_shipping_options(self, raw: dict) -> tuple[dict, str]:
+        args = ShippingIn(**raw)
+        options = self.db.scalars(select(ShippingOption).where(ShippingOption.project_id == self.project.id)).all()
+        for o in options:
+            self._ref("shipping", o.id, o.name, o.source_url)
+        q = select(ProductConcept).where(ProductConcept.project_id == self.project.id, ProductConcept.units_per_carton.is_not(None))
+        if args.product_id:
+            q = q.where(ProductConcept.id == uuid.UUID(args.product_id))
+        product = self.db.scalars(q).first()
+        fields = ("units_per_carton", "carton_length_cm", "carton_width_cm", "carton_height_cm", "carton_gross_weight_kg")
+        if product is None or any(getattr(product, f) is None for f in fields):
+            listing = [{"name": o.name, "leg": o.leg, "mode": o.mode, "basis": o.basis, "rate": float(o.rate) if o.rate is not None else None,
+                        "rate_high": float(o.rate_high) if o.rate_high is not None else None, "rate_basis": o.rate_basis,
+                        "currency": o.currency, "transit_days": [o.transit_days_min, o.transit_days_max], "source_url": o.source_url}
+                       for o in options]
+            return {"ok": True, "options": listing, "note": "No product has complete carton specs, so per-unit freight was not computed. "
+                    "Add carton dimensions/weight to a product in Commerce."}, f"Listed {len(options)} shipping options"
+        spec = PackagingSpec(**{f: float(getattr(product, f)) for f in fields})
+        result = compare_shipping(list(options), Shipment(units=args.units, packaging=spec))
+        return {"ok": True, "product": product.name, **result}, f"Compared shipping for {args.units} units of {product.name}"
 
     def t_list_recommendations(self, raw: dict) -> tuple[dict, str]:
         args = ListRecsIn(**raw)

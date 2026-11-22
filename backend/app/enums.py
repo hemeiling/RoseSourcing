@@ -20,11 +20,12 @@ FindingSection = Literal[
     "channels",
     "risks",
     "regulatory",
+    "logistics",
     "other",
 ]
 
 RunStatus = Literal["queued", "running", "completed", "completed_with_errors", "failed", "interrupted", "cancelled"]
-RunKind = Literal["market_opportunity", "competitor_discovery"]
+RunKind = Literal["market_opportunity", "competitor_discovery", "channels_logistics"]
 
 SupplierVerification = Literal["unverified", "documents_received", "sample_approved", "audited"]
 SUPPLIER_VERIFICATION_LABELS = {
@@ -38,3 +39,11 @@ BrandKind = Literal["names", "positioning", "personas", "voice", "collections", 
 ScenarioType = Literal["hypothetical", "quote_based", "actual", "research_estimate"]
 InputBasis = Literal["assumption", "supplier_quote", "actual", "sourced_research"]
 ApprovalAction = Literal["publish_listing", "purchase_inventory", "launch_campaign", "send_supplier_message"]
+
+ShippingMode = Literal[
+    "express_courier", "air_freight", "sea_lcl", "sea_fcl", "rail", "truck",
+    "domestic_parcel", "fulfillment_3pl", "marketplace_fulfillment",
+]
+RateBasis = Literal["per_kg", "per_cbm", "per_shipment", "per_unit", "per_order"]
+ChannelType = Literal["own_store", "marketplace", "social_commerce", "wholesale", "retail_partner", "events", "other"]
+ChannelStatus = Literal["considering", "testing", "active", "paused", "rejected"]

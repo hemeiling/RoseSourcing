@@ -15,6 +15,7 @@ import {
   ShoppingBag,
   Swords,
   TrendingUp,
+  Truck,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -30,6 +31,7 @@ const NAV = [
   { href: "/competitors", label: "Competitor Intelligence", icon: Swords },
   { href: "/brand", label: "Brand Studio", icon: Palette },
   { href: "/suppliers", label: "Supplier Intelligence", icon: Factory },
+  { href: "/channels", label: "Shipping & Channels", icon: Truck },
   { href: "/commerce", label: "Commerce", icon: ShoppingBag },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/copilot", label: "AI Business Copilot", icon: Bot },

@@ -14,6 +14,7 @@ The core rule is **no fabricated business data**. Every research finding records
 | AI Business Copilot | P0 | Tool-calling assistant over your stored records (findings, report, competitors, suppliers, scenarios). Cites sources and only reports writes the server confirmed |
 | Brand Studio | P1 | Names, positioning, personas, voice, collections, palettes and messaging, all persisted. Image generation is planned behind an interface |
 | Supplier Intelligence | P1 | Supplier records, quotes, communication log, CSV import, landed-cost comparison, AI RFQ drafts (never sent). Verification levels are set only by you |
+| Shipping & Channels | P1 | Sales-channel fee profiles (fees marked verified, sourced or assumed) with per-channel unit economics. Freight and fulfillment options with a carton-based calculator covering chargeable/volumetric weight, sea weight-or-measure, minimum charges and rate ranges. AI research finds current fee schedules and freight benchmarks, keeps a number only if it appears in the source text, never overwrites fees you verified, and writes a launch plan. Results can be saved as cost scenarios |
 | Analytics | P1 | Unit-economics calculator with per-input source labels, saved and compared scenarios, price sensitivity, break-even, experiments, AI cost tracking |
 | Commerce | P2 | Product catalog, manual inventory, AI listing drafts, approval queue, integration contracts. Shopify, orders and campaigns are planned |
 

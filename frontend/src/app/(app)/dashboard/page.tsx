@@ -46,6 +46,7 @@ function DashboardView({ projectId }: { projectId: string }) {
     { done: c.competitors > 0, label: "Build your competitor list and price observations", href: "/competitors" },
     { done: c.suppliers > 0, label: "Add supplier quotes (manual or CSV)", href: "/suppliers" },
     { done: c.scenarios > 0, label: "Model unit economics scenarios", href: "/analytics" },
+    { done: (c.channels ?? 0) > 0, label: "Choose selling channels and a shipping plan", href: "/channels" },
     { done: c.brand_concepts > 0, label: "Explore brand concepts", href: "/brand" },
   ];
 

@@ -18,6 +18,8 @@ class UnitEconomicsInputs(BaseModel):
     fulfillment_per_unit: float = Field(6.0, ge=0, description="Domestic pick/pack/ship per order unit")
     payment_fee_pct: float = Field(2.9, ge=0, le=100)
     payment_fee_fixed: float = Field(0.30, ge=0, description="Fixed payment fee per order")
+    channel_commission_pct: float = Field(0.0, ge=0, le=100, description="Marketplace referral/commission % of the sale price")
+    channel_fee_per_order: float = Field(0.0, ge=0, description="Per-order marketplace/transaction fee")
     units_per_order: float = Field(1.0, gt=0)
     marketing_cac: float = Field(15.0, ge=0, description="Marketing cost to acquire one order")
     return_rate_pct: float = Field(10.0, ge=0, le=100)
@@ -40,6 +42,8 @@ INPUT_LABELS: dict[str, str] = {
     "fulfillment_per_unit": "Domestic fulfillment / unit",
     "payment_fee_pct": "Payment fee %",
     "payment_fee_fixed": "Payment fee fixed / order",
+    "channel_commission_pct": "Channel commission %",
+    "channel_fee_per_order": "Channel fee / order",
     "units_per_order": "Units per order",
     "marketing_cac": "Marketing CAC / order",
     "return_rate_pct": "Return rate %",
@@ -75,9 +79,12 @@ def _contribution(i: UnitEconomicsInputs, price: float) -> dict[str, float]:
     lc = landed_cost(i)["landed_cost"]
     revenue_after_returns = net_price * (1 - rr)
     payment_fees = net_price * i.payment_fee_pct / 100 + i.payment_fee_fixed / i.units_per_order
+    channel_fees = net_price * i.channel_commission_pct / 100 + i.channel_fee_per_order / i.units_per_order
     return_handling = rr * i.return_cost_per_unit
     unsellable_loss = rr * (i.unsellable_return_pct / 100) * lc
-    cm_before_marketing = revenue_after_returns - lc - i.fulfillment_per_unit - payment_fees - return_handling - unsellable_loss
+    cm_before_marketing = (
+        revenue_after_returns - lc - i.fulfillment_per_unit - payment_fees - channel_fees - return_handling - unsellable_loss
+    )
     marketing = i.marketing_cac / i.units_per_order
     cm = cm_before_marketing - marketing
     return {
@@ -86,6 +93,7 @@ def _contribution(i: UnitEconomicsInputs, price: float) -> dict[str, float]:
         "landed_cost": lc,
         "fulfillment": i.fulfillment_per_unit,
         "payment_fees": payment_fees,
+        "channel_fees": channel_fees,
         "return_handling": return_handling,
         "unsellable_loss": unsellable_loss,
         "cm_before_marketing": cm_before_marketing,

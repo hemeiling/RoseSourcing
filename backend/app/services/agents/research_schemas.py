@@ -18,6 +18,7 @@ SectionLit = Literal[
     "channels",
     "risks",
     "regulatory",
+    "logistics",
     "other",
 ]
 EvidenceLit = Literal["sourced", "ai_inference", "assumption", "unavailable"]
@@ -75,10 +76,44 @@ class ExtractedSegment(BaseModel):
     source_refs: list[str]
 
 
+class ExtractedChannel(BaseModel):
+    name: str = Field(description="e.g. 'Amazon US', 'Etsy', 'Own Shopify store', 'Wholesale to dance studios'")
+    platform: str | None
+    channel_type: Literal["own_store", "marketplace", "social_commerce", "wholesale", "retail_partner", "events", "other"]
+    commission_pct: float | None = Field(description="Referral/commission % for this category, only if stated in an excerpt")
+    per_order_fee: float | None = Field(description="Per-order or per-transaction fixed fee, only if stated")
+    payment_fee_pct: float | None = Field(description="Payment processing %, only if stated")
+    payment_fee_fixed: float | None
+    monthly_fee: float | None = Field(description="Monthly subscription/plan fee, only if stated")
+    fee_source_ref: str | None = Field(description="Dossier ref of the excerpt that states these fees")
+    requirements: str | None = Field(description="Seller requirements, category restrictions, approvals")
+    audience_fit: str | None = Field(description="Evidence of how this category's customers buy here")
+    source_refs: list[str]
+
+
+class ExtractedShipping(BaseModel):
+    mode: Literal["express_courier", "air_freight", "sea_lcl", "sea_fcl", "rail", "truck", "domestic_parcel",
+                  "fulfillment_3pl", "marketplace_fulfillment"]
+    leg: Literal["international", "domestic"]
+    origin: str | None
+    destination: str | None
+    rate_low: float | None
+    rate_high: float | None
+    currency: str
+    rate_basis: Literal["per_kg", "per_cbm", "per_shipment", "per_unit", "per_order"]
+    transit_days_min: int | None
+    transit_days_max: int | None
+    as_of: str | None = Field(description="Date/period the rate refers to, as stated by the source")
+    source_ref: str = Field(description="Dossier ref whose excerpt states this rate")
+    notes: str | None
+
+
 class StepExtraction(BaseModel):
     findings: list[ExtractedFinding]
     segments: list[ExtractedSegment]
     competitors: list[ExtractedCompetitor]
+    channels: list[ExtractedChannel]
+    shipping_benchmarks: list[ExtractedShipping]
     evidence_gaps: list[str] = Field(description="Important questions the evidence did not answer")
 
 
@@ -147,4 +182,33 @@ class OpportunitySynthesis(BaseModel):
     unit_economics: UEProposal
     risks: list[RiskItem]
     evidence_gaps: list[GapItem]
+    next_steps: list[NextStep]
+
+
+# ----------------------------------------------------------------------------- channel & logistics plan
+
+
+class ChannelPick(BaseModel):
+    channel: str
+    role: Literal["primary", "secondary", "test"]
+    rationale: str
+    finding_refs: list[str]
+
+
+class ChannelSkip(BaseModel):
+    channel: str
+    reason: str
+
+
+class ChannelLogisticsPlan(BaseModel):
+    summary: str
+    launch_channels: list[ChannelPick]
+    channels_to_defer: list[ChannelSkip]
+    first_order_shipping: str = Field(description="Recommended freight mode for the first (sample/small) order and why")
+    replenishment_shipping: str = Field(description="Recommended mode once demand is proven")
+    shipping_finding_refs: list[str]
+    fulfillment: str = Field(description="How to fulfill domestic orders at launch (self, 3PL, marketplace fulfillment)")
+    customs_and_compliance: list[str] = Field(description="Import/labeling steps to confirm, each phrased as an action")
+    risks: list[RiskItem]
+    open_questions: list[GapItem]
     next_steps: list[NextStep]
