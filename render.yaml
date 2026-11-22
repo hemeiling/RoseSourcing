@@ -1,0 +1,53 @@
+# Render Blueprint: one web service (FastAPI + static Next.js) and one PostgreSQL database.
+# Plans: "free" web services sleep after inactivity and free Postgres expires after 30 days.
+# For production use, change the plans (e.g. web: 0.5c-512mb, database: 0.1c-256mb).
+services:
+  - type: web
+    name: ai-commerce-os
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-commerce-os-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      # Required for all AI features. Entered once in the Render dashboard; never committed.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: claude-opus-5-5
+      - key: LLM_EFFORT
+        value: medium
+      - key: RESEARCH_PROVIDER
+        value: anthropic_web_search
+      - key: MAX_SEARCHES_PER_STEP
+        value: "5"
+      - key: MAX_RESEARCH_COST_USD
+        value: "5"
+      # Sign-ups: the first account becomes the owner; later sign-ups need one of these.
+      - key: SIGNUP_ENABLED
+        value: "false"
+      - key: ALLOWED_SIGNUP_EMAILS
+        sync: false
+      # Optional alternative research providers
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: BRAVE_SEARCH_API_KEY
+        sync: false
+
+databases:
+  - name: ai-commerce-os-db
+    plan: free
+    region: oregon
+    databaseName: aicommerce
+    user: aicommerce
+    postgresMajorVersion: "17"

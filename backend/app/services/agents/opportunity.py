@@ -1,0 +1,748 @@
+"""Opportunity Research Agent + Competitor discovery: a fixed, auditable research workflow.
+
+Each step: (1) gather evidence with the configured research provider, (2) extract structured
+findings with the LLM, (3) validate every finding against the evidence the provider actually
+returned, (4) persist. Steps are bounded (searches, attempts, cost budget); there is no open-ended loop.
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import traceback
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from decimal import Decimal
+from typing import Any
+
+from sqlalchemy import select
+
+from ... import audit
+from ...config import get_settings
+from ...db import session_scope
+from ...models import (
+    AgentExecution,
+    BusinessProject,
+    Competitor,
+    CompetitorProduct,
+    CostScenario,
+    CustomerSegment,
+    EvidenceSource,
+    FindingEvidence,
+    MarketOpportunity,
+    PriceObservation,
+    Recommendation,
+    ResearchFinding,
+    ResearchRun,
+)
+from ..llm.anthropic_provider import get_llm
+from ..llm.base import LLMError, LLMNotConfigured, LLMRefusal, LLMUsage
+from ..research.providers import EvidenceBundle, get_research_provider
+from ..unit_economics import UnitEconomicsInputs, calculate
+from .research_schemas import ExtractedFinding, OpportunitySynthesis, StepExtraction
+from .runtime import apply_usage, finish_execution, start_execution, with_retries
+
+log = logging.getLogger(__name__)
+
+_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="research")
+
+COUNTRY_CODES = {
+    "united states": "US", "usa": "US", "us": "US", "u.s.": "US", "america": "US",
+    "canada": "CA", "united kingdom": "GB", "uk": "GB", "australia": "AU", "germany": "DE",
+    "france": "FR", "japan": "JP", "china": "CN", "mexico": "MX", "spain": "ES", "italy": "IT",
+}
+
+
+def country_code(name: str | None) -> str | None:
+    if not name:
+        return None
+    return COUNTRY_CODES.get(name.strip().lower())
+
+
+# ----------------------------------------------------------------------------- step definitions
+
+STEP_DEFS: dict[str, dict[str, Any]] = {
+    "market_size": {
+        "label": "Market size & growth evidence",
+        "sections": ["market_size", "growth", "other"],
+        "question": (
+            "What credible evidence exists about the size and growth of the {category} market in {country}? "
+            "If category-specific figures are unavailable, look for the closest broader category and say so explicitly. "
+            "Also look for demand indicators such as participation numbers, number of relevant studios/clubs/events, or search interest."
+        ),
+        "hints": [
+            "{category} market size {country}",
+            "{category} market growth rate forecast",
+            "{category} participation statistics {country}",
+            "{category} industry trends {year}",
+        ],
+    },
+    "customers": {
+        "label": "Customer segments & unmet needs",
+        "sections": ["customer_segments", "unmet_needs", "channels"],
+        "question": (
+            "Who buys {category} in {country}? Identify distinct customer segments (the founder's hypothesis: {customers}), "
+            "what each values, purchase drivers, common complaints and unmet needs (fit, sizing, quality, comfort, price, availability, style), "
+            "and where they shop. Use customer reviews, forums and community discussions as evidence where available."
+        ),
+        "hints": [
+            "{category} reviews complaints fit sizing",
+            "{category} forum where to buy",
+            "{category} for beginners what to wear",
+            "best {category} brands reddit",
+        ],
+    },
+    "competitors": {
+        "label": "Competitors & pricing",
+        "sections": ["competitors", "pricing", "differentiation"],
+        "question": (
+            "Which brands and retailers sell {category} to customers in {country}? For each, find the website, positioning, "
+            "sales channels, and currently listed prices for representative products (with product page URLs). "
+            "Prioritise direct competitors around the {price_range} price range plus adjacent tiers. {focus}"
+        ),
+        "hints": [
+            "{category} brands {country}",
+            "{category} online store prices",
+            "buy {category} {country}",
+            "{category} amazon best sellers",
+        ],
+    },
+    "sourcing": {
+        "label": "Sourcing, duties & cost benchmarks",
+        "sections": ["sourcing_costs", "regulatory"],
+        "question": (
+            "What does it cost to manufacture {category} in {sourcing} and import it into {country}? Find evidence for typical "
+            "factory unit price ranges and MOQs, sample costs, the likely tariff classification(s) and duty rates "
+            "(including any additional tariffs currently applied to goods from {sourcing}), and typical freight cost per unit or per kg. "
+            "Cite official sources (tariff schedule, customs agency) for duty rates and say when rates are subject to change."
+        ),
+        "hints": [
+            "{category} manufacturer {sourcing} price MOQ",
+            "HTS code {category} duty rate",
+            "additional tariffs apparel imports from {sourcing} {year}",
+            "air freight vs sea freight cost per kg {sourcing} to {country}",
+        ],
+    },
+    "risks": {
+        "label": "Risks, compliance & channels",
+        "sections": ["risks", "regulatory", "channels"],
+        "question": (
+            "What are the main risks and requirements for launching a {category} brand in {country} with a starting budget of about "
+            "{budget}? Consider trade-policy and tariff changes, labeling and compliance rules (e.g. fiber content, care labels, "
+            "country of origin), seasonality, sizing and returns, marketplace competition, intellectual property, and supplier quality risk."
+        ),
+        "hints": [
+            "textile labeling requirements {country}",
+            "{category} return rate sizing issues",
+            "{category} seasonality demand",
+            "small apparel brand import risks {sourcing}",
+        ],
+    },
+}
+
+RUN_STEPS = {
+    "market_opportunity": ["market_size", "customers", "competitors", "sourcing", "risks", "synthesis"],
+    "competitor_discovery": ["competitors"],
+}
+
+STEP_LABELS = {k: v["label"] for k, v in STEP_DEFS.items()} | {"synthesis": "Opportunity report synthesis"}
+
+
+def initial_steps(kind: str) -> list[dict[str, Any]]:
+    return [
+        {"key": k, "label": STEP_LABELS[k], "status": "pending", "attempts": 0, "error": None,
+         "started_at": None, "finished_at": None, "findings_count": 0, "sources_count": 0}
+        for k in RUN_STEPS[kind]
+    ]
+
+
+def _fmt_money(v: Any) -> str:
+    return f"${float(v):,.0f}" if v is not None else "an unspecified amount"
+
+
+def project_context(project: BusinessProject, params: dict[str, Any]) -> dict[str, str]:
+    pmin, pmax = project.price_min, project.price_max
+    price_range = f"${float(pmin):.0f}-${float(pmax):.0f}" if pmin is not None and pmax is not None else "target"
+    return {
+        "category": params.get("category") or project.product_category,
+        "country": params.get("geography") or project.target_country,
+        "sourcing": project.sourcing_country or "the sourcing region",
+        "budget": _fmt_money(params.get("budget_usd", project.budget_usd)),
+        "customers": project.target_customers or "not specified",
+        "price_range": price_range,
+        "year": str(datetime.now(timezone.utc).year),
+        "focus": (f"Additional focus from the user: {params['focus']}" if params.get("focus") else ""),
+    }
+
+
+def context_block(ctx: dict[str, str]) -> str:
+    return (
+        f"Product category: {ctx['category']}\nTarget market: {ctx['country']}\nSourcing region: {ctx['sourcing']}\n"
+        f"Starting budget: {ctx['budget']}\nHypothesised customers: {ctx['customers']}\n"
+        f"Price hypothesis: {ctx['price_range']}\nToday: {datetime.now(timezone.utc).date().isoformat()}\n"
+        "Note: the customers and price range are the founder's untested assumptions, not facts."
+    )
+
+
+# ----------------------------------------------------------------------------- validation
+
+_NUM_RE = re.compile(r"\d[\d,]*(?:\.\d+)?")
+
+
+def _norm(s: str) -> str:
+    return re.sub(r"\s+", " ", s.replace("’", "'").replace("“", '"').replace("”", '"')).strip().lower()
+
+
+def _numbers(s: str) -> set[str]:
+    out = set()
+    for m in _NUM_RE.findall(s or ""):
+        n = m.replace(",", "").rstrip(".")
+        if len(n.replace(".", "")) >= 2:
+            out.add(n)
+    return out
+
+
+def validate_finding(f: ExtractedFinding, bundle: EvidenceBundle) -> dict[str, Any]:
+    """Enforce evidence rules on a model-extracted finding. Returns normalized fields + flags."""
+    refs = bundle.by_ref()
+    valid_refs = [r for r in dict.fromkeys(f.source_refs) if r in refs]
+    invalid_refs = [r for r in f.source_refs if r not in refs]
+    flags: list[str] = []
+    evidence_type, confidence, status = f.evidence_type, f.confidence, "unverified"
+    quote: str | None = None
+
+    if invalid_refs:
+        flags.append(f"Ignored citations to non-existent sources: {', '.join(invalid_refs)}")
+
+    if evidence_type == "sourced":
+        if not valid_refs:
+            evidence_type, confidence = "ai_inference", "low"
+            flags.append("Labelled as sourced but cited no retrieved source - downgraded to AI inference.")
+        else:
+            excerpts = [ex for r in valid_refs for ex in refs[r].excerpts]
+            haystack = _norm(" ".join(excerpts)).replace(",", "")
+            ok = True
+            if not excerpts:
+                ok = False
+                flags.append("No excerpt was captured for the cited source(s); open the link to verify.")
+                if confidence == "high":
+                    confidence = "medium"
+            claim_numbers = _numbers(f.claim) | (_numbers(f.supporting_quote or ""))
+            missing = [n for n in claim_numbers if n not in haystack]
+            if excerpts and missing:
+                ok = False
+                confidence = "low"
+                flags.append(f"Figure(s) {', '.join(sorted(missing))} not found in the retrieved excerpts - verify before relying on this.")
+            if f.supporting_quote:
+                if excerpts and _norm(f.supporting_quote).replace(",", "") in haystack:
+                    quote = f.supporting_quote
+                elif excerpts:
+                    ok = False
+                    flags.append("Supporting quote does not appear verbatim in the retrieved excerpts.")
+            status = "source_linked" if ok else "unverified"
+
+    return {
+        "evidence_type": evidence_type,
+        "confidence": confidence,
+        "verification_status": status,
+        "valid_refs": valid_refs,
+        "quote": quote,
+        "flags": flags,
+    }
+
+
+def _price_in_excerpts(price: float, excerpts: list[str]) -> bool:
+    hay = " ".join(excerpts).replace(",", "")
+    candidates = {f"{price:.2f}", f"{price:g}", str(int(price)) if price == int(price) else f"{price:.2f}"}
+    return any(c in hay for c in candidates)
+
+
+# ----------------------------------------------------------------------------- persistence
+
+
+def _persist_sources(db, run: ResearchRun, bundle: EvidenceBundle) -> dict[str, uuid.UUID]:
+    ref_to_id: dict[str, uuid.UUID] = {}
+    now = datetime.now(timezone.utc)
+    for s in bundle.sources:
+        src = EvidenceSource(
+            project_id=run.project_id,
+            research_run_id=run.id,
+            url=s.url,
+            title=s.title,
+            domain=s.domain,
+            source_type="web_search" if bundle.provider == "anthropic_web_search" else "api",
+            provider=bundle.provider,
+            retrieved_at=now,
+            published_hint=s.page_age,
+            excerpts=s.excerpts,
+        )
+        db.add(src)
+        db.flush()
+        ref_to_id[s.ref] = src.id
+    return ref_to_id
+
+
+def _persist_extraction(db, run: ResearchRun, step_key: str, bundle: EvidenceBundle, ext: StepExtraction) -> dict[str, int]:
+    ref_to_id = _persist_sources(db, run, bundle)
+    refs = bundle.by_ref()
+    allowed_sections = set(STEP_DEFS[step_key]["sections"]) if step_key in STEP_DEFS else None
+    n_findings = 0
+
+    for f in ext.findings:
+        v = validate_finding(f, bundle)
+        section = f.section if (allowed_sections is None or f.section in allowed_sections) else "other"
+        finding = ResearchFinding(
+            project_id=run.project_id,
+            research_run_id=run.id,
+            section=section,
+            claim=f.claim,
+            detail=f.detail,
+            evidence_type=v["evidence_type"],
+            confidence=v["confidence"],
+            verification_status=v["verification_status"],
+            metric=f.metric.model_dump() if f.metric else None,
+            flags=v["flags"],
+            created_by="competitor_intelligence_agent" if run.kind == "competitor_discovery" else "opportunity_research_agent",
+        )
+        for r in v["valid_refs"]:
+            finding.evidence_links.append(FindingEvidence(evidence_source_id=ref_to_id[r], quote=v["quote"]))
+        db.add(finding)
+        n_findings += 1
+
+    for seg in ext.segments:
+        valid = [r for r in seg.source_refs if r in refs]
+        etype = seg.evidence_type if (seg.evidence_type != "sourced" or valid) else "ai_inference"
+        db.add(
+            CustomerSegment(
+                project_id=run.project_id,
+                research_run_id=run.id,
+                name=seg.name[:200],
+                description=seg.description,
+                needs=seg.needs,
+                unmet_needs=seg.unmet_needs,
+                size_indicator=seg.size_indicator,
+                evidence_type=etype,
+                confidence=seg.confidence if etype == seg.evidence_type else "low",
+                source_ids=[str(ref_to_id[r]) for r in valid],
+            )
+        )
+
+    dropped_prices = 0
+    for c in ext.competitors:
+        valid = [r for r in c.source_refs if r in refs]
+        existing = db.scalars(
+            select(Competitor).where(Competitor.project_id == run.project_id, Competitor.name.ilike(c.name.strip()))
+        ).first()
+        comp = existing or Competitor(project_id=run.project_id, name=c.name.strip()[:200], discovered_by="ai_research")
+        if existing is None:
+            db.add(comp)
+        comp.website = comp.website or c.website
+        comp.positioning = comp.positioning or c.positioning
+        if c.price_tier != "unknown" and not comp.price_tier:
+            comp.price_tier = c.price_tier
+        comp.channels = sorted(set((comp.channels or []) + c.channels))
+        if valid and not comp.evidence_source_id:
+            comp.evidence_source_id = ref_to_id[valid[0]]
+        db.flush()
+        for p in c.prices:
+            src = refs.get(p.source_ref)
+            if src is None:
+                dropped_prices += 1  # never store a price without a retrieved source
+                continue
+            product = next((x for x in comp.products if x.name.lower() == p.product_name.lower()), None)
+            if product is None:
+                product = CompetitorProduct(competitor_id=comp.id, name=p.product_name[:300], url=p.product_url)
+                comp.products.append(product)
+                db.flush()
+            linked = _price_in_excerpts(p.price, src.excerpts)
+            product.price_observations.append(
+                PriceObservation(
+                    price=Decimal(str(p.price)),
+                    currency=p.currency.upper()[:8],
+                    source_url=p.product_url or src.url,
+                    source_type="web_search" if bundle.provider == "anthropic_web_search" else "api",
+                    evidence_source_id=ref_to_id[p.source_ref],
+                    verification_status="source_linked" if linked else "unverified",
+                    note=None if linked else "Price not found verbatim in the retrieved excerpt - check the source page.",
+                )
+            )
+
+    if ext.evidence_gaps or dropped_prices:
+        gaps = list(ext.evidence_gaps)
+        if dropped_prices:
+            gaps.append(f"{dropped_prices} price(s) were discarded because they could not be tied to a retrieved source.")
+        for g in gaps:
+            db.add(
+                ResearchFinding(
+                    project_id=run.project_id,
+                    research_run_id=run.id,
+                    section="other",
+                    claim=g,
+                    evidence_type="unavailable",
+                    confidence="low",
+                    verification_status="unverified",
+                    flags=[],
+                    created_by="opportunity_research_agent",
+                )
+            )
+            n_findings += 1
+
+    return {"findings": n_findings, "sources": len(bundle.sources)}
+
+
+# ----------------------------------------------------------------------------- prompts
+
+EXTRACT_SYSTEM = """You convert a research evidence dossier into structured findings for a business intelligence database.
+Hard rules:
+- Use ONLY the dossier. Do not add facts, numbers, brands, prices, or quotes from memory.
+- evidence_type "sourced" only when a dossier excerpt directly supports the claim; cite its refs (e.g. "S3") and copy a short supporting_quote verbatim from that excerpt.
+- Research notes are an analyst's summary; treat a statement as sourced only if a cited excerpt backs it.
+- Your own analysis must be labelled "ai_inference". Untested business premises are "assumption".
+- When the dossier lacks something important (e.g. no category-specific market size), add a finding with evidence_type "unavailable" stating what was not found.
+- Prices: include only prices visible in an excerpt, with that excerpt's ref. Never infer a price.
+- Confidence reflects source quality and directness: official statistics/primary sources = high; reputable secondary = medium; vendor blogs, teasers, forum posts, or old data = low.
+- Keep claims specific and short. Prefer 5-15 high-value findings over many trivial ones."""
+
+SYNTH_SYSTEM = """You are a senior strategy advisor writing an evidence-linked market opportunity assessment for a small founder.
+Rules:
+- Base conclusions on the findings provided; reference them by F-ref (e.g. "F4"). Distinguish what evidence shows from your judgment.
+- If evidence is thin or missing, say so and choose "insufficient_evidence" or "mixed" rather than guessing.
+- Unit economics inputs: use basis "sourced_research" only when an F-ref finding labelled sourced supports the value; otherwise basis "assumption" with a note explaining the assumption. Never present an assumption as a fact.
+- Duty rates and tariffs change: if unsure, use an assumption and say the founder must confirm with a customs broker.
+- Be direct and practical: what to test next, with the cheapest experiments first. The founder's budget is limited."""
+
+
+def _extraction_prompt(step_key: str, ctx: dict[str, str], bundle: EvidenceBundle) -> str:
+    sections = ", ".join(STEP_DEFS[step_key]["sections"])
+    want_segments = step_key == "customers"
+    want_competitors = step_key == "competitors"
+    return (
+        f"Business context:\n{context_block(ctx)}\n\n"
+        f"Research question:\n{bundle.question}\n\n"
+        f"Allowed finding sections for this step: {sections}.\n"
+        f"{'Populate segments with distinct customer segments.' if want_segments else 'Return an empty segments list.'}\n"
+        f"{'Populate competitors with each brand/retailer found, including only prices visible in excerpts.' if want_competitors else 'Return an empty competitors list.'}\n\n"
+        f"=== RESEARCH NOTES (analyst summary, citations in brackets) ===\n{bundle.notes or '(none - search API results only)'}\n\n"
+        f"=== EVIDENCE DOSSIER (verbatim provider data) ===\n{bundle.dossier() or '(no sources were retrieved)'}\n"
+    )
+
+
+# ----------------------------------------------------------------------------- execution
+
+
+def submit_run(run_id: uuid.UUID) -> None:
+    _executor.submit(_safe_execute, run_id)
+
+
+def _safe_execute(run_id: uuid.UUID) -> None:
+    try:
+        execute_run(run_id)
+    except Exception as e:  # noqa: BLE001 - last-resort guard so a run never stays "running"
+        log.exception("Research run %s crashed", run_id)
+        with session_scope() as db:
+            run = db.get(ResearchRun, run_id)
+            if run and run.status in ("queued", "running"):
+                run.status = "failed"
+                run.error = f"Unexpected error: {e}"
+                run.completed_at = datetime.now(timezone.utc)
+
+
+def _update_step(run_id: uuid.UUID, key: str, **changes: Any) -> None:
+    with session_scope() as db:
+        run = db.get(ResearchRun, run_id)
+        steps = [dict(s) for s in run.steps]
+        for s in steps:
+            if s["key"] == key:
+                s.update(changes)
+        run.steps = steps
+        if changes.get("status") == "running":
+            run.current_step = key
+
+
+def _add_run_usage(run_id: uuid.UUID, usage: LLMUsage) -> float:
+    with session_scope() as db:
+        run = db.get(ResearchRun, run_id)
+        run.input_tokens += usage.input_tokens
+        run.output_tokens += usage.output_tokens
+        run.search_requests += usage.search_requests
+        run.cost_usd = Decimal(str(run.cost_usd or 0)) + Decimal(str(round(usage.cost_usd, 6)))
+        return float(run.cost_usd)
+
+
+def _run_status(run_id: uuid.UUID) -> str:
+    with session_scope() as db:
+        return db.get(ResearchRun, run_id).status
+
+
+def _step_status(run_id: uuid.UUID, key: str) -> str | None:
+    with session_scope() as db:
+        return next((s["status"] for s in db.get(ResearchRun, run_id).steps if s["key"] == key), None)
+
+
+def execute_run(run_id: uuid.UUID) -> None:
+    settings = get_settings()
+    with session_scope() as db:
+        run = db.get(ResearchRun, run_id)
+        if run is None or run.status not in ("queued",):
+            return
+        project = db.get(BusinessProject, run.project_id)
+        run.status = "running"
+        run.started_at = run.started_at or datetime.now(timezone.utc)
+        run.error = None
+        ctx = project_context(project, run.params or {})
+        kind = run.kind
+        provider_name = run.provider
+        user_id = run.created_by_id
+        project_id = run.project_id
+        pending = [s["key"] for s in run.steps if s["status"] != "completed"]
+        cc = country_code(ctx["country"])
+
+    provider = get_research_provider(provider_name)
+    llm = get_llm()
+    fatal: str | None = None
+
+    for key in pending:
+        if _run_status(run_id) == "cancelled":
+            return
+        with session_scope() as db:
+            spent = float(db.get(ResearchRun, run_id).cost_usd or 0)
+        if spent >= settings.max_research_cost_usd:
+            _update_step(run_id, key, status="skipped", error=f"Skipped: run reached the ${settings.max_research_cost_usd:.2f} cost limit.")
+            continue
+        if key == "synthesis":
+            continue  # handled after research steps
+        _update_step(run_id, key, status="running", started_at=datetime.now(timezone.utc).isoformat(), error=None)
+        attempts = {"n": 0}
+
+        def do_step() -> dict[str, int]:
+            attempts["n"] += 1
+            _update_step(run_id, key, attempts=attempts["n"])
+            step = STEP_DEFS[key]
+            question = step["question"].format(**ctx)
+            hints = [h.format(**ctx) for h in step["hints"]]
+            with session_scope() as db:
+                ex = start_execution(
+                    db, agent="competitor_intelligence" if key == "competitors" else "opportunity_research",
+                    operation=f"research_step:{key}", project_id=project_id, user_id=user_id,
+                    model=llm.model, provider=provider.name, research_run_id=run_id, input_summary=question,
+                )
+                ex_id = ex.id
+            try:
+                bundle = provider.gather(question=question, context=context_block(ctx), query_hints=hints, country_code=cc)
+                usage = LLMUsage()
+                usage.add(bundle.usage)
+                if not bundle.sources:
+                    ext = StepExtraction(findings=[], segments=[], competitors=[],
+                                         evidence_gaps=[f"No sources were retrieved for: {question}"])
+                else:
+                    ext, u2 = llm.structured(system=EXTRACT_SYSTEM, prompt=_extraction_prompt(key, ctx, bundle), output_model=StepExtraction)
+                    usage.add(u2)
+                _add_run_usage(run_id, usage)
+                with session_scope() as db:
+                    run = db.get(ResearchRun, run_id)
+                    counts = _persist_extraction(db, run, key, bundle, ext)
+                    ex = db.get(AgentExecution, ex_id)
+                    apply_usage(ex, usage)
+                    finish_execution(ex, output={"queries": bundle.queries, "sources": len(bundle.sources),
+                                                 "findings": counts["findings"], "provider_errors": bundle.errors})
+                return counts
+            except Exception as e:
+                with session_scope() as db:
+                    ex = db.get(AgentExecution, ex_id)
+                    finish_execution(ex, error=str(e)[:2000])
+                raise
+
+        try:
+            counts = with_retries(do_step)
+            _update_step(run_id, key, status="completed", finished_at=datetime.now(timezone.utc).isoformat(),
+                         findings_count=counts["findings"], sources_count=counts["sources"])
+        except LLMNotConfigured as e:
+            fatal = str(e)
+            _update_step(run_id, key, status="failed", error=str(e), finished_at=datetime.now(timezone.utc).isoformat())
+            break
+        except (LLMError, LLMRefusal) as e:
+            _update_step(run_id, key, status="failed", error=str(e)[:1000], finished_at=datetime.now(timezone.utc).isoformat())
+        except Exception as e:  # noqa: BLE001
+            log.error("Step %s failed: %s", key, traceback.format_exc())
+            _update_step(run_id, key, status="failed", error=f"{type(e).__name__}: {e}"[:1000],
+                         finished_at=datetime.now(timezone.utc).isoformat())
+
+    if fatal is None and kind == "market_opportunity" and _step_status(run_id, "synthesis") == "pending" \
+            and _run_status(run_id) != "cancelled":
+        _run_synthesis(run_id, ctx)
+
+    with session_scope() as db:
+        run = db.get(ResearchRun, run_id)
+        if run.status == "cancelled":
+            return
+        statuses = [s["status"] for s in run.steps]
+        run.current_step = None
+        run.completed_at = datetime.now(timezone.utc)
+        if fatal:
+            run.status, run.error = "failed", fatal
+        elif all(s == "completed" for s in statuses):
+            run.status = "completed"
+        elif any(s == "completed" for s in statuses):
+            run.status = "completed_with_errors"
+        else:
+            run.status = "failed"
+            run.error = run.error or "All research steps failed. See step errors."
+        audit.record(db, "research_run.finished", user_id=user_id, project_id=project_id, actor="agent:opportunity_research",
+                     entity_type="research_run", entity_id=run_id,
+                     details={"status": run.status, "cost_usd": float(run.cost_usd), "searches": run.search_requests})
+
+
+def _run_synthesis(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
+    llm = get_llm()
+    with session_scope() as db:
+        run = db.get(ResearchRun, run_id)
+        research_ok = any(s["status"] == "completed" for s in run.steps if s["key"] != "synthesis")
+        project = db.get(BusinessProject, run.project_id)
+        findings = db.scalars(
+            select(ResearchFinding).where(ResearchFinding.research_run_id == run_id).order_by(ResearchFinding.created_at)
+        ).all()
+        segments = db.scalars(select(CustomerSegment).where(CustomerSegment.research_run_id == run_id)).all()
+        competitors = db.scalars(select(Competitor).where(Competitor.project_id == run.project_id)).all()
+        user_id, project_id = run.created_by_id, run.project_id
+        budget = float(project.budget_usd) if project.budget_usd is not None else 5000.0
+
+        fmap: dict[str, ResearchFinding] = {}
+        lines = []
+        for i, f in enumerate(findings, 1):
+            ref = f"F{i}"
+            fmap[ref] = f
+            domains = sorted({link.source.domain or "" for link in f.evidence_links if link.source})
+            metric = ""
+            if f.metric:
+                m = f.metric
+                metric = f" | metric: {m.get('name')} = {m.get('value_low')}-{m.get('value_high')} {m.get('unit')} ({m.get('year')})"
+            lines.append(
+                f"{ref} [{f.section}] ({f.evidence_type}, {f.confidence} confidence, {f.verification_status}): {f.claim}"
+                f"{(' - ' + f.detail) if f.detail else ''}{metric}{(' | sources: ' + ', '.join(d for d in domains if d)) if domains else ''}"
+                f"{(' | warnings: ' + '; '.join(f.flags)) if f.flags else ''}"
+            )
+        seg_lines = [f"- {s.name} ({s.evidence_type}, {s.confidence}): {s.description} | unmet needs: {', '.join(s.unmet_needs)}" for s in segments]
+        comp_lines = []
+        for c in competitors:
+            prices = [f"{po.currency} {float(po.price):.2f} ({p.name}, {po.verification_status})" for p in c.products for po in p.price_observations]
+            comp_lines.append(f"- {c.name} [{c.price_tier or 'tier unknown'}]: {c.positioning or ''} | prices: {', '.join(prices[:6]) or 'none observed'}")
+
+    if not research_ok:
+        _update_step(run_id, "synthesis", status="skipped", error="Skipped: no research step completed.")
+        return
+
+    _update_step(run_id, "synthesis", status="running", started_at=datetime.now(timezone.utc).isoformat(), attempts=1)
+    prompt = (
+        f"Business context:\n{context_block(ctx)}\nStarting budget (USD): {budget:.0f}\n\n"
+        f"=== FINDINGS ===\n" + ("\n".join(lines) or "(none)") +
+        "\n\n=== CUSTOMER SEGMENTS ===\n" + ("\n".join(seg_lines) or "(none)") +
+        "\n\n=== COMPETITORS ON FILE ===\n" + ("\n".join(comp_lines) or "(none)") +
+        "\n\nWrite the opportunity assessment. Reference findings by F-ref."
+    )
+    with session_scope() as db:
+        ex = start_execution(db, agent="supervisor", operation="opportunity_synthesis", project_id=project_id,
+                             user_id=user_id, model=llm.model, research_run_id=run_id,
+                             input_summary=f"{len(lines)} findings, {len(seg_lines)} segments, {len(comp_lines)} competitors")
+        ex_id = ex.id
+    try:
+        synth, usage = with_retries(lambda: llm.structured(system=SYNTH_SYSTEM, prompt=prompt, output_model=OpportunitySynthesis))
+    except Exception as e:  # noqa: BLE001
+        with session_scope() as db:
+            finish_execution(db.get(AgentExecution, ex_id), error=str(e)[:2000])
+        _update_step(run_id, "synthesis", status="failed", error=str(e)[:1000], finished_at=datetime.now(timezone.utc).isoformat())
+        return
+    _add_run_usage(run_id, usage)
+
+    def ids(refs: list[str]) -> list[str]:
+        return [str(fmap[r].id) for r in refs if r in fmap]
+
+    # Unit economics: enforce basis rules, then compute deterministically.
+    ue_inputs: dict[str, Any] = {}
+    ue_basis: dict[str, str] = {}
+    ue_detail: dict[str, Any] = {}
+    for name, item in synth.unit_economics.model_dump().items():
+        refs_ok = [r for r in item["finding_refs"] if r in fmap and fmap[r].evidence_type == "sourced"]
+        basis = item["basis"]
+        note = item["note"]
+        if basis == "sourced_research" and not refs_ok:
+            basis = "assumption"
+            note = f"{note} (Downgraded to assumption: no sourced finding supports this value.)"
+        ue_inputs[name] = int(item["value"]) if name == "moq" else item["value"]
+        ue_basis[name] = basis
+        ue_detail[name] = {"value": ue_inputs[name], "basis": basis, "finding_ids": ids(item["finding_refs"]), "note": note}
+    ue_inputs["initial_investment"] = budget
+    ue_basis["initial_investment"] = "actual"
+    try:
+        model_inputs = UnitEconomicsInputs(**{k: v for k, v in ue_inputs.items() if k in UnitEconomicsInputs.model_fields})
+        results = calculate(model_inputs)
+    except Exception as e:  # noqa: BLE001 - invalid values from the model
+        model_inputs, results = None, {"error": f"Could not compute unit economics: {e}"}
+
+    report = {
+        "executive_summary": synth.executive_summary,
+        "attractiveness": synth.attractiveness,
+        "attractiveness_rationale": synth.attractiveness_rationale,
+        "attractiveness_finding_ids": ids(synth.attractiveness_finding_refs),
+        "recommended_segment": {"name": synth.recommended_segment, "rationale": synth.recommended_segment_rationale,
+                                "finding_ids": ids(synth.segment_finding_refs)},
+        "differentiation": [{"idea": d.idea, "rationale": d.rationale, "finding_ids": ids(d.finding_refs)} for d in synth.differentiation],
+        "pricing": {"summary": synth.pricing_summary, "test_price_low": synth.test_price_low,
+                    "test_price_high": synth.test_price_high, "finding_ids": ids(synth.pricing_finding_refs)},
+        "unit_economics": {"inputs": ue_detail, "results": results},
+        "risks": [{"risk": r.risk, "severity": r.severity, "mitigation": r.mitigation, "finding_ids": ids(r.finding_refs)} for r in synth.risks],
+        "evidence_gaps": [g.model_dump() for g in synth.evidence_gaps],
+        "next_steps": [n.model_dump() for n in synth.next_steps],
+        "evidence_summary": {
+            "findings": len(lines),
+            "by_type": {t: sum(1 for f in fmap.values() if f.evidence_type == t) for t in ("sourced", "ai_inference", "assumption", "unavailable")},
+            "source_linked": sum(1 for f in fmap.values() if f.verification_status == "source_linked"),
+        },
+        "generated_by": {"model": usage.model or llm.model, "generated_at": datetime.now(timezone.utc).isoformat()},
+    }
+
+    with session_scope() as db:
+        run = db.get(ResearchRun, run_id)
+        project = db.get(BusinessProject, run.project_id)
+        scenario_id = None
+        if model_inputs is not None:
+            scenario = CostScenario(
+                project_id=run.project_id, name=f"Research estimate ({datetime.now(timezone.utc):%Y-%m-%d})",
+                scenario_type="research_estimate", inputs=model_inputs.model_dump(),
+                input_basis={k: ue_basis.get(k, "assumption") for k in model_inputs.model_dump()},
+                results=results, created_by="opportunity_research_agent",
+                notes="Generated by the research synthesis. Values marked 'assumption' are not verified.",
+            )
+            db.add(scenario)
+            db.flush()
+            scenario_id = str(scenario.id)
+        report["unit_economics"]["cost_scenario_id"] = scenario_id
+        opp = MarketOpportunity(
+            project_id=run.project_id, research_run_id=run.id,
+            title=f"{ctx['category']} in {ctx['country']}", category=ctx["category"], geography=ctx["country"],
+            budget_usd=Decimal(str(budget)), attractiveness=synth.attractiveness, summary=synth.executive_summary, report=report,
+        )
+        db.add(opp)
+        db.flush()
+        for f in db.scalars(select(ResearchFinding).where(ResearchFinding.research_run_id == run_id)):
+            f.market_opportunity_id = opp.id
+        for n in synth.next_steps:
+            db.add(Recommendation(project_id=run.project_id, source="research", title=n.action[:300], body=n.rationale,
+                                  priority=n.priority, research_run_id=run.id))
+        ex = db.get(AgentExecution, ex_id)
+        apply_usage(ex, usage)
+        finish_execution(ex, output={"market_opportunity_id": str(opp.id), "attractiveness": synth.attractiveness})
+        audit.record(db, "market_opportunity.created", user_id=user_id, project_id=project.id,
+                     actor="agent:supervisor", entity_type="market_opportunity", entity_id=opp.id)
+    _update_step(run_id, "synthesis", status="completed", finished_at=datetime.now(timezone.utc).isoformat(), findings_count=0)
+
+
+def recover_interrupted_runs() -> int:
+    """On startup, mark runs that were in flight when the process stopped."""
+    with session_scope() as db:
+        runs = db.scalars(select(ResearchRun).where(ResearchRun.status.in_(["queued", "running"]))).all()
+        for run in runs:
+            run.status = "interrupted"
+            run.error = "The server restarted while this run was in progress. Resume it to continue from the last completed step."
+            run.steps = [dict(s, status="pending" if s["status"] == "running" else s["status"]) for s in run.steps]
+        return len(runs)

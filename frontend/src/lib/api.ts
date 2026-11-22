@@ -1,0 +1,82 @@
+// Thin fetch wrapper. All calls are same-origin (/api) so the session cookie is sent automatically.
+
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  constructor(status: number, message: string, code?: string) {
+    super(message);
+    this.status = status;
+    this.code = code;
+  }
+  /** True when the server reports a missing API key / provider configuration. */
+  get isConfigError(): boolean {
+    return this.code === "ai_not_configured" || this.code === "research_not_configured";
+  }
+}
+
+function messageFrom(detail: unknown, fallback: string): { message: string; code?: string } {
+  if (!detail) return { message: fallback };
+  if (typeof detail === "string") return { message: detail };
+  if (Array.isArray(detail)) {
+    const parts = detail.map((d: { loc?: unknown[]; msg?: string }) =>
+      d?.msg ? `${(d.loc ?? []).slice(1).join(".")}: ${d.msg}` : JSON.stringify(d),
+    );
+    return { message: parts.join("; ") };
+  }
+  if (typeof detail === "object") {
+    const d = detail as { message?: string; code?: string };
+    return { message: d.message ?? fallback, code: d.code };
+  }
+  return { message: fallback };
+}
+
+type Opts = { method?: string; body?: unknown; form?: FormData; signal?: AbortSignal };
+
+export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T> {
+  const init: RequestInit = { method: opts.method ?? (opts.body || opts.form ? "POST" : "GET"), credentials: "include", signal: opts.signal };
+  if (opts.form) {
+    init.body = opts.form;
+  } else if (opts.body !== undefined) {
+    init.headers = { "Content-Type": "application/json" };
+    init.body = JSON.stringify(opts.body);
+  }
+  let res: Response;
+  try {
+    res = await fetch(path, init);
+  } catch {
+    throw new ApiError(0, "Network error - the server could not be reached.");
+  }
+  if (res.status === 204) return undefined as T;
+  const text = await res.text();
+  let data: unknown = undefined;
+  try {
+    data = text ? JSON.parse(text) : undefined;
+  } catch {
+    data = text;
+  }
+  if (!res.ok) {
+    const { message, code } = messageFrom((data as { detail?: unknown })?.detail ?? data, `Request failed (${res.status})`);
+    if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/api/auth/")) {
+      window.dispatchEvent(new Event("aicos:unauthorized"));
+    }
+    throw new ApiError(res.status, message, code);
+  }
+  return data as T;
+}
+
+export const get = <T>(path: string) => api<T>(path);
+export const post = <T>(path: string, body?: unknown) => api<T>(path, { method: "POST", body: body ?? {} });
+export const patch = <T>(path: string, body: unknown) => api<T>(path, { method: "PATCH", body });
+export const put = <T>(path: string, body: unknown) => api<T>(path, { method: "PUT", body });
+export const del = (path: string) => api<void>(path, { method: "DELETE" });
+export const upload = <T>(path: string, file: File) => {
+  const form = new FormData();
+  form.append("file", file);
+  return api<T>(path, { method: "POST", form });
+};
+
+export function errorText(e: unknown): string {
+  if (e instanceof ApiError) return e.message;
+  if (e instanceof Error) return e.message;
+  return String(e);
+}
