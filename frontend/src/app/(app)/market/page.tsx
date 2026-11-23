@@ -68,8 +68,8 @@ function MarketPage({ projectId }: { projectId: string }) {
     (id: string) => {
       setTab("reports");
       setUrl({ report: id, tab: "reports" });
-      if (embed) document.getElementById(embed.id)?.scrollIntoView({ behavior: "smooth" });
-      else window.scrollTo({ top: 0, behavior: "smooth" });
+      if (embed) document.getElementById(embed.id)?.scrollIntoView({ behavior: "instant" });
+      else window.scrollTo({ top: 0, behavior: "instant" });
     },
     [setUrl, embed],
   );

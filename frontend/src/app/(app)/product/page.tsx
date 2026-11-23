@@ -276,14 +276,15 @@ function ProductReport({ id }: { id: string }) {
   }, [exists, project?.id, id, select]);
 
   // Jump to a tab or a part inside one; a folded tab opens first.
-  const jump = useCallback((section: string, smooth = true) => {
+  const jump = useCallback((section: string) => {
     const tab = TAB_OF[section] ?? section;
     if (foldedRef.current.has(tab)) {
       const next = new Set(foldedRef.current);
       next.delete(tab);
       saveFolded(next);
     }
-    requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" }));
+    // Jump straight there: a smooth scroll would play the whole report past on the way.
+    requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView({ behavior: "instant", block: "start" }));
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${section}`);
     setActive(tab);
   }, [saveFolded]);
@@ -300,7 +301,7 @@ function ProductReport({ id }: { id: string }) {
     window.addEventListener("touchmove", stop, { once: true });
     window.addEventListener("keydown", stop, { once: true });
     window.addEventListener("pointerdown", stop, { once: true });
-    const timers = [50, 700, 1600, 3000].map((ms) => setTimeout(() => { if (!userScrolled.current) jump(hash, false); }, ms));
+    const timers = [50, 700, 1600, 3000].map((ms) => setTimeout(() => { if (!userScrolled.current) jump(hash); }, ms));
     return () => {
       timers.forEach(clearTimeout);
       ["wheel", "touchmove", "keydown", "pointerdown"].forEach((ev) => window.removeEventListener(ev, stop));
