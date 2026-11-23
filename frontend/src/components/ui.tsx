@@ -46,12 +46,12 @@ export function Card({ className, children }: { className?: string; children: Re
 export function CardHeader({ title, subtitle, actions, icon }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; icon?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
-      <div className="flex min-w-0 items-start gap-2.5">
-        {icon && <div className="mt-1 text-brand-600">{icon}</div>}
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold leading-snug text-ink">{title}</h2>
-          {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
-        </div>
+      <div className="min-w-0">
+        <h2 className="flex items-center gap-2 text-base font-semibold leading-snug text-ink">
+          {icon && <span className="shrink-0 text-primary-600">{icon}</span>}
+          <span className="min-w-0">{title}</span>
+        </h2>
+        {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>

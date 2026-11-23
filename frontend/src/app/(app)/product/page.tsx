@@ -318,7 +318,7 @@ function ProductReport({ id }: { id: string }) {
       </nav>
 
       {/* A compact list of tabs: a folded tab is one row (title + what is inside); an open tab shows its parts. */}
-      <div className="divide-y divide-line border-y border-line">
+      <div className="divide-y divide-line border-b border-line">
         {SECTIONS.map((s) => {
           const isFolded = folded.has(s.id);
           return (
@@ -327,8 +327,8 @@ function ProductReport({ id }: { id: string }) {
               <h2 className="text-xl font-semibold leading-tight text-ink">
                 <button type="button" onClick={() => toggle(s.id)} aria-expanded={!isFolded} aria-controls={`${s.id}-body`}
                   className="group flex items-center gap-1.5 text-left hover:text-primary-700">
-                  <ChevronDown className={clsx("h-5 w-5 shrink-0 text-slate-400 transition-transform group-hover:text-primary-700", isFolded && "-rotate-90")} aria-hidden />
                   <span>{s.title}</span>
+                  <ChevronDown className={clsx("h-5 w-5 shrink-0 text-slate-400 transition-transform group-hover:text-primary-700", isFolded && "-rotate-90")} aria-hidden />
                 </button>
               </h2>
               <span className="text-sm text-slate-500">{s.parts ? s.parts.map((p) => p.title).join(" · ") : isFolded ? "" : s.description}</span>
