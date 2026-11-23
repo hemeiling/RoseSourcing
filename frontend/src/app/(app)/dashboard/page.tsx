@@ -145,16 +145,16 @@ function DashboardView({ projectId }: { projectId: string }) {
                 <p className="text-sm text-slate-500">No findings yet.</p>
               ) : (
                 <>
-                  <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
+                  <div className="flex h-3 gap-0.5 overflow-hidden rounded-full bg-slate-100">
                     {(["sourced", "ai_inference", "assumption", "unavailable"] as EvidenceType[]).map((t) => {
                       const n = data.findings_by_type[t] ?? 0;
-                      const color = { sourced: "bg-emerald-500", ai_inference: "bg-slate-500", assumption: "bg-slate-400", unavailable: "bg-slate-200" }[t];
+                      const color = EVIDENCE_BAR[t];
                       return n ? <div key={t} className={color} style={{ width: `${(100 * n) / totalFindings}%` }} title={`${EVIDENCE_META[t].label}: ${n}`} /> : null;
                     })}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
                     {(["sourced", "ai_inference", "assumption", "unavailable"] as EvidenceType[]).map((t) => (
-                      <span key={t}>{EVIDENCE_META[t].label}: <strong>{data.findings_by_type[t] ?? 0}</strong></span>
+                      <span key={t} className="flex items-center gap-1.5"><span className={`h-2.5 w-2.5 rounded-full ${EVIDENCE_BAR[t]}`} aria-hidden />{EVIDENCE_META[t].label}: <strong>{data.findings_by_type[t] ?? 0}</strong></span>
                     ))}
                   </div>
                 </>
@@ -224,6 +224,9 @@ function DashboardView({ projectId }: { projectId: string }) {
     </>
   );
 }
+
+// The logo colours by meaning: teal = sourced, lavender = AI inference, yellow = assumption, pink = data gap.
+const EVIDENCE_BAR: Record<string, string> = { sourced: "bg-green-500", ai_inference: "bg-primary-300", assumption: "bg-amber-300", unavailable: "bg-red-200" };
 
 export default function DashboardPage() {
   return <RequireProject>{(pid) => <DashboardView projectId={pid} />}</RequireProject>;

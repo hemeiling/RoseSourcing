@@ -101,7 +101,7 @@ export function PriceComparisonCard({ projectId, version }: { projectId: string;
                     <XAxis type="number" tickFormatter={(v: number) => `$${v}`} tick={{ fontSize: 11 }} domain={[0, "auto"]} />
                     <YAxis type="category" dataKey="label" width={narrow ? 112 : 210} tick={{ fontSize: 11 }} interval={0}
                       tickFormatter={(v: string) => truncate(v, narrow ? 17 : 34)} />
-                    {hyp && <ReferenceArea x1={hyp.min} x2={hyp.max} fill="#4e2a84" fillOpacity={0.08} stroke="#4e2a84" strokeOpacity={0.3} />}
+                    {hyp && <ReferenceArea x1={hyp.min} x2={hyp.max} fill="#8b6cf0" fillOpacity={0.1} stroke="#8b6cf0" strokeOpacity={0.4} />}
                     <Tooltip
                       cursor={{ fill: "#f1f5f9" }}
                       content={({ active, payload }) => {
@@ -192,9 +192,9 @@ type PositioningContent = { summary: string; positions: Position[]; white_space:
 type Snapshot = { id: string; created_at: string; content: PositioningContent };
 
 const BASIS: Record<Position["basis"], { label: string; color: string }> = {
-  observed_prices: { label: "Observed prices", color: "#261343" },
-  stated_positioning: { label: "Stated positioning", color: "#6a48a3" },
-  inference: { label: "AI inference", color: "#cfc1e6" },
+  observed_prices: { label: "Observed prices", color: "#0f9e90" },
+  stated_positioning: { label: "Stated positioning", color: "#5b3bc9" },
+  inference: { label: "AI inference", color: "#b9a7f6" },
 };
 
 export function PositioningCard({ projectId, hasCompetitors }: { projectId: string; hasCompetitors: boolean }) {

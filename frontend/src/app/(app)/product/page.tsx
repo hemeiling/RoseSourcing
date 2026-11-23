@@ -281,7 +281,7 @@ function ProductReport({ id }: { id: string }) {
         <Link href="/products" className="text-xs font-semibold text-primary-700 hover:underline">← All products</Link>
         <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-3xl font-semibold leading-tight text-ink sm:text-[2.15rem]">{project.name}</h1>
+            <h1 className="text-2xl font-semibold leading-tight text-ink sm:text-[1.75rem]">{project.name}</h1>
             <p className="mt-1 text-[15px] text-slate-600">
               {project.product_category} · {project.target_country}{project.sourcing_country ? ` · sourcing from ${project.sourcing_country}` : ""}
               {project.budget_usd !== null ? ` · budget ${money(project.budget_usd, { decimals: 0 })}` : ""}
@@ -317,29 +317,28 @@ function ProductReport({ id }: { id: string }) {
         </ul>
       </nav>
 
-      <div className="space-y-8">
+      {/* A compact list of tabs: a folded tab is one row (title + what is inside); an open tab shows its parts. */}
+      <div className="divide-y divide-line border-y border-line">
         {SECTIONS.map((s) => {
           const isFolded = folded.has(s.id);
           return (
           <section key={s.id} id={s.id} className="scroll-mt-20 sm:scroll-mt-36" aria-label={s.title}>
-            <div className={clsx("border-b border-line pb-3", !isFolded && "mb-4")}>
-              <h2 className="text-2xl font-semibold leading-tight text-ink">
+            <div className={clsx("flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2.5", !isFolded && "pb-1")}>
+              <h2 className="text-xl font-semibold leading-tight text-ink">
                 <button type="button" onClick={() => toggle(s.id)} aria-expanded={!isFolded} aria-controls={`${s.id}-body`}
-                  className="group flex items-start gap-2 text-left hover:text-primary-700">
-                  <ChevronDown className={clsx("mt-1 h-6 w-6 shrink-0 text-slate-400 transition-transform group-hover:text-primary-700", isFolded && "-rotate-90")} aria-hidden />
+                  className="group flex items-center gap-1.5 text-left hover:text-primary-700">
+                  <ChevronDown className={clsx("h-5 w-5 shrink-0 text-slate-400 transition-transform group-hover:text-primary-700", isFolded && "-rotate-90")} aria-hidden />
                   <span>{s.title}</span>
                 </button>
               </h2>
-              {!isFolded && (s.description
-                ? <p className="ml-8 mt-1 max-w-3xl text-sm text-slate-600">{s.description}</p>
-                : s.parts && <p className="ml-8 mt-1 text-sm text-slate-600">{s.parts.map((p) => p.title).join(" · ")}</p>)}
+              <span className="text-sm text-slate-500">{s.parts ? s.parts.map((p) => p.title).join(" · ") : isFolded ? "" : s.description}</span>
             </div>
             {!isFolded && (
-              <div id={`${s.id}-body`} className="space-y-10">
+              <div id={`${s.id}-body`} className="space-y-8 pb-8 pt-3">
                 {s.parts
                   ? s.parts.map((part) => (
                     <div key={part.id} id={part.id} className="scroll-mt-20 sm:scroll-mt-36">
-                      <h3 className="text-lg font-semibold text-ink">{part.title}</h3>
+                      <h3 className="text-base font-semibold text-ink">{part.title}</h3>
                       {part.description && <p className="mb-3 mt-0.5 max-w-3xl text-sm text-slate-600">{part.description}</p>}
                       {body(part.id, part)}
                     </div>

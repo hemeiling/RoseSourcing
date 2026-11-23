@@ -49,7 +49,7 @@ export function CardHeader({ title, subtitle, actions, icon }: { title: ReactNod
       <div className="flex min-w-0 items-start gap-2.5">
         {icon && <div className="mt-1 text-brand-600">{icon}</div>}
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold leading-snug text-ink">{title}</h2>
+          <h2 className="text-base font-semibold leading-snug text-ink">{title}</h2>
           {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
         </div>
       </div>
@@ -138,7 +138,7 @@ export function PageHeader({ title, description, actions, badge }: { title: stri
       <div className="min-w-0">
         <div className="mb-3 h-1 w-12 rounded-full bg-accent-600" aria-hidden />
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-3xl font-semibold leading-tight text-brand-700 sm:text-[2.15rem]">{title}</h1>
+          <h1 className="text-2xl font-semibold leading-tight text-brand-700 sm:text-[1.75rem]">{title}</h1>
           {badge}
         </div>
         {description && <p className="mt-2 max-w-3xl text-[15px] leading-relaxed text-slate-700">{description}</p>}
@@ -261,7 +261,7 @@ export function StatCard({ label, value, hint, icon }: { label: string; value: R
         <span className="min-w-0 text-[11px] font-bold uppercase tracking-[0.06em] text-slate-500">{label}</span>
         {icon && <span className="shrink-0 text-brand-400">{icon}</span>}
       </div>
-      <div className="mt-1 break-words text-2xl font-semibold leading-tight text-brand-700 sm:text-3xl">{value}</div>
+      <div className="mt-1 break-words text-xl font-semibold leading-tight text-brand-700 sm:text-2xl">{value}</div>
       {hint && <div className="mt-0.5 text-[11px] text-slate-500">{hint}</div>}
     </Card>
   );

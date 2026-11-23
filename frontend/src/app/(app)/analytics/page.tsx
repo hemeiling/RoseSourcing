@@ -248,8 +248,8 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
   if (!r) return <Spinner label="Calculating..." />;
   const pu = r.per_unit;
   const lc = r.landed_cost_breakdown;
-  // Costs are grey; only the result carries meaning (green = each sale earns, red = each sale loses).
-  const COST = "#94a3b8";
+  // Costs in the logo's soft lavender; the result carries meaning (teal = each sale earns, pink = each sale loses).
+  const COST = "#b9a7f6";
   const waterfall = [
     { name: "Factory", value: lc.factory_cost, color: COST },
     { name: "Freight", value: (lc.freight ?? 0) + (lc.shipment_fees ?? 0), color: COST },
@@ -324,7 +324,7 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
               <YAxis tickFormatter={(v) => `$${v}`} fontSize={11} />
               <ReferenceLine y={0} stroke="#e8467c" strokeDasharray="4 4" />
               <Tooltip formatter={(v, n) => (n === "margin_pct" ? pct(Number(v)) : money(Number(v)))} labelFormatter={(l) => `Price ${money(Number(l))}`} />
-              <Line type="monotone" dataKey="contribution_margin" name="Contribution" stroke="#4e2a84" strokeWidth={2} dot />
+              <Line type="monotone" dataKey="contribution_margin" name="Contribution" stroke="#5b3bc9" strokeWidth={2} dot />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -567,8 +567,8 @@ function CompareTab({ scenarios, spec, onLoad, reload }: { scenarios: Scenario[]
                   <Tooltip formatter={(v) => money(Number(v))} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <ReferenceLine y={0} stroke="#94a3b8" />
-                  <Bar dataKey="landed" name="Landed cost / unit" fill="#ae97d4" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="contribution" name="Contribution / unit" fill="#4e2a84" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="landed" name="Landed cost (USD/unit)" fill="#b9a7f6" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="contribution" name="Contribution (USD/unit)" fill="#0f9e90" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
