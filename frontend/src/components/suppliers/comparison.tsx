@@ -64,7 +64,7 @@ export function SupplierComparison({ projectId, labels, version }: { projectId: 
                   const lc = r.landed_cost;
                   const breakdown = lc ? PARTS.map(([k, label]) => `${label} ${money(lc[k] ?? 0, { decimals: 2 })}`).join(" + ") : "";
                   return (
-                    <tr key={r.quote_id} className={r.quote_id === lowestId ? "bg-emerald-50/40" : undefined}>
+                    <tr key={r.quote_id} className={r.quote_id === lowestId ? "bg-slate-50" : undefined}>
                       <Td>
                         <div className="font-medium text-slate-900">{r.supplier_name}</div>
                         <div className="mt-0.5 flex flex-wrap items-center gap-1">

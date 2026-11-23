@@ -17,7 +17,7 @@ type FindingIndex = Map<string, { finding: Finding; n: number }>;
 const chipTone: Record<EvidenceType, string> = {
   sourced: "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100",
   ai_inference: "border-violet-200 bg-violet-50 text-violet-800 hover:bg-violet-100",
-  assumption: "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100",
+  assumption: "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
   unavailable: "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
 };
 
@@ -292,7 +292,7 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
             <ol className="space-y-3">
               {r.next_steps.map((n, i) => (
                 <li key={i} className="flex gap-2.5 text-sm">
-                  <Flag className={clsx("mt-0.5 h-4 w-4 shrink-0", n.priority === "high" ? "text-red-500" : n.priority === "medium" ? "text-amber-500" : "text-slate-400")} aria-label={`${n.priority} priority`} />
+                  <Flag className={clsx("mt-0.5 h-4 w-4 shrink-0", "text-slate-400")} aria-label={`${n.priority} priority`} />
                   <div>
                     <p className="font-medium text-slate-900">{n.action}</p>
                     <p className="mt-0.5 text-slate-600">{n.rationale}</p>

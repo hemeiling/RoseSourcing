@@ -172,7 +172,7 @@ export function DiscoverPanel({ projectId, onFinished }: { projectId: string; on
             {!active && current.status !== "failed" && (
               <p className="mt-2 text-xs text-slate-600">
                 Findings from this run (with sources and evidence labels) are in{" "}
-                <Link href="/market" className="font-medium text-brand-700 hover:underline">
+                <Link href="/market" className="font-medium text-primary-700 hover:underline">
                   Market Opportunity
                 </Link>
                 .

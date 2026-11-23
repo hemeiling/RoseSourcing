@@ -30,23 +30,23 @@ function ResultsPanel({ r }: { r: UEResults | null }) {
   const pu = r.per_unit;
   const lc = r.landed_cost_breakdown;
   const waterfall = [
-    { name: "Factory", value: lc.factory_cost, color: "#1e293b" },
-    { name: "Freight", value: lc.freight, color: "#334155" },
-    { name: "Duty", value: lc.duty, color: "#475569" },
-    { name: "Clearance+pkg", value: (lc.clearance ?? 0) + (lc.packaging ?? 0), color: "#64748b" },
-    { name: "Fulfillment", value: pu.fulfillment, color: "#94a3b8" },
-    { name: "Payment fees", value: pu.payment_fees, color: "#a8b3c4" },
-    { name: "Channel fees", value: pu.channel_fees ?? 0, color: "#cbd5e1" },
-    { name: "Returns", value: (pu.return_handling ?? 0) + (pu.unsellable_loss ?? 0), color: "#d9dee6" },
-    { name: "Marketing", value: pu.marketing, color: "#e2e8f0" },
-    { name: "Contribution", value: r.contribution_margin, color: r.contribution_margin >= 0 ? "#0f172a" : "#94a3b8" },
+    { name: "Factory", value: lc.factory_cost, color: "#261343" },
+    { name: "Freight", value: lc.freight, color: "#371d5c" },
+    { name: "Duty", value: lc.duty, color: "#4e2a84" },
+    { name: "Clearance+pkg", value: (lc.clearance ?? 0) + (lc.packaging ?? 0), color: "#6a48a3" },
+    { name: "Fulfillment", value: pu.fulfillment, color: "#8a6bbd" },
+    { name: "Payment fees", value: pu.payment_fees, color: "#ae97d4" },
+    { name: "Channel fees", value: pu.channel_fees ?? 0, color: "#cfc1e6" },
+    { name: "Returns", value: (pu.return_handling ?? 0) + (pu.unsellable_loss ?? 0), color: "#e8e1f3" },
+    { name: "Marketing", value: pu.marketing, color: "#f4f1fa" },
+    { name: "Contribution", value: r.contribution_margin, color: r.contribution_margin >= 0 ? "#43246f" : "#dc2626" },
   ];
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg bg-slate-50 p-3">
           <div className="text-xs text-slate-500">Contribution / unit</div>
-          <div className={`text-2xl font-semibold ${r.contribution_margin >= 0 ? "text-emerald-700" : "text-red-700"}`}>{money(r.contribution_margin)}</div>
+          <div className={`text-2xl font-semibold ${r.contribution_margin >= 0 ? "text-ink" : "text-red-700"}`}>{money(r.contribution_margin)}</div>
           <div className="text-xs text-slate-500">{pct(r.contribution_margin_pct)} of net revenue</div>
         </div>
         <div className="rounded-lg bg-slate-50 p-3">
@@ -93,9 +93,9 @@ function ResultsPanel({ r }: { r: UEResults | null }) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="price" tickFormatter={(v) => `$${v}`} fontSize={11} />
               <YAxis tickFormatter={(v) => `$${v}`} fontSize={11} />
-              <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
+              <ReferenceLine y={0} stroke="#dc2626" strokeDasharray="4 4" />
               <Tooltip formatter={(v, n) => (n === "margin_pct" ? pct(Number(v)) : money(Number(v)))} labelFormatter={(l) => `Price ${money(Number(l))}`} />
-              <Line type="monotone" dataKey="contribution_margin" name="Contribution" stroke="#334155" strokeWidth={2} dot />
+              <Line type="monotone" dataKey="contribution_margin" name="Contribution" stroke="#4e2a84" strokeWidth={2} dot />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -287,9 +287,9 @@ function CompareTab({ scenarios, spec, onLoad, reload }: { scenarios: Scenario[]
                     <Td><input type="checkbox" aria-label={`Compare ${s.name}`} checked={selected.includes(s.id)}
                       onChange={(e) => setSelected((cur) => (e.target.checked ? [...cur, s.id].slice(-4) : cur.filter((x) => x !== s.id)))} /></Td>
                     <Td className="font-medium text-slate-900">{s.name}{s.created_by !== "user" && <span className="ml-1.5 text-[11px] font-normal text-slate-400">by {titleCase(s.created_by)}</span>}</Td>
-                    <Td><Badge tone={s.scenario_type === "actual" ? "green" : s.scenario_type === "quote_based" ? "blue" : "amber"}>{titleCase(s.scenario_type)}</Badge></Td>
+                    <Td><Badge tone={s.scenario_type === "actual" ? "green" : "slate"}>{titleCase(s.scenario_type)}</Badge></Td>
                     <Td>{nAssume} of {Object.keys(spec.defaults).length}</Td>
-                    <Td className={s.results.contribution_margin >= 0 ? "text-emerald-700" : "text-red-700"}>{money(s.results.contribution_margin)}</Td>
+                    <Td className={s.results.contribution_margin >= 0 ? "text-ink" : "text-red-700"}>{money(s.results.contribution_margin)}</Td>
                     <Td className="text-xs text-slate-500">{date(s.updated_at)}</Td>
                     <Td>
                       <div className="flex gap-1">
@@ -317,8 +317,8 @@ function CompareTab({ scenarios, spec, onLoad, reload }: { scenarios: Scenario[]
                   <Tooltip formatter={(v) => money(Number(v))} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <ReferenceLine y={0} stroke="#94a3b8" />
-                  <Bar dataKey="landed" name="Landed cost / unit" fill="#94a3b8" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="contribution" name="Contribution / unit" fill="#1e293b" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="landed" name="Landed cost / unit" fill="#ae97d4" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="contribution" name="Contribution / unit" fill="#4e2a84" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

@@ -82,7 +82,7 @@ function DashboardView({ projectId }: { projectId: string }) {
         <div className="space-y-5 lg:col-span-2">
           <Card>
             <CardHeader title="Latest opportunity assessment" icon={<TrendingUp className="h-4 w-4" />}
-              actions={<Link href={data.latest_report ? `/market?report=${data.latest_report.id}` : "/market"} className="text-xs font-medium text-brand-700 hover:underline">
+              actions={<Link href={data.latest_report ? `/market?report=${data.latest_report.id}` : "/market"} className="text-xs font-medium text-primary-700 hover:underline">
                 {data.latest_report ? "Open report" : "Go to Market Opportunity"}</Link>} />
             <CardBody>
               {data.latest_report ? (
@@ -122,7 +122,7 @@ function DashboardView({ projectId }: { projectId: string }) {
                 <ul className="divide-y divide-slate-100">
                   {data.open_recommendations.map((r) => (
                     <li key={r.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
-                      <Badge tone={r.priority === "high" ? "red" : r.priority === "medium" ? "amber" : "slate"}>{titleCase(r.priority)}</Badge>
+                      <Badge tone="slate">{titleCase(r.priority)}</Badge>
                       <span className="min-w-0 flex-1 text-sm text-slate-800">{r.title}</span>
                       <Badge>{titleCase(r.source)}</Badge>
                       <div className="flex gap-1">
@@ -146,7 +146,7 @@ function DashboardView({ projectId }: { projectId: string }) {
                   <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
                     {(["sourced", "ai_inference", "assumption", "unavailable"] as EvidenceType[]).map((t) => {
                       const n = data.findings_by_type[t] ?? 0;
-                      const color = { sourced: "bg-slate-800", ai_inference: "bg-slate-500", assumption: "bg-slate-400", unavailable: "bg-slate-200" }[t];
+                      const color = { sourced: "bg-emerald-500", ai_inference: "bg-slate-500", assumption: "bg-slate-400", unavailable: "bg-slate-200" }[t];
                       return n ? <div key={t} className={color} style={{ width: `${(100 * n) / totalFindings}%` }} title={`${EVIDENCE_META[t].label}: ${n}`} /> : null;
                     })}
                   </div>
@@ -168,7 +168,7 @@ function DashboardView({ projectId }: { projectId: string }) {
               <ul className="space-y-2.5">
                 {steps.map((s) => (
                   <li key={s.label} className="flex items-start gap-2 text-sm">
-                    {s.done ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />}
+                    {s.done ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-slate-300" />}
                     <Link href={s.href} className={s.done ? "text-slate-500 line-through decoration-slate-300" : "text-slate-800 hover:text-brand-700"}>{s.label}</Link>
                   </li>
                 ))}
@@ -183,15 +183,15 @@ function DashboardView({ projectId }: { projectId: string }) {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-slate-900">{data.latest_scenario.name}</span>
-                    <Badge tone={data.latest_scenario.type === "actual" ? "green" : "amber"}>{titleCase(data.latest_scenario.type)}</Badge>
+                    <Badge tone={data.latest_scenario.type === "actual" ? "green" : "slate"}>{titleCase(data.latest_scenario.type)}</Badge>
                   </div>
-                  <p className="mt-2 text-2xl font-semibold text-slate-900">{money(data.latest_scenario.contribution_margin)}<span className="ml-1 text-xs font-normal text-slate-500">/ unit contribution</span></p>
+                  <p className={`mt-2 text-2xl font-semibold ${(data.latest_scenario.contribution_margin ?? 0) < 0 ? "text-red-700" : "text-slate-900"}`}>{money(data.latest_scenario.contribution_margin)}<span className="ml-1 text-xs font-normal text-slate-500">/ unit contribution</span></p>
                   <p className="text-xs text-slate-500">{pct(data.latest_scenario.contribution_margin_pct)} of net revenue at {money(data.latest_scenario.retail_price)} retail</p>
-                  {data.latest_scenario.type !== "actual" && <p className="mt-2 text-[11px] text-amber-700">Includes assumptions - see input sources in Analytics.</p>}
-                  <Link href="/analytics" className="mt-3 inline-block text-xs font-medium text-brand-700 hover:underline">Open analytics</Link>
+                  {data.latest_scenario.type !== "actual" && <p className="mt-2 text-[11px] text-slate-500">Includes assumptions - see input sources in Analytics.</p>}
+                  <Link href="/analytics" className="mt-3 inline-block text-xs font-medium text-primary-700 hover:underline">Open analytics</Link>
                 </div>
               ) : (
-                <p className="text-sm text-slate-500">No scenarios yet. <Link href="/analytics" className="text-brand-700 hover:underline">Build one</Link>.</p>
+                <p className="text-sm text-slate-500">No scenarios yet. <Link href="/analytics" className="text-primary-700 hover:underline">Build one</Link>.</p>
               )}
             </CardBody>
           </Card>

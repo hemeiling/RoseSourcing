@@ -84,7 +84,7 @@ function ConnectorCard({ c, owner, onChanged }: { c: ConnectorStatus; owner: boo
         {c.login_note && <div><dt className="inline font-semibold text-slate-700">Sign-in: </dt><dd className="inline">{c.login_note}</dd></div>}
       </dl>
       {c.setup_url && (
-        <a href={c.setup_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-accent-600">
+        <a href={c.setup_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary-600 hover:text-primary-800">
           Where to get credentials <ExtIcon className="h-3 w-3" />
         </a>
       )}

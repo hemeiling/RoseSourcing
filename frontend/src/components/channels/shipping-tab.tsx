@@ -193,7 +193,7 @@ function ShippingCalculator({ projectId, options, version }: { projectId: string
           <div className="flex items-end"><Button onClick={compare} loading={busy} disabled={!options.length || !Number(units) || (!productId)}>Compare options</Button></div>
         </div>
         {products.data && withSpecs.length === 0 && !manual && (
-          <p className="text-xs text-slate-500">No product has carton specs yet. Add them to a product in <Link href="/commerce" className="text-brand-700 underline">Commerce</Link>, or choose manual entry.</p>
+          <p className="text-xs text-slate-500">No product has carton specs yet. Add them to a product in <Link href="/commerce" className="text-primary-700 underline">Commerce</Link>, or choose manual entry.</p>
         )}
         {manual && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
@@ -217,7 +217,7 @@ function ShippingCalculator({ projectId, options, version }: { projectId: string
                 <thead className="border-b border-slate-100 bg-slate-50"><tr><Th>Option</Th><Th>Source</Th><Th>Chargeable</Th><Th>Total</Th><Th>Per unit</Th><Th>Transit</Th><Th /></tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {result.rows.map((r, i) => (
-                    <tr key={r.option_id} className={i === 0 && r.leg === "international" ? "bg-emerald-50/40" : undefined}>
+                    <tr key={r.option_id} className={i === 0 && r.leg === "international" ? "bg-slate-50" : undefined}>
                       <Td>
                         <div className="font-medium text-slate-900">{r.name}</div>
                         <div className="text-xs text-slate-500">{r.leg === "domestic" ? "Domestic · " : ""}{MODE_LABEL[r.mode] ?? r.mode}{r.provider ? ` · ${r.provider}` : ""}</div>
@@ -230,7 +230,7 @@ function ShippingCalculator({ projectId, options, version }: { projectId: string
                       <Td className="text-xs">{daysText(r.transit_days_min, r.transit_days_max)}</Td>
                       <Td>
                         {r.leg === "international" && r.per_unit_low !== null && r.currency === "USD" && (saved[r.option_id] ? (
-                          <Link href={`/analytics?scenario=${saved[r.option_id]}`} className="text-xs font-medium text-emerald-700 hover:underline">Scenario saved →</Link>
+                          <Link href={`/analytics?scenario=${saved[r.option_id]}`} className="text-xs font-medium text-primary-700 hover:underline">Scenario saved →</Link>
                         ) : (
                           <Button size="sm" variant="secondary" onClick={() => saveFreightScenario(r)} title="Save a scenario using this freight cost (high end of a range)">Use in scenario</Button>
                         ))}

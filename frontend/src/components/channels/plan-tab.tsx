@@ -12,7 +12,7 @@ import { useApi } from "@/lib/hooks";
 import type { ChannelPlan, Finding, ProviderStatus, ResearchRun } from "@/lib/types";
 
 type Providers = { default: string; providers: ProviderStatus[]; guardrails: { max_searches_per_step: number; max_research_cost_usd: number } };
-const ROLE_TONE: Record<string, Tone> = { primary: "green", secondary: "blue", test: "amber" };
+const ROLE_TONE: Record<string, Tone> = { primary: "slate", secondary: "slate", test: "slate" };
 
 function FindingChips({ ids, findings, onOpen }: { ids: string[]; findings: Record<string, Finding>; onOpen: (f: Finding) => void }) {
   const items = ids.map((id) => findings[id]).filter(Boolean);

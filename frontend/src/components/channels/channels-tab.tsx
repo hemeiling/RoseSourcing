@@ -185,7 +185,7 @@ export function ChannelsTab({ projectId, version }: { projectId: string; version
                   <YAxis tickFormatter={(v) => `$${v}`} fontSize={11} />
                   <ReferenceLine y={0} stroke="#94a3b8" />
                   <Tooltip formatter={(v) => [money(Number(v)), "Contribution / unit"]} />
-                  <Bar dataKey="value" radius={[3, 3, 0, 0]}>{chart.map((d) => <Cell key={d.name} fill={d.value >= 0 ? "#334155" : "#a8b3c4"} />)}</Bar>
+                  <Bar dataKey="value" radius={[3, 3, 0, 0]}>{chart.map((d) => <Cell key={d.name} fill={d.value >= 0 ? "#4e2a84" : "#dc2626"} />)}</Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -218,7 +218,7 @@ export function ChannelsTab({ projectId, version }: { projectId: string; version
                         <Td>{money(r.channel_fees_per_unit)}</Td>
                         <Td>{money(r.payment_fees_per_unit)}</Td>
                         <Td>
-                          <span className={r.contribution_margin >= 0 ? "font-medium text-emerald-700" : "font-medium text-red-700"}>{money(r.contribution_margin)}</span>
+                          <span className={r.contribution_margin >= 0 ? "font-medium text-ink" : "font-medium text-red-700"}>{money(r.contribution_margin)}</span>
                           <span className="ml-1 text-xs text-slate-500">{pct(r.contribution_margin_pct)}</span>
                           {r.contribution_margin_after_monthly_fee !== null && <div className="text-[11px] text-slate-500">{money(r.contribution_margin_after_monthly_fee)} after monthly fee</div>}
                         </Td>
@@ -227,7 +227,7 @@ export function ChannelsTab({ projectId, version }: { projectId: string; version
                         <Td>
                           <div className="flex items-center gap-1">
                             {scenarioFor[r.channel_id] ? (
-                              <Link href={`/analytics?scenario=${scenarioFor[r.channel_id]}`} className="text-xs font-medium text-emerald-700 hover:underline">Open scenario →</Link>
+                              <Link href={`/analytics?scenario=${scenarioFor[r.channel_id]}`} className="text-xs font-medium text-primary-700 hover:underline">Open scenario →</Link>
                             ) : (
                               <Button size="sm" variant="secondary" onClick={() => model(r.channel_id)} title="Save these channel economics as a cost scenario">Model</Button>
                             )}

@@ -219,7 +219,7 @@ function ConceptCard({ concept, onUpdated, onDeleted }: { concept: BrandConcept;
   }
 
   return (
-    <div className={clsx("rounded-xl border bg-white", concept.status === "selected" ? "border-emerald-300" : concept.status === "rejected" ? "border-slate-200 opacity-70" : "border-slate-200")}>
+    <div className={clsx("rounded-xl border bg-white", concept.status === "selected" ? "border-primary-600" : concept.status === "rejected" ? "border-slate-200 opacity-70" : "border-slate-200")}>
       <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">

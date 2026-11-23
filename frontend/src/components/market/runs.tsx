@@ -149,7 +149,7 @@ export function RunCard({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 text-sm">
                   <span className={clsx("font-medium", s.status === "pending" ? "text-slate-500" : "text-slate-800")}>{s.label}</span>
-                  {s.attempts > 1 && <span className="text-[11px] text-amber-700">attempt {s.attempts}</span>}
+                  {s.attempts > 1 && <span className="text-[11px] text-slate-500">attempt {s.attempts}</span>}
                   {s.status === "completed" && s.key !== "synthesis" && (
                     <span className="text-[11px] text-slate-500">
                       {s.findings_count} findings · {s.sources_count} sources

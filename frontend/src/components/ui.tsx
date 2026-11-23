@@ -182,7 +182,7 @@ export function ConfigNotice({ message }: { message?: string | null }) {
         <div className="font-medium text-slate-900">Configuration required</div>
         <div className="mt-0.5 text-[13px]">
           {message ?? "This feature needs an AI provider key on the server."} No results are generated or simulated until it is configured.{" "}
-          <Link href="/settings" className="font-medium text-brand-700 underline">
+          <Link href="/settings" className="font-medium text-primary-700 underline">
             View settings
           </Link>
         </div>
@@ -264,7 +264,7 @@ export function Td({ children, className }: { children?: ReactNode; className?: 
 
 export function ExternalLink({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={clsx("text-brand-600 underline decoration-brand-300 underline-offset-2 hover:text-accent-600 hover:decoration-accent-600", className)}>
+    <a href={href} target="_blank" rel="noopener noreferrer" className={clsx("text-primary-600 underline decoration-primary-300 underline-offset-2 hover:text-primary-800 hover:decoration-primary-800", className)}>
       {children}
     </a>
   );

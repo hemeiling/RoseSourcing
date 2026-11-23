@@ -93,7 +93,7 @@ function ProjectSwitcher() {
   const { projects, project, select } = useProjects();
   if (!projects.length) {
     return (
-      <Link href="/projects" className="text-sm font-medium text-brand-700 hover:underline">
+      <Link href="/projects" className="text-sm font-medium text-primary-700 hover:underline">
         Create your first project
       </Link>
     );

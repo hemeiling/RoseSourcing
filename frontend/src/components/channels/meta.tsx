@@ -47,7 +47,7 @@ export const CHANNEL_STATUS_TONE: Record<string, Tone> = {
 const SHIP_BASIS: Record<string, { label: string; tone: Tone; help: string }> = {
   quote: { label: "Quote", tone: "blue", help: "A rate a forwarder or carrier quoted you" },
   sourced_research: { label: "Sourced benchmark", tone: "teal", help: "Rate found verbatim in a retrieved source - a benchmark, not a quote" },
-  assumption: { label: "Assumption", tone: "amber", help: "Your estimate - replace with a quote" },
+  assumption: { label: "Assumption", tone: "slate", help: "Your estimate - replace with a quote" },
 };
 
 export function ShipBasisBadge({ basis }: { basis: string }) {

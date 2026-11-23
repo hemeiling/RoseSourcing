@@ -171,7 +171,7 @@ function ProjectForm({ initial, onSaved, onCancel, editingId }: { initial: Form;
   );
 }
 
-const statusTone = { hypothesis: "amber", validated: "green", invalidated: "red" } as const;
+const statusTone = { hypothesis: "slate", validated: "green", invalidated: "red" } as const;
 
 function ProjectsInner() {
   const { projects, project: current, select, reload, loading } = useProjects();

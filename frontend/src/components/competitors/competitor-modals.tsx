@@ -325,7 +325,7 @@ export function CompetitorDetailModal({ competitor, onClose, onChanged }: { comp
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <DiscoveredByBadge by={c.discovered_by} />
           {c.price_tier && <Badge tone="blue">{titleCase(c.price_tier)}</Badge>}
-          {c.on_watchlist && <Badge tone="amber">Watchlist</Badge>}
+          {c.on_watchlist && <Badge tone="slate">Watchlist</Badge>}
           {c.website && <ExternalLink href={c.website}>{domainOf(c.website)}</ExternalLink>}
           {c.country && <span className="text-xs text-slate-500">{c.country}</span>}
         </div>

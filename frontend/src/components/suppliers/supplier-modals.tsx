@@ -11,7 +11,7 @@ import { Alert, Badge, Button, ConfigNotice, ExternalLink, Field, Input, Modal, 
 
 export const VERIFICATION_TONE: Record<string, Tone> = {
   unverified: "slate",
-  documents_received: "amber",
+  documents_received: "slate",
   sample_approved: "blue",
   audited: "green",
 };
@@ -33,7 +33,7 @@ export function SupplierVerificationBadge({ status, labels }: { status: string; 
 export function QualityStars({ rating }: { rating: number | null }) {
   if (!rating) return <span className="text-xs text-slate-400">Not rated</span>;
   return (
-    <span className="whitespace-nowrap text-sm text-amber-500" aria-label={`${rating} out of 5`} title="Your quality evaluation">
+    <span className="whitespace-nowrap text-sm text-slate-500" aria-label={`${rating} out of 5`} title="Your quality evaluation">
       {"★".repeat(rating)}
       <span className="text-slate-300">{"★".repeat(5 - rating)}</span>
     </span>
@@ -501,7 +501,7 @@ function QuotesTab({ supplier, projectId, products, onChanged }: { supplier: Sup
 // ----------------------------------------------------------------------------- communications
 
 const CHANNELS = ["email", "alibaba_chat", "wechat", "whatsapp", "call", "video", "in_person", "other"];
-const DIRECTION_TONE: Record<string, Tone> = { inbound: "blue", outbound: "slate", draft: "amber" };
+const DIRECTION_TONE: Record<string, Tone> = { inbound: "slate", outbound: "slate", draft: "slate" };
 
 function CommunicationsTab({ supplier, onChanged }: { supplier: Supplier; onChanged: () => void }) {
   const [f, setF] = useState({ occurred_at: "", channel: "email", direction: "outbound", subject: "", summary: "", next_action: "" });

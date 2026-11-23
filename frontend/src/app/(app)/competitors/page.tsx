@@ -159,16 +159,16 @@ function Competitors({ projectId }: { projectId: string }) {
                           <Td>
                             <button
                               onClick={() => toggleWatch(c)}
-                              className="rounded p-1 hover:bg-amber-50"
+                              className="rounded p-1 hover:bg-slate-100"
                               aria-label={c.on_watchlist ? `Remove ${c.name} from watchlist` : `Add ${c.name} to watchlist`}
                               aria-pressed={c.on_watchlist}
                               title={c.on_watchlist ? "On watchlist" : "Add to watchlist"}
                             >
-                              <Star className={c.on_watchlist ? "h-4 w-4 fill-amber-400 text-amber-500" : "h-4 w-4 text-slate-300"} />
+                              <Star className={c.on_watchlist ? "h-4 w-4 fill-slate-500 text-slate-500" : "h-4 w-4 text-slate-300"} />
                             </button>
                           </Td>
                           <Td>
-                            <button onClick={() => setDetailId(c.id)} className="text-left font-medium text-slate-900 hover:text-brand-700 hover:underline">
+                            <button onClick={() => setDetailId(c.id)} className="text-left font-medium text-slate-900 hover:text-primary-800 hover:underline">
                               {c.name}
                             </button>
                             {c.website && (

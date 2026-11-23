@@ -138,7 +138,7 @@ function Suppliers({ projectId }: { projectId: string }) {
                     return (
                       <tr key={s.id} className="hover:bg-slate-50/50">
                         <Td>
-                          <button onClick={() => setDetailId(s.id)} className="text-left font-medium text-slate-900 hover:text-brand-700 hover:underline">
+                          <button onClick={() => setDetailId(s.id)} className="text-left font-medium text-slate-900 hover:text-primary-800 hover:underline">
                             {s.name}
                           </button>
                           {s.website && (

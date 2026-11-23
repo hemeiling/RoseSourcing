@@ -8,7 +8,7 @@ import { date, domainOf, titleCase } from "@/lib/format";
 export const EVIDENCE_META: Record<EvidenceType, { label: string; tone: Tone; help: string }> = {
   sourced: { label: "Sourced evidence", tone: "green", help: "Backed by a retrieved source excerpt." },
   ai_inference: { label: "AI inference", tone: "violet", help: "The model's reasoning - not directly stated by a source." },
-  assumption: { label: "Assumption", tone: "amber", help: "A business premise that still needs testing." },
+  assumption: { label: "Assumption", tone: "slate", help: "A business premise that still needs testing." },
   unavailable: { label: "Data unavailable", tone: "slate", help: "Searched for, but no reliable data was found." },
 };
 
@@ -37,7 +37,7 @@ export function EvidenceBadge({ type }: { type: EvidenceType }) {
 }
 
 export function ConfidenceBadge({ level }: { level: Confidence }) {
-  const tone: Tone = level === "high" ? "green" : level === "medium" ? "amber" : "slate";
+  const tone: Tone = "slate";
   return (
     <Badge tone={tone} title="Confidence reflects source quality and how directly it supports the claim">
       {titleCase(level)} confidence
@@ -121,7 +121,7 @@ export function FindingCard({ finding, onReview, compact }: { finding: Finding; 
       {f.reviewer_note && <p className="mt-2 text-xs text-slate-600"><span className="font-medium">Your note:</span> {f.reviewer_note}</p>}
       {onReview && (
         <div className="mt-2.5 flex justify-end">
-          <button onClick={() => onReview(f)} className="text-xs font-medium text-brand-700 hover:underline">
+          <button onClick={() => onReview(f)} className="text-xs font-medium text-primary-700 hover:underline">
             Review
           </button>
         </div>
@@ -131,7 +131,7 @@ export function FindingCard({ finding, onReview, compact }: { finding: Finding; 
 }
 
 export const BASIS_META: Record<string, { label: string; tone: Tone }> = {
-  assumption: { label: "Assumption", tone: "amber" },
+  assumption: { label: "Assumption", tone: "slate" },
   supplier_quote: { label: "Supplier quote", tone: "blue" },
   actual: { label: "Actual", tone: "green" },
   sourced_research: { label: "Sourced research", tone: "teal" },
