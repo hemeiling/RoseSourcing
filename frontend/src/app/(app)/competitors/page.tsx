@@ -1,17 +1,18 @@
 "use client";
 
-import { ArrowUpRight, Pencil, Plus, Star, Swords, Trash2 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { Plus, Swords } from "lucide-react";
+import { useCallback, useState } from "react";
 import { RequireProject } from "@/components/app-shell";
 import { CsvImportCard } from "@/components/competitors/csv-import";
 import { PositioningCard, PriceComparisonCard } from "@/components/competitors/charts";
-import { CompetitorDetailModal, CompetitorFormModal, DiscoveredByBadge, fmtPrice } from "@/components/competitors/competitor-modals";
+import { BrandsAndListings } from "@/components/competitors/brand-listings";
+import { CompetitorDetailModal, CompetitorFormModal } from "@/components/competitors/competitor-modals";
 import { DiscoverPanel } from "@/components/competitors/discovery";
-import { fmtFigure } from "@/components/market-size";
-import { Alert, Badge, Button, Card, CardHeader, EmptyState, ExternalLink, PageHeader, ProductThumb, Spinner, Tabs, Td, Th } from "@/components/ui";
+import type { Snapshot, Tracker } from "@/components/listing-insights";
+import { ResearchRunStarter } from "@/components/research-run-starter";
+import { Alert, Button, Card, EmptyState, PageHeader, Spinner, Tabs } from "@/components/ui";
 import { del, errorText, patch } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
-import { date, domainOf, titleCase } from "@/lib/format";
 import type { Competitor } from "@/lib/types";
 
 type Tab = "list" | "prices" | "positioning" | "import";
@@ -20,43 +21,21 @@ export default function CompetitorsPage() {
   return <RequireProject>{(pid) => <Competitors key={pid} projectId={pid} />}</RequireProject>;
 }
 
-function latestPrice(c: Competitor) {
-  let best: { price: number; currency: string; product: string; observed_at: string; url: string | null; image: string | null } | null = null;
-  let count = 0;
-  for (const p of c.products)
-    for (const o of p.price_observations) {
-      count++;
-      if (!best || o.observed_at > best.observed_at)
-        best = { price: o.price, currency: o.currency, product: p.name, observed_at: o.observed_at, url: o.source_url ?? p.url, image: p.image_url };
-    }
-  return { best, count };
-}
-
-/** Where a competitor's name links: its website, else the listing where it was seen. */
-function competitorLink(c: Competitor, best: ReturnType<typeof latestPrice>["best"]) {
-  if (c.website) return { href: c.website, label: domainOf(c.website) };
-  const url = best?.url ?? c.products.find((p) => p.url)?.url ?? c.products.flatMap((p) => p.price_observations).find((o) => o.source_url)?.source_url;
-  return url ? { href: url, label: `listing on ${domainOf(url)}` } : null;
-}
-
 function Competitors({ projectId }: { projectId: string }) {
   const [tab, setTab] = useState<Tab>("list");
-  const [watchOnly, setWatchOnly] = useState(false);
   const [editing, setEditing] = useState<Competitor | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const { data, error: loadError, loading, reload, setData } = useApi<Competitor[]>(`/api/projects/${projectId}/competitors`);
+  const tracker = useApi<Snapshot<Tracker>>(`/api/projects/${projectId}/snapshots/listing_tracker`);
 
   const refreshAll = useCallback(() => {
     reload();
     setVersion((v) => v + 1);
   }, [reload]);
 
-  // Starred (watchlist) competitors first; otherwise the saved order.
-  const competitors = useMemo(() => (data ?? []).filter((c) => !watchOnly || c.on_watchlist)
-    .sort((a, b) => Number(b.on_watchlist) - Number(a.on_watchlist)), [data, watchOnly]);
   const detail = data?.find((c) => c.id === detailId) ?? null;
 
   async function toggleWatch(c: Competitor) {
@@ -81,8 +60,6 @@ function Competitors({ projectId }: { projectId: string }) {
     }
   }
 
-  const watchCount = data?.filter((c) => c.on_watchlist).length ?? 0;
-
   return (
     <div>
       <PageHeader
@@ -103,7 +80,7 @@ function Competitors({ projectId }: { projectId: string }) {
         value={tab}
         onChange={setTab}
         tabs={[
-          { value: "list", label: `Competitors${data ? ` (${data.length})` : ""}` },
+          { value: "list", label: `Competitors & listings${data ? ` (${data.length})` : ""}` },
           { value: "prices", label: "Price comparison" },
           { value: "positioning", label: "Positioning" },
           { value: "import", label: "Import CSV" },
@@ -112,144 +89,29 @@ function Competitors({ projectId }: { projectId: string }) {
 
       {tab === "list" && (
         <div className="space-y-5">
+          {/* Old links to the Listing tracker land here. */}
+          <span id="listings" className="block scroll-mt-20 sm:scroll-mt-36" aria-hidden />
           <DiscoverPanel projectId={projectId} onFinished={refreshAll} />
-          <Card>
-            <CardHeader
-              title="Competitor records"
-              subtitle={`${watchCount} on watchlist`}
-              icon={<Swords className="h-4 w-4" />}
-              actions={
-                <label className="flex items-center gap-2 text-xs font-medium text-slate-700">
-                  <input type="checkbox" checked={watchOnly} onChange={(e) => setWatchOnly(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
-                  Watchlist only
-                </label>
-              }
-            />
-            {error && (
-              <div className="px-5 pt-3">
-                <Alert tone="red">{error}</Alert>
-              </div>
-            )}
-            {loading && !data && (
-              <div className="px-5 py-6">
-                <Spinner />
-              </div>
-            )}
-            {loadError && (
-              <div className="px-5 py-4">
-                <Alert tone="red">{errorText(loadError)}</Alert>
-              </div>
-            )}
-            {data && competitors.length === 0 && (
-              <EmptyState icon={<Swords className="h-5 w-5" />} title={watchOnly ? "No competitors on your watchlist" : "No competitors yet"}>
-                {watchOnly ? "Star a competitor to add it to your watchlist." : "Discover competitors with AI research above, import a CSV, or add one manually."}
+          <div>
+            <h3 className="mb-1.5 text-sm font-semibold text-ink">Track comparable listings <span className="font-normal text-slate-500">- Listing Tracker Agent</span></h3>
+            <ResearchRunStarter projectId={projectId} kind="listing_tracker" label="Track listings" onFinished={() => { tracker.reload(); refreshAll(); }}
+              keywordsPlaceholder="e.g. knotted headband, top knot headband"
+              approval="This makes about 6 SerpApi searches (Google Trends, Amazon, Google Shopping, and Etsy through Google) and one short AI call that picks the 15-20 listings directly comparable to this product. Every price, rating, review count and badge is copied from the marketplace data and saved as a dated price record under its brand, so running it again later builds a price history."
+              focusPlaceholder="e.g. women's knotted tweed and plaid headbands" />
+          </div>
+          {error && <Alert tone="red">{error}</Alert>}
+          {loadError && <Alert tone="red">{errorText(loadError)}</Alert>}
+          {loading && !data ? <Spinner /> : data && data.length === 0 ? (
+            <Card>
+              <EmptyState icon={<Swords className="h-5 w-5" />} title="No competitors yet">
+                Discover competitors with AI research or track comparable listings above, import a CSV, or add one manually.
               </EmptyState>
-            )}
-            {competitors.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px]">
-                  <thead className="border-b border-slate-200 bg-slate-50/60">
-                    <tr>
-                      <Th className="w-10">
-                        <span className="sr-only">Watchlist</span>
-                      </Th>
-                      <Th>Competitor</Th>
-                      <Th>Tier</Th>
-                      <Th>Channels</Th>
-                      <Th>Source</Th>
-                      <Th>Products</Th>
-                      <Th>Latest observed price</Th>
-                      <Th className="text-right">Actions</Th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {competitors.map((c) => {
-                      const { best, count } = latestPrice(c);
-                      const link = competitorLink(c, best);
-                      return (
-                        <tr key={c.id} className="hover:bg-slate-50/50">
-                          <Td>
-                            <button
-                              onClick={() => toggleWatch(c)}
-                              className="group rounded p-1 hover:bg-amber-50"
-                              aria-label={c.on_watchlist ? `Remove ${c.name} from watchlist` : `Add ${c.name} to watchlist`}
-                              aria-pressed={c.on_watchlist}
-                              title={c.on_watchlist ? "On watchlist" : "Add to watchlist"}
-                            >
-                              <Star className={c.on_watchlist ? "h-4 w-4 fill-amber-300 text-amber-500" : "h-4 w-4 text-slate-300 group-hover:text-amber-400"} />
-                            </button>
-                          </Td>
-                          <Td>
-                            {link ? (
-                              <a href={link.href} target="_blank" rel="noopener noreferrer" title={`Open ${c.name} (${link.label})`}
-                                className="inline-flex items-start gap-1 font-medium text-primary-700 underline decoration-primary-300 underline-offset-2 hover:text-primary-800 hover:decoration-primary-800">
-                                {c.name}
-                                <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                              </a>
-                            ) : (
-                              <button onClick={() => setDetailId(c.id)} className="text-left font-medium text-slate-900 hover:text-primary-800 hover:underline">
-                                {c.name}
-                              </button>
-                            )}
-                            {link && <div className="text-xs text-slate-500">{link.label}</div>}
-                            {c.revenue && (
-                              <div className="text-xs text-slate-600">
-                                Revenue {fmtFigure(c.revenue)}{c.revenue.year ? ` (${c.revenue.year})` : ""}
-                                {c.revenue.source_url && <> · <ExternalLink href={c.revenue.source_url}>source</ExternalLink></>}
-                              </div>
-                            )}
-                            {c.positioning && <div className="mt-0.5 max-w-xs text-xs text-slate-500">{c.positioning}</div>}
-                          </Td>
-                          <Td>{c.price_tier ? <Badge tone="blue">{titleCase(c.price_tier)}</Badge> : <span className="text-xs text-slate-400">Unknown</span>}</Td>
-                          <Td className="max-w-[12rem] text-xs text-slate-600">{c.channels.length ? c.channels.join(", ") : <span className="text-slate-400">-</span>}</Td>
-                          <Td>
-                            <DiscoveredByBadge by={c.discovered_by} />
-                          </Td>
-                          <Td className="text-xs">{c.products.length}</Td>
-                          <Td className="text-xs">
-                            {best ? (
-                              <div className="flex items-start gap-2.5">
-                                {best.image && <ProductThumb src={best.image} href={best.url} alt={best.product} size={40} />}
-                                <div className="min-w-0">
-                                  <span className="text-sm font-medium text-slate-900">{fmtPrice(best.price, best.currency)}</span>
-                                  <div className="text-slate-500">
-                                    {best.url ? <ExternalLink href={best.url}>{best.product}</ExternalLink> : best.product} · {date(best.observed_at)}
-                                  </div>
-                                  <div className="text-slate-400">{count} observation{count === 1 ? "" : "s"}</div>
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-slate-400">None recorded</span>
-                            )}
-                          </Td>
-                          <Td className="text-right">
-                            <div className="flex flex-wrap items-center justify-end gap-1">
-                            <Button size="sm" variant="secondary" onClick={() => setDetailId(c.id)} className="whitespace-nowrap">
-                              Prices
-                            </Button>
-                            <button
-                              onClick={() => {
-                                setEditing(c);
-                                setFormOpen(true);
-                              }}
-                              className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-                              aria-label={`Edit ${c.name}`}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            <button onClick={() => remove(c)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Delete ${c.name}`}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </button>
-                            </div>
-                          </Td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+            </Card>
+          ) : data && (
+            <BrandsAndListings competitors={data} tracker={tracker.data?.content ?? null} trackedAt={tracker.data?.created_at ?? null}
+              onToggleWatch={toggleWatch} onRemove={remove} onDetail={(c) => setDetailId(c.id)}
+              onEdit={(c) => { setEditing(c); setFormOpen(true); }} />
+          )}
         </div>
       )}
 

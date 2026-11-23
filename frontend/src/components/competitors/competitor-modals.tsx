@@ -13,6 +13,7 @@ export const TIERS = ["budget", "mid", "premium", "luxury"] as const;
 export function DiscoveredByBadge({ by }: { by: string }) {
   if (by === "ai_research") return <Badge tone="violet">AI research</Badge>;
   if (by === "csv") return <Badge tone="blue">CSV import</Badge>;
+  if (by === "listing_tracker") return <Badge tone="teal">Listing tracker</Badge>;
   return <Badge tone="slate">Manual</Badge>;
 }
 

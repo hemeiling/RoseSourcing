@@ -1,15 +1,15 @@
 "use client";
 
 import { Star } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ResearchRunStarter } from "@/components/research-run-starter";
-import { Badge, Card, CardBody, CardHeader, ExternalLink, ProductThumb, Spinner } from "@/components/ui";
-import { date, domainOf, money, num, titleCase } from "@/lib/format";
+import { Badge, Card, CardBody, CardHeader, ExternalLink, Spinner } from "@/components/ui";
+import { date, domainOf, num, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 
-type Snapshot<T> = { id: string; content: T; created_at: string } | null;
+export type Snapshot<T> = { id: string; content: T; created_at: string } | null;
 
-type Listing = {
+export type Listing = {
   competitor_product_id: string;
   competitor: string;
   platform: string;
@@ -24,7 +24,7 @@ type Listing = {
   image?: string | null;
 };
 
-type Tracker = {
+export type Tracker = {
   keywords: string[];
   geo: string;
   trend: ({ keyword: string; url: string; series: [string, number][]; average: number; peak: number; recent_average: number;
@@ -37,83 +37,19 @@ type Tracker = {
   retrieved_at: string;
 };
 
-const median = (xs: number[]) => {
+export const median = (xs: number[]) => {
   if (!xs.length) return null;
   const s = [...xs].sort((a, b) => a - b);
   return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
 };
 
-function Rating({ rating, reviews }: { rating: number | null; reviews: number | null }) {
+export function Rating({ rating, reviews }: { rating: number | null; reviews: number | null }) {
   if (rating === null && reviews === null) return <span className="text-slate-400">No reviews shown</span>;
   return (
     <span className="whitespace-nowrap">
       {rating !== null && <><Star className="mr-0.5 inline h-3 w-3 fill-current align-[-1px] text-slate-500" aria-hidden />{rating.toFixed(1)}</>}
       {reviews !== null && <span className="text-slate-500"> ({num(reviews)})</span>}
     </span>
-  );
-}
-
-/** Google Trends + 15-20 comparable listings with price, rating, review count and badges, as the marketplaces showed them. */
-export function ListingTrackerSection({ projectId, onLogged }: { projectId: string; onLogged?: () => void }) {
-  const snap = useApi<Snapshot<Tracker>>(`/api/projects/${projectId}/snapshots/listing_tracker`);
-  const t = snap.data?.content;
-  const [platform, setPlatform] = useState<string>("all");
-  const rows = useMemo(() => (t?.listings ?? []).filter((r) => platform === "all" || r.platform === platform)
-    .sort((a, b) => (b.reviews ?? -1) - (a.reviews ?? -1)), [t, platform]);
-  const prices = (t?.listings ?? []).map((r) => r.price);
-  const counts = (t?.listings ?? []).flatMap((r) => (r.reviews !== null ? [r.reviews] : []));
-  return (
-    <div className="space-y-4">
-      <ResearchRunStarter projectId={projectId} kind="listing_tracker" label="Track listings" onFinished={() => { snap.reload(); onLogged?.(); }}
-        keywordsPlaceholder="e.g. knotted headband, top knot headband"
-        approval="This makes about 6 SerpApi searches (Google Trends, Amazon, Google Shopping, and Etsy through Google) and one short AI call that picks the 15-20 listings directly comparable to this product. Every price, rating, review count and badge is copied from the marketplace data and saved as a dated price record, so running it again later builds a price history."
-        focusPlaceholder="e.g. women's knotted tweed and plaid headbands" />
-      {snap.loading && !snap.data ? <Spinner /> : !t ? (
-        <p className="text-sm text-slate-500">No listings tracked yet for this product.</p>
-      ) : (
-        <>
-          <p className="text-xs text-slate-500">Search interest over time is in <a href="#trends" className="font-semibold text-primary-700 hover:underline">Search trends</a>.</p>
-          <Card>
-            <CardHeader title={`${t.listings.length} comparable listings`}
-              subtitle={`Picked from ${t.candidates_considered} search results for "${t.keywords.join('", "')}" on ${date(t.retrieved_at)}. ${t.left_out}`} />
-            <CardBody className="space-y-3">
-              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-600">
-                {prices.length > 0 && <span>Price {money(Math.min(...prices))} – {money(Math.max(...prices))}, median <b className="text-ink">{money(median(prices))}</b></span>}
-                {counts.length > 0 && <span>Median <b className="text-ink">{num(median(counts))}</b> reviews</span>}
-                <span><b className="text-ink">{t.listings.filter((r) => r.badges.length).length}</b> with a badge</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by platform">
-                {[["all", t.listings.length] as const, ...Object.entries(t.by_platform).sort((a, b) => b[1] - a[1])].map(([p, n]) => (
-                  <button key={p} onClick={() => setPlatform(p)} aria-pressed={platform === p}
-                    className={`rounded-md border px-2.5 py-0.5 text-xs font-semibold ${platform === p ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-700 hover:border-primary-300"}`}>
-                    {p === "all" ? "All" : p} · {n}
-                  </button>
-                ))}
-              </div>
-              <ul className="divide-y divide-slate-100 rounded-lg border border-line">
-                {rows.map((r) => (
-                  <li key={r.competitor_product_id + r.url} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 px-3 py-2.5 text-sm sm:grid-cols-[auto_minmax(0,1fr)_6.5rem_5.5rem_8rem] sm:items-start">
-                    <div className="row-span-4 sm:row-span-1"><ProductThumb src={r.image} href={r.url} alt={r.title} size={64} /></div>
-                    <div className="min-w-0">
-                      {r.url ? <ExternalLink href={r.url} className="font-medium">{r.title}</ExternalLink> : <span className="font-medium text-ink">{r.title}</span>}
-                      <div className="text-xs text-slate-500">{r.competitor}{r.seller && r.seller !== r.competitor ? ` · sold by ${r.seller}` : ""}</div>
-                      {r.badges.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">{r.badges.map((b) => <Badge key={b} tone="slate">{b}</Badge>)}</div>
-                      )}
-                    </div>
-                    <div className="text-xs text-slate-600 sm:text-sm">{r.platform}</div>
-                    <div className="font-semibold text-ink">{money(r.price)}</div>
-                    <div className="text-xs sm:text-sm"><Rating rating={r.rating} reviews={r.reviews} /></div>
-                  </li>
-                ))}
-              </ul>
-              {t.gaps.length > 0 && <ul className="list-disc space-y-0.5 pl-5 text-xs text-amber-800">{t.gaps.map((g) => <li key={g}>{g}</li>)}</ul>}
-              <p className="text-xs text-slate-500">Each listing is saved under Competitors with a dated price record (rating, reviews and badges included).</p>
-            </CardBody>
-          </Card>
-        </>
-      )}
-    </div>
   );
 }
 

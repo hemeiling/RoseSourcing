@@ -21,8 +21,7 @@ export const SECTIONS: Tab[] = [
   ] },
   { id: "competitors", title: "Competitors & pricing", parts: [
     { id: "pricing", title: "Price tiers & needs", description: "Budget to luxury: prices, quality differences, and what buyers in each tier want and complain about." },
-    { id: "listings", title: "Listing tracker", description: "15-20 directly comparable listings on Amazon, Etsy and brand sites, with price, rating, review count and badges." },
-    { id: "brands", title: "Competitors", route: "/competitors", description: "Who sells this today, at what prices, and how they position themselves." },
+    { id: "brands", title: "Competitors & listings", route: "/competitors", description: "Every brand selling this with its listings underneath: tier, channels, revenue and positioning, and each listing's picture, price, rating, reviews and badges. The Listing Tracker's 15-20 directly comparable listings are marked. Starred brands first." },
   ] },
   { id: "fit", title: "Reviews & fit", parts: [
     { id: "reviews", title: "Low-star reviews", description: "Complaints in 1-3 star reviews of the leading listings, tagged for comfort, fit and durability - each quote checked against its source." },
@@ -41,10 +40,11 @@ export const SECTIONS: Tab[] = [
   ] },
 ];
 
-/** The tab each anchor lives in (a tab is its own parent). */
-export const TAB_OF: Record<string, TabId> = Object.fromEntries(
-  SECTIONS.flatMap((t) => [[t.id, t.id], ...(t.parts ?? []).map((p) => [p.id, t.id])]),
-) as Record<string, TabId>;
+/** The tab each anchor lives in (a tab is its own parent). "listings" was its own part; it now sits inside "brands". */
+export const TAB_OF: Record<string, TabId> = Object.fromEntries([
+  ...SECTIONS.flatMap((t) => [[t.id, t.id], ...(t.parts ?? []).map((p) => [p.id, t.id])]),
+  ["listings", "competitors"],
+]) as Record<string, TabId>;
 
 export const SECTION_BY_ROUTE: Record<string, SectionId> = Object.fromEntries(
   SECTIONS.flatMap((t) => [t, ...(t.parts ?? [])]).filter((s) => s.route).map((s) => [s.route!, s.id]),
