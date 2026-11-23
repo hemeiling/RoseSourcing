@@ -18,9 +18,9 @@ import type { AgentExecution, Experiment, ModelSpec, PriceTarget, Scenario, UERe
 /** The amount at the end of each bar (left of the bar when it is negative). */
 function BarValue(props: { x?: unknown; y?: unknown; width?: unknown; height?: unknown; value?: unknown }) {
   const x = Number(props.x ?? 0), y = Number(props.y ?? 0), w = Number(props.width ?? 0), h = Number(props.height ?? 0), v = Number(props.value ?? 0);
-  const neg = v < 0;
+  // Always to the right of the bar's right end (for a loss that is the $0 line), so it never covers the row names.
   return (
-    <text x={neg ? x + w - 4 : x + w + 4} y={y + h / 2} dy={4} fontSize={11} fill="#334155" textAnchor={neg ? "end" : "start"}>
+    <text x={Math.max(x, x + w) + 4} y={y + h / 2} dy={4} fontSize={11} fill={v < 0 ? "#b91c1c" : "#334155"} fontWeight={v < 0 ? 600 : 400}>
       {money(v, { decimals: 2 })}
     </text>
   );
@@ -101,8 +101,20 @@ function PriceTargets({ r, inputs, onUsePrice }: { r: UEResults; inputs: Record<
   );
 }
 
-function ShipmentSizes({ r, onUse }: { r: UEResults; onUse: (units: number) => void }) {
+function ShipmentSizes({ r, fixed, onUse, onFixed }: { r: UEResults; fixed: number; onUse: (units: number) => void; onFixed: (v: number) => void }) {
   if (!r.by_shipment_size?.length) return null;
+  if (!fixed)
+    return (
+      <div className="rounded-lg border border-line p-3">
+        <div className="mb-1 text-xs font-medium text-slate-600">Per-unit cost by shipment size</div>
+        <p className="text-xs text-slate-600">
+          Shipment size changes the cost per unit once you enter a <b>fixed cost per shipment</b> - the fees paid once however many
+          units ship: customs broker and entry, documents, delivery to your warehouse, the carrier&apos;s minimum charge. Ask your
+          forwarder to list them in the quote.
+        </p>
+        <Button size="sm" variant="ghost" className="mt-1" onClick={() => onFixed(200)}>Try an example: $200 per shipment</Button>
+      </div>
+    );
   return (
     <div>
       <div className="mb-1 text-xs font-medium text-slate-600">Per-unit cost by shipment size</div>
@@ -153,6 +165,10 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
     { name: "Marketing", value: pu.marketing, color: COST },
     { name: "Contribution", value: r.contribution_margin, color: r.contribution_margin >= 0 ? "#15803d" : "#dc2626" },
   ];
+  const lo = Math.min(0, ...waterfall.map((d) => d.value));
+  const hi = Math.max(0, ...waterfall.map((d) => d.value));
+  const step = hi - lo > 100 ? 25 : hi - lo > 40 ? 10 : 5;
+  const domain: [number, number] = [Math.floor(lo / step) * step, Math.ceil(hi / step) * step];
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
@@ -185,9 +201,9 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
         <div className="mb-1 text-xs font-medium text-slate-600">Where each sale&apos;s revenue goes (per unit)</div>
         <div style={{ height: waterfall.length * 28 + 30 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={waterfall} layout="vertical" margin={{ left: 4, right: 4, top: 4, bottom: 4 }}>
+            <BarChart data={waterfall} layout="vertical" margin={{ left: 4, right: 56, top: 4, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" tickFormatter={(v) => `$${v}`} fontSize={11} domain={[(min: number) => Math.min(0, min * 1.35), (max: number) => Math.max(0, max * 1.35)]} />
+              <XAxis type="number" tickFormatter={(v: number) => money(v, { decimals: 0 })} fontSize={11} domain={domain} allowDecimals={false} />
               <YAxis type="category" dataKey="name" width={92} fontSize={11} interval={0} />
               <ReferenceLine x={0} stroke="#64748b" />
               <Tooltip formatter={(v) => money(Number(v))} />
@@ -200,7 +216,7 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
         </div>
       </div>
       <PriceTargets r={r} inputs={inputs} onUsePrice={(p) => onSet("retail_price", p)} />
-      <ShipmentSizes r={r} onUse={(n) => onSet("units_per_shipment", n)} />
+      <ShipmentSizes r={r} fixed={inputs.shipment_fixed_costs ?? 0} onUse={(n) => onSet("units_per_shipment", n)} onFixed={(v) => onSet("shipment_fixed_costs", v)} />
       <div>
         <div className="mb-1 text-xs font-medium text-slate-600">Price sensitivity: contribution per unit</div>
         <div className="h-44">
