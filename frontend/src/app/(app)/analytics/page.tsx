@@ -85,7 +85,7 @@ function NumberInput({ id, value, onValue, pre, post }: { id: string; value: num
 type Recommended = {
   id: string; created_at: string;
   content: {
-    summary: string; based_on_scenario: string; evidence_count: number;
+    summary: string; price_note?: string | null; based_on_scenario: string; evidence_count: number;
     inputs: { field: string; value: number; basis: string; why: string; exact_in_source: boolean; sources: { ref: string; label: string; url: string | null }[] }[];
     results: { retail_price: number; landed_cost: number; contribution_margin: number; contribution_margin_pct: number | null; gross_margin_pct: number | null; breakeven_cac: number };
     generated_by: { generated_at: string; cost_usd?: number };
@@ -119,6 +119,7 @@ function RecommendPanel({ rec, busy, error, onRun, onUseAll }: {
       ) : (
         <div className="mt-1 space-y-1 text-xs text-slate-700">
           <p>{r.summary}</p>
+          {r.price_note && <p className="rounded bg-amber-50 px-2 py-1 text-amber-900">{r.price_note}</p>}
           <p>
             With all of them: retail <b>{money(r.results.retail_price)}</b>, landed cost <b>{money(r.results.landed_cost)}</b> per unit,
             contribution <b className={r.results.contribution_margin < 0 ? "text-red-700" : "text-green-700"}>{money(r.results.contribution_margin)}</b> per unit

@@ -327,5 +327,23 @@ def test_recommended_inputs_cite_evidence(authed, project, fake_llm):
     assert items["factory_cost"]["basis"] == "sourced_research" and items["factory_cost"]["exact_in_source"]
     assert items["factory_cost"]["sources"][0]["label"] == "Yiwu Knots"
     assert items["duty_rate_pct"]["basis"] == "assumption" and items["duty_rate_pct"]["sources"] == []  # E999 does not exist
-    assert items["moq"]["value"] == 300 and c["results"]["retail_price"] == 28
+    assert items["moq"]["value"] == 300
+    # $28 loses money with the default $15 marketing cost, so the price is raised to the lowest viable .99 price.
+    assert items["retail_price"]["research_value"] == 28 and c["results"]["retail_price"] == items["retail_price"]["value"] > 28
+    assert c["price_note"] and c["results"]["contribution_margin_pct"] >= 15
     assert authed.get(f"/api/projects/{pid}/analytics/recommended-inputs").json()["id"] == r.json()["id"]
+
+
+def test_recommended_price_is_raised_until_each_sale_earns():
+    from app.services.agents.ue_recommend import ensure_viable_price
+    from app.services.unit_economics import UnitEconomicsInputs, calculate
+
+    i = UnitEconomicsInputs(retail_price=14.99, avg_discount_pct=10, factory_cost=2.5, duty_rate_pct=34.6, marketing_cac=4)
+    items = [{"field": "retail_price", "value": 14.99, "basis": "sourced_research", "why": "tier", "exact_in_source": True, "sources": []}]
+    fixed, note = ensure_viable_price(i, items)
+    assert calculate(i)["contribution_margin"] < 0 and fixed.retail_price > 14.99 and str(fixed.retail_price).endswith(".99")
+    assert calculate(fixed)["contribution_margin_pct"] >= 15
+    assert calculate(fixed.model_copy(update={"retail_price": fixed.retail_price - 1}))["contribution_margin_pct"] < 15
+    assert items[0]["value"] == fixed.retail_price and items[0]["research_value"] == 14.99 and "loses" in note
+    same, none = ensure_viable_price(fixed, items)
+    assert none is None and same.retail_price == fixed.retail_price

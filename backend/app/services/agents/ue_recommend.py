@@ -8,6 +8,7 @@ was estimated from it. The calculator does the math.
 
 from __future__ import annotations
 
+import math
 import statistics
 from datetime import datetime, timezone
 from typing import Any, Literal
@@ -17,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...models import AnalysisSnapshot, BusinessProject, ResearchFinding, SalesChannel, ShippingOption, Supplier, User
-from ..unit_economics import INPUT_LABELS, UnitEconomicsInputs, calculate
+from ..unit_economics import INPUT_LABELS, UnitEconomicsInputs, calculate, price_for_margin
 from .generators import _run
 from .outreach import _latest
 from .sourcing import baseline_inputs
@@ -110,6 +111,35 @@ def evidence(db: Session, project: BusinessProject) -> tuple[list[str], dict[str
     return lines, refs
 
 
+MIN_CONTRIBUTION_PCT = 15.0  # below this the calculator already warns there is little room for error
+
+
+def ensure_viable_price(i: UnitEconomicsInputs, items: list[dict[str, Any]]) -> tuple[UnitEconomicsInputs, str | None]:
+    """The AI picks a price from the market evidence but cannot check the math. If that price leaves under 15%
+    contribution, raise it to the lowest .99 price that reaches 15% at the recommended costs, and say why."""
+    res = calculate(i)
+    if (res["contribution_margin_pct"] or -1) >= MIN_CONTRIBUTION_PCT:
+        return i, None
+    target = price_for_margin(i, MIN_CONTRIBUTION_PCT)["contribution_margin_price"]
+    if target is None:
+        return i, (f"No price reaches a {MIN_CONTRIBUTION_PCT:g}% contribution margin with these costs and fees - lower the costs or "
+                   "change the channel before choosing a price.")
+    new = math.ceil(target) - 0.01
+    if new < target:
+        new += 1
+    new = round(new, 2)
+    old = i.retail_price
+    note = (f"Raised the price from {_money(old)} (where the research places it) to {_money(new)}: at {_money(old)} each sale "
+            f"{'loses' if res['contribution_margin'] < 0 else 'earns only'} {_money(abs(res['contribution_margin']))} after fees, returns and "
+            f"marketing; {_money(new)} is the lowest .99 price with at least {MIN_CONTRIBUTION_PCT:g}% contribution margin.")
+    for it in items:
+        if it["field"] == "retail_price":
+            it.update(value=new, basis="assumption", exact_in_source=False, why=note, research_value=old)
+    if not any(it["field"] == "retail_price" for it in items):
+        items.insert(0, {"field": "retail_price", "value": new, "basis": "assumption", "why": note, "exact_in_source": False, "sources": []})
+    return i.model_copy(update={"retail_price": new}), note
+
+
 def recommend(db: Session, project: BusinessProject, user: User) -> AnalysisSnapshot:
     base, base_name, _ = baseline_inputs(db, project)
     lines, refs = evidence(db, project)
@@ -137,9 +167,10 @@ def recommend(db: Session, project: BusinessProject, user: User) -> AnalysisSnap
         items.append({"field": r.field, "value": values[r.field], "basis": basis, "why": r.why, "exact_in_source": exact,
                       "sources": [{"ref": x, "label": refs[x]["label"], "url": refs[x]["url"]} for x in cited]})
     merged = base.model_copy(update=values)
+    merged, price_note = ensure_viable_price(merged, items)
     res = calculate(merged)
     content = {
-        "summary": out.summary, "inputs": items, "based_on_scenario": base_name, "evidence_count": len(refs),
+        "summary": out.summary, "price_note": price_note, "inputs": items, "based_on_scenario": base_name, "evidence_count": len(refs),
         "results": {"retail_price": merged.retail_price, "landed_cost": res["landed_cost_breakdown"]["landed_cost"],
                     "contribution_margin": res["contribution_margin"], "contribution_margin_pct": res["contribution_margin_pct"],
                     "gross_margin_pct": res["gross_margin_pct"], "breakeven_cac": res["breakeven_cac"]},
