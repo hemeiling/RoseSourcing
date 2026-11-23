@@ -120,6 +120,21 @@ def test_photo_scan_creates_project_and_starts_research(authed, project, fake_ll
     assert authed.post(f"/api/projects/{project['id']}/product-scans", files={"file": ("x.txt", b"hi", "text/plain")}).status_code == 400
 
 
+def test_photo_scan_without_any_project(authed, fake_llm, monkeypatch):
+    monkeypatch.setattr("app.api.scans.submit_run", opportunity.execute_run)
+    assert authed.get("/api/projects").json() == []
+    r = authed.post("/api/product-scans", files={"file": ("p.png", PNG, "image/png")},
+                    data={"auto_research": "true", "target_country": "Canada", "sourcing_country": "China"})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    new = authed.get(f"/api/projects/{body['project_id']}").json()
+    assert new["name"] == "Women's Latin practice dress" and new["target_country"] == "Canada" and new["sourcing_country"] == "China"
+    assert new["cover_scan_id"] == body["scan"]["id"] and body["scan"]["project_id"] == body["project_id"]
+    assert authed.get(f"/api/research-runs/{body['run']['id']}").json()["status"] == "completed"
+    assert authed.get(body["scan"]["image_url"]).content == PNG
+    assert authed.post("/api/product-scans", files={"file": ("x.txt", b"hi", "text/plain")}).status_code == 400
+
+
 def test_decisions_and_brief(authed, project, fake_llm):
     pid = project["id"]
     b = authed.post(f"/api/projects/{pid}/decision-brief")

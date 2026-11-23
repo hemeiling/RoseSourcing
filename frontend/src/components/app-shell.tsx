@@ -189,12 +189,17 @@ export function RequireProject({ children }: { children: (projectId: string) => 
         icon={<FolderKanban className="h-5 w-5" />}
         title="No business project yet"
         action={
-          <Link href="/projects?new=1">
-            <Button>Create a project</Button>
-          </Link>
+          <div className="flex flex-wrap justify-center gap-2">
+            <Link href="/pipeline">
+              <Button>Snap a product photo</Button>
+            </Link>
+            <Link href="/projects?new=1">
+              <Button variant="secondary">Create a project</Button>
+            </Link>
+          </div>
         }
       >
-        Projects hold your category, target market, budget and assumptions. Every module works inside a project.
+        Projects hold your category, target market, budget and assumptions. Every module works inside a project. Snap a photo of something you might sell and a project is created for you.
       </EmptyState>
     );
   return <>{children(project.id)}</>;

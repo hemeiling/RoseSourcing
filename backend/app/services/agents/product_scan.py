@@ -38,14 +38,15 @@ never present a brand's product as the founder's own. If a logo, character or di
 say so in ip_caution. Search keywords must be generic phrases real shoppers use, not brand names."""
 
 
-def identify(db: Session, project: BusinessProject, user: User, media_type: str, data: bytes) -> tuple[ProductIdentification, object]:
+def identify(db: Session, user: User, media_type: str, data: bytes, *, target_country: str, sourcing_country: str | None,
+             project: BusinessProject | None = None) -> tuple[ProductIdentification, object]:
     llm = get_llm()
-    ex = start_execution(db, agent="opportunity_research", operation="identify_product_photo", project_id=project.id,
+    ex = start_execution(db, agent="opportunity_research", operation="identify_product_photo", project_id=project.id if project else None,
                          user_id=user.id, model=llm.model, input_summary=f"Product photo ({media_type}, {len(data) // 1024} KB)")
     db.commit()
     prompt = (
-        f"The founder's market is {project.target_country}"
-        + (f" and they plan to source from {project.sourcing_country}" if project.sourcing_country else "")
+        f"The founder's market is {target_country}"
+        + (f" and they plan to source from {sourcing_country}" if sourcing_country else "")
         + ". Identify the product in this image so its market can be researched."
     )
     try:
