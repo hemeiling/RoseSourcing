@@ -1,5 +1,5 @@
 # Render Blueprint: one web service (FastAPI + static Next.js) and one PostgreSQL database.
-# Plans: "free" web services sleep after inactivity and free Postgres expires after 30 days.
+# Plans: "free" web services sleep after inactivity; free Postgres expires after 30 days, so the database is on a paid plan.
 # For production use, change the plans (e.g. web: 0.5c-512mb, database: 0.1c-256mb).
 services:
   - type: web
@@ -52,7 +52,7 @@ services:
 
 databases:
   - name: ai-commerce-os-db
-    plan: free
+    plan: basic-256mb  # paid 0.1c-256mb plan (upgraded 2026-11-23) so the database does not expire
     region: oregon
     databaseName: aicommerce
     user: aicommerce
