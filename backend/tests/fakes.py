@@ -75,7 +75,7 @@ class FakeLLM:
     def structured(self, *, system: str, prompt: str, output_model: type, max_tokens: int = 16000, images=None):
         self.calls.append(f"structured:{output_model.__name__}")
         usage = LLMUsage(input_tokens=500, output_tokens=300, cost_usd=0.01, model=self.model)
-        if output_model is StepExtraction and "Populate channels" in prompt:
+        if output_model.__name__.startswith("Extraction_") and "Populate channels" in prompt:
             return _ext(
                 findings=[ExtractedFinding(section="channels", claim="The marketplace charges a 17% referral fee on clothing.", detail=None,
                                            evidence_type="sourced", confidence="high", source_refs=["S3"],
@@ -91,7 +91,7 @@ class FakeLLM:
                 ],
                 evidence_gaps=[],
             ), usage
-        if output_model is StepExtraction and "Populate size_charts" in prompt:
+        if output_model.__name__.startswith("Extraction_") and "Populate size_charts" in prompt:
             m = re.search(r"\[(S\d+)\] Brand A size guide", prompt)
             row = lambda size, bust, waist: ExtractedSizeRow(  # noqa: E731
                 size=size, other_labels=[ExtractedSizeLabel(system="US", value={"S": "4", "M": "8"}[size])],
@@ -108,7 +108,7 @@ class FakeLLM:
                 rows=[ExtractedSizeRow(size="S", other_labels=[], measurements=[ExtractedMeasure(dimension="bust", min=32, max=33)]),
                       ExtractedSizeRow(size="M", other_labels=[], measurements=[ExtractedMeasure(dimension="bust", min=34, max=35)])],
                 fit_notes=None, source_ref=None), usage
-        if output_model is StepExtraction and "Populate shipping_benchmarks" in prompt:
+        if output_model.__name__.startswith("Extraction_") and "Populate shipping_benchmarks" in prompt:
             return _ext(
                 findings=[], segments=[], competitors=[], channels=[],
                 shipping_benchmarks=[
@@ -121,7 +121,7 @@ class FakeLLM:
                 ],
                 evidence_gaps=[],
             ), usage
-        if output_model is StepExtraction:
+        if output_model.__name__.startswith("Extraction_"):
             return _ext(
                 findings=[
                     ExtractedFinding(section="market_size", claim="About 1.2 million adults took part in social dance in 2025.",

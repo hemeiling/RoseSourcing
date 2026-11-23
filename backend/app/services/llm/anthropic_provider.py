@@ -8,6 +8,7 @@ import logging
 from typing import Any
 
 import anthropic
+from pydantic import ValidationError
 
 from ...config import get_settings
 from .base import (
@@ -128,16 +129,24 @@ class AnthropicProvider:
                 {"type": "image", "source": {"type": "base64", "media_type": mt, "data": base64.standard_b64encode(data).decode()}}
                 for mt, data in images
             ] + [{"type": "text", "text": prompt}]
-        response = self._call(
-            self.client.beta.messages.parse,
-            model=self.model,
-            max_tokens=max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": content}],
-            output_format=output_model,
-            output_config={"effort": self.effort},
-            **self._extra(),
-        )
+        try:
+            response = self._call(
+                self.client.beta.messages.parse,
+                model=self.model,
+                max_tokens=max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": content}],
+                output_format=output_model,
+                output_config={"effort": self.effort},
+                **self._extra(),
+            )
+        except LLMError as e:
+            msg = str(e).lower()
+            if not (msg.startswith("bad request") and ("grammar" in msg or "schema" in msg)):
+                raise
+            # The schema is too large to compile into a constrained grammar: ask for JSON and validate it ourselves.
+            log.warning("Structured output rejected for %s (%s); using validated JSON mode", output_model.__name__, str(e)[:200])
+            return self._structured_json(system=system, content=content, output_model=output_model, max_tokens=max_tokens)
         self._check_refusal(response)
         if response.stop_reason == "max_tokens":
             raise LLMError("Model output was cut off (max_tokens). Try narrowing the request.")
@@ -145,6 +154,28 @@ class AnthropicProvider:
         if parsed is None:
             raise LLMError("Model did not return output matching the expected schema.")
         return parsed, self._usage(response)
+
+    def _structured_json(self, *, system: str, content: Any, output_model: type[T], max_tokens: int) -> tuple[T, LLMUsage]:
+        schema = json.dumps(output_model.model_json_schema(), separators=(",", ":"))
+        sys = (f"{system}\n\nRespond with one JSON object that validates against this JSON Schema - no prose, no code fences:\n{schema}")
+        messages: list[dict[str, Any]] = [{"role": "user", "content": content}]
+        usage = LLMUsage(model=self.model)
+        for attempt in range(2):
+            response = self._call(self.client.beta.messages.create, model=self.model, max_tokens=max_tokens, system=sys,
+                                  messages=messages, output_config={"effort": self.effort}, **self._extra())
+            self._check_refusal(response)
+            usage.add(self._usage(response))
+            if response.stop_reason == "max_tokens":
+                raise LLMError("Model output was cut off (max_tokens). Try narrowing the request.")
+            text = "".join(getattr(b, "text", "") for b in response.content if getattr(b, "type", None) == "text")
+            try:
+                return output_model.model_validate_json(_json_object(text)), usage
+            except (ValidationError, ValueError) as e:
+                if attempt:
+                    raise LLMError(f"Model did not return output matching the expected schema: {str(e)[:300]}") from e
+                messages += [{"role": "assistant", "content": text},
+                             {"role": "user", "content": f"That JSON does not validate: {str(e)[:2000]}\nReturn the corrected JSON object only."}]
+        raise LLMError("Model did not return output matching the expected schema.")
 
     # ------------------------------------------------------------------ web research
 
@@ -274,3 +305,11 @@ def get_llm() -> AnthropicProvider:
     if _provider is None:
         _provider = AnthropicProvider()
     return _provider
+
+
+def _json_object(text: str) -> str:
+    """The outermost JSON object in a model reply (tolerates stray prose or code fences)."""
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end <= start:
+        raise ValueError("No JSON object in the reply.")
+    return text[start:end + 1]

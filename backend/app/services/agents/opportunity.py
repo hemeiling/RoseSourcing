@@ -14,8 +14,9 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 
+from pydantic import BaseModel, create_model
 from sqlalchemy import select
 
 from ... import audit
@@ -254,6 +255,30 @@ STEP_LABELS = {k: v["label"] for k, v in STEP_DEFS.items()} | {
 SYNTHESIS_STEP = {"market_opportunity": "synthesis", "channels_logistics": "plan"}
 STEP_AGENT = {"competitors": "competitor_intelligence", "channels": "commerce", "logistics": "sourcing", "demand_signals": "analytics",
               "fit_charts": "fit", "fit_experience": "fit"}
+
+
+# Each step asks for findings, gaps and only the record list it fills, with its own section choices. One schema with
+# every list is too large for the API to compile into a constrained grammar.
+STEP_RECORDS = {"customers": "segments", "competitors": "competitors", "channels": "channels", "logistics": "shipping_benchmarks",
+                "fit_charts": "size_charts"}
+_RECORD_LISTS = ("findings", "segments", "competitors", "channels", "shipping_benchmarks", "size_charts", "evidence_gaps")
+_step_models: dict[str, type[BaseModel]] = {}
+
+
+def step_output_model(step_key: str) -> type[BaseModel]:
+    if step_key not in _step_models:
+        sections = tuple(dict.fromkeys([*STEP_DEFS[step_key]["sections"], "other"]))
+        finding = create_model(f"Finding_{step_key}", __base__=ExtractedFinding, section=(Literal[sections], ...))
+        fields: dict[str, Any] = {"findings": (list[finding], ...)}
+        if rec := STEP_RECORDS.get(step_key):
+            fields[rec] = (StepExtraction.model_fields[rec].annotation, ...)
+        fields["evidence_gaps"] = (list[str], StepExtraction.model_fields["evidence_gaps"])
+        _step_models[step_key] = create_model(f"Extraction_{step_key}", **fields)
+    return _step_models[step_key]
+
+
+def to_step_extraction(out: BaseModel) -> StepExtraction:
+    return StepExtraction.model_validate({**{k: [] for k in _RECORD_LISTS}, **out.model_dump()})
 
 
 def initial_steps(kind: str) -> list[dict[str, Any]]:
@@ -657,20 +682,19 @@ Rules:
 
 def _extraction_prompt(step_key: str, ctx: dict[str, str], bundle: EvidenceBundle) -> str:
     sections = ", ".join(STEP_DEFS[step_key]["sections"])
-    want_segments = step_key == "customers"
-    want_competitors = step_key == "competitors"
-    want_channels = step_key == "channels"
-    want_shipping = step_key == "logistics"
-    want_charts = step_key == "fit_charts"
+    record_instructions = {
+        "segments": "Populate segments with distinct customer segments.",
+        "competitors": "Populate competitors with each brand/retailer found, including only prices visible in excerpts.",
+        "channels": "Populate channels with each selling channel; fill fee fields only with numbers stated in the fee_source_ref excerpt, otherwise null.",
+        "shipping_benchmarks": "Populate shipping_benchmarks only with rates stated in an excerpt, with that excerpt as source_ref.",
+        "size_charts": "Populate size_charts with each size chart visible in an excerpt, copying every measurement exactly as printed, with that excerpt as source_ref.",
+    }
+    rec = STEP_RECORDS.get(step_key)
     return (
         f"Business context:\n{context_block(ctx)}\n\n"
         f"Research question:\n{bundle.question}\n\n"
         f"Allowed finding sections for this step: {sections}.\n"
-        f"{'Populate segments with distinct customer segments.' if want_segments else 'Return an empty segments list.'}\n"
-        f"{'Populate competitors with each brand/retailer found, including only prices visible in excerpts.' if want_competitors else 'Return an empty competitors list.'}\n"
-        f"{'Populate channels with each selling channel; fill fee fields only with numbers stated in the fee_source_ref excerpt, otherwise null.' if want_channels else 'Return an empty channels list.'}\n"
-        f"{'Populate shipping_benchmarks only with rates stated in an excerpt, with that excerpt as source_ref.' if want_shipping else 'Return an empty shipping_benchmarks list.'}\n"
-        f"{'Populate size_charts with each size chart visible in an excerpt, copying every measurement exactly as printed, with that excerpt as source_ref.' if want_charts else 'Return an empty size_charts list.'}\n\n"
+        f"{record_instructions[rec] if rec else ''}\n\n"
         f"=== RESEARCH NOTES (analyst summary, citations in brackets) ===\n{bundle.notes or '(none - search API results only)'}\n\n"
         f"=== EVIDENCE DOSSIER (verbatim provider data) ===\n{bundle.dossier() or '(no sources were retrieved)'}\n"
     )
@@ -777,6 +801,7 @@ def execute_run(run_id: uuid.UUID) -> None:
                     model=llm.model, provider=provider.name, research_run_id=run_id, input_summary=question,
                 )
                 ex_id = ex.id
+            usage = LLMUsage()
             try:
                 api_findings, api_meta = 0, {}
                 if key == "demand_signals" and attempts["n"] == 1:  # don't re-collect API data on a retry
@@ -784,15 +809,16 @@ def execute_run(run_id: uuid.UUID) -> None:
                         api_findings, api_meta = _persist_demand(db, db.get(ResearchRun, run_id), keywords, cc or "US")
                     hints = [f"{k} best sellers" for k in keywords[:2]] + hints
                 bundle = provider.gather(question=question, context=context_block(ctx), query_hints=hints, country_code=cc)
-                usage = LLMUsage()
                 usage.add(bundle.usage)
+                _add_run_usage(run_id, bundle.usage)  # searches are paid for even if extraction fails below
                 if not bundle.sources:
-                    ext = StepExtraction(findings=[], segments=[], competitors=[], channels=[], shipping_benchmarks=[], size_charts=[],
-                                         evidence_gaps=[f"No sources were retrieved for: {question}"])
+                    ext = to_step_extraction(step_output_model(key)(findings=[], evidence_gaps=[f"No sources were retrieved for: {question}"],
+                                                                    **({STEP_RECORDS[key]: []} if key in STEP_RECORDS else {})))
                 else:
-                    ext, u2 = llm.structured(system=EXTRACT_SYSTEM, prompt=_extraction_prompt(key, ctx, bundle), output_model=StepExtraction)
+                    out, u2 = llm.structured(system=EXTRACT_SYSTEM, prompt=_extraction_prompt(key, ctx, bundle), output_model=step_output_model(key))
+                    ext = to_step_extraction(out)
                     usage.add(u2)
-                _add_run_usage(run_id, usage)
+                    _add_run_usage(run_id, u2)
                 with session_scope() as db:
                     run = db.get(ResearchRun, run_id)
                     counts = _persist_extraction(db, run, key, bundle, ext)
@@ -805,6 +831,7 @@ def execute_run(run_id: uuid.UUID) -> None:
             except Exception as e:
                 with session_scope() as db:
                     ex = db.get(AgentExecution, ex_id)
+                    apply_usage(ex, usage)
                     finish_execution(ex, error=str(e)[:2000])
                 raise
 
