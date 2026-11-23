@@ -6,7 +6,7 @@ import { RequireProject } from "@/components/app-shell";
 import { DecisionPanel } from "@/components/decision";
 import { EVIDENCE_META } from "@/components/evidence";
 import { useProjects, useStatus } from "@/components/providers";
-import { Alert, Badge, Button, Card, CardBody, CardHeader, ConfigNotice, EmptyState, PageHeader, Spinner, StatCard, type Tone } from "@/components/ui";
+import { Alert, Badge, Button, Card, CardBody, CardHeader, ConfigNotice, EmptyState, PageHeader, Spinner, StatCard, type Tone, useEmbedded } from "@/components/ui";
 import { errorText, patch } from "@/lib/api";
 import { ago, money, pct, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
@@ -32,6 +32,7 @@ const ATTRACTIVENESS: Record<string, { label: string; tone: Tone }> = {
 
 function DashboardView({ projectId }: { projectId: string }) {
   const { project, reload: reloadProjects } = useProjects();
+  const embed = useEmbedded();
   const { status } = useStatus();
   const { data, loading, error, reload } = useApi<Dashboard>(`/api/projects/${projectId}/dashboard`);
 
@@ -63,7 +64,7 @@ function DashboardView({ projectId }: { projectId: string }) {
       <PageHeader
         title={project.name}
         description={`${project.product_category} · ${project.target_country}${project.sourcing_country ? ` · sourcing from ${project.sourcing_country}` : ""}${project.budget_usd !== null ? ` · budget ${money(project.budget_usd, { decimals: 0 })}` : ""}`}
-        actions={<Link href="/copilot"><Button variant="secondary"><Bot className="h-4 w-4" /> Ask the copilot</Button></Link>}
+        actions={embed ? undefined : <Link href="/copilot"><Button variant="secondary"><Bot className="h-4 w-4" /> Ask the copilot</Button></Link>}
       />
       {status && !status.ai.configured && <div className="mb-5"><ConfigNotice message={status.ai.requirement} /></div>}
       <div className="mb-5">

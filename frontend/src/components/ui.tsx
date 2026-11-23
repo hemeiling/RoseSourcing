@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import { AlertTriangle, Info, KeyRound, Loader2, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { createContext, useContext, useEffect, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md";
@@ -119,7 +119,25 @@ export function Spinner({ label }: { label?: string }) {
   );
 }
 
+/** Set by the product report: pages rendered inside it show a compact section header instead of a page title. */
+export const EmbedContext = createContext<{ id: string; title: string; description?: string } | null>(null);
+export const useEmbedded = () => useContext(EmbedContext);
+
 export function PageHeader({ title, description, actions, badge }: { title: string; description?: ReactNode; actions?: ReactNode; badge?: ReactNode }) {
+  const embed = useEmbedded();
+  if (embed)
+    return (
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-line pb-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-2xl font-semibold leading-tight text-ink">{embed.title}</h2>
+            {badge}
+          </div>
+          {(embed.description ?? description) && <p className="mt-1 max-w-3xl text-sm text-slate-600">{embed.description ?? description}</p>}
+        </div>
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      </div>
+    );
   return (
     <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">

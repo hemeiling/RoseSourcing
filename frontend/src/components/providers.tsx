@@ -47,7 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (loading || OPEN.some((p) => pathname?.startsWith(p))) return;
     const isPublic = PUBLIC.some((p) => pathname?.startsWith(p));
     if (!user && !isPublic) router.replace("/login");
-    if (user && isPublic) router.replace("/dashboard");
+    if (user && isPublic) router.replace("/products");
   }, [user, loading, pathname, router]);
 
   const logout = useCallback(async () => {

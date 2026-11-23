@@ -7,6 +7,7 @@ import { useProjects } from "@/components/providers";
 import { Alert, Badge, Button, Card, CardBody, EmptyState, Field, Input, Modal, PageHeader, Select, Spinner, Textarea } from "@/components/ui";
 import { del, errorText, patch, post } from "@/lib/api";
 import { date, money } from "@/lib/format";
+import { productHref } from "@/lib/sections";
 import type { Assumption, Project } from "@/lib/types";
 
 type Form = {
@@ -271,7 +272,7 @@ function ProjectsInner() {
                 )}
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-xs text-slate-400">Created {date(p.created_at)}</span>
-                  <Button size="sm" variant={p.id === current?.id ? "secondary" : "primary"} onClick={() => { select(p.id); router.push("/dashboard"); }}>
+                  <Button size="sm" variant={p.id === current?.id ? "secondary" : "primary"} onClick={() => { select(p.id); router.push(productHref(p.id)); }}>
                     Open dashboard
                   </Button>
                 </div>

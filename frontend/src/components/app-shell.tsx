@@ -1,10 +1,11 @@
 "use client";
 
 import clsx from "clsx";
-import { BarChart3, Bot, Factory, FolderKanban, LayoutDashboard, LayoutGrid, LogOut, Menu, Palette, Ruler, Settings, ShoppingBag, Swords, TrendingUp, Truck, X } from "lucide-react";
+import { FolderKanban, LayoutGrid, LogOut, Menu, Search, Settings, X } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
+import { SECTION_BY_ROUTE, productHref } from "@/lib/sections";
 import { useAuth, useProjects, useStatus } from "./providers";
 import { Button, EmptyState, Spinner } from "./ui";
 
@@ -25,51 +26,65 @@ export function BrandMark({ light }: { light?: boolean }) {
   );
 }
 
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/pipeline", label: "Product Pipeline", icon: LayoutGrid },
-  { href: "/projects", label: "Business Projects", icon: FolderKanban },
-  { href: "/market", label: "Market Opportunity", icon: TrendingUp },
-  { href: "/competitors", label: "Competitor Intelligence", icon: Swords },
-  { href: "/brand", label: "Brand Studio", icon: Palette },
-  { href: "/suppliers", label: "Supplier Intelligence", icon: Factory },
-  { href: "/sizing", label: "Sizing & Fit", icon: Ruler },
-  { href: "/channels", label: "Shipping & Channels", icon: Truck },
-  { href: "/commerce", label: "Commerce", icon: ShoppingBag },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/copilot", label: "AI Business Copilot", icon: Bot },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+const DECISION_LABEL: Record<string, string> = { go: "Go", no_go: "No-go", on_hold: "On hold", undecided: "" };
 
 function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { status } = useStatus();
+  const { projects, project } = useProjects();
+  const [q, setQ] = useState("");
+  const onProducts = pathname === "/products" || pathname === "/product";
+  const shown = projects.filter((p) => !q.trim() || `${p.name} ${p.product_category}`.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <nav className="flex h-full flex-col" aria-label="Main">
       <div className="border-b border-white/15 px-5 pb-4 pt-5">
         <BrandMark light />
       </div>
-      <ul className="flex-1 space-y-0.5 px-2.5 py-3">
-        {NAV.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname?.startsWith(href + "/");
-          return (
-            <li key={href}>
-              <Link
-                href={href}
-                onClick={onNavigate}
-                className={clsx(
-                  "flex items-center gap-2.5 rounded-lg border-l-4 px-3 py-2 text-[13.5px] transition-colors",
-                  active ? "border-white bg-white/10 font-semibold text-white" : "border-transparent text-white/80 hover:bg-white/5 hover:text-white",
-                )}
-                aria-current={active ? "page" : undefined}
-              >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                {label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+      <div className="flex min-h-0 flex-1 flex-col px-2.5 py-3">
+        <Link
+          href="/products"
+          onClick={onNavigate}
+          className={clsx(
+            "flex items-center gap-2.5 rounded-lg border-l-4 px-3 py-2 text-[13.5px] transition-colors",
+            pathname === "/products" ? "border-white bg-white/10 font-semibold text-white" : "border-transparent font-semibold text-white/90 hover:bg-white/5 hover:text-white",
+          )}
+          aria-current={pathname === "/products" ? "page" : undefined}
+        >
+          <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden />
+          Products
+          <span className="ml-auto text-[11px] font-normal text-white/60">{projects.length || ""}</span>
+        </Link>
+        {projects.length > 4 && (
+          <label className="mx-1 mt-2 flex items-center gap-1.5 rounded-md bg-white/10 px-2 py-1.5 text-white/70 focus-within:bg-white/15">
+            <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a product" aria-label="Find a product"
+              className="w-full bg-transparent text-[13px] text-white placeholder:text-white/50 focus:outline-none" />
+          </label>
+        )}
+        <ul className="mt-1.5 min-h-0 flex-1 space-y-0.5 overflow-y-auto">
+          {shown.map((p) => {
+            const active = onProducts && pathname === "/product" && project?.id === p.id;
+            return (
+              <li key={p.id}>
+                <Link
+                  href={productHref(p.id)}
+                  onClick={onNavigate}
+                  title={p.name}
+                  className={clsx(
+                    "flex items-center gap-2 rounded-md py-1.5 pl-9 pr-2 text-[13px] transition-colors",
+                    active ? "bg-white/15 font-semibold text-white" : "text-white/75 hover:bg-white/5 hover:text-white",
+                  )}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <span className="min-w-0 flex-1 truncate">{p.name}</span>
+                  {DECISION_LABEL[p.decision] && <span className="shrink-0 text-[10px] uppercase tracking-wide text-white/60">{DECISION_LABEL[p.decision]}</span>}
+                </Link>
+              </li>
+            );
+          })}
+          {q && shown.length === 0 && <li className="px-3 py-2 text-xs text-white/60">No product matches "{q}".</li>}
+        </ul>
+      </div>
       <div className="border-t border-white/15 px-5 py-3 text-[11px] text-white/70">
         {status ? (
           status.ai.configured ? (
@@ -77,8 +92,8 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> AI connected · {status.ai.model}
             </span>
           ) : (
-            <Link href="/settings" className="flex items-center gap-1.5 text-accent-100 hover:underline">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent-500" /> AI not configured
+            <Link href="/settings" className="flex items-center gap-1.5 text-white hover:underline">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> AI not configured
             </Link>
           )
         ) : (
@@ -118,7 +133,21 @@ function ProjectSwitcher() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, loading, logout } = useAuth();
+  const { project, loading: projectsLoading } = useProjects();
+  const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  const section = pathname ? SECTION_BY_ROUTE[pathname] : undefined;
+
+  // The old per-area pages now live as sections of the product report.
+  useEffect(() => {
+    if (!user || projectsLoading) return;
+    if (pathname === "/pipeline") return router.replace("/products");
+    if (!section) return;
+    if (!project) return router.replace("/products");
+    const qs = window.location.search.replace(/^\?/, "");
+    router.replace(`/product?id=${project.id}${qs ? `&${qs}` : ""}#${section}`);
+  }, [user, projectsLoading, pathname, section, project, router]);
 
   if (loading || !user) {
     return (
@@ -149,16 +178,20 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button className="rounded p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
             <Menu className="h-5 w-5" />
           </button>
-          <ProjectSwitcher />
+          {pathname !== "/product" && pathname !== "/products" && <ProjectSwitcher />}
           <div className="ml-auto flex items-center gap-3">
             <span className="hidden text-xs text-slate-500 md:inline">{user.email}</span>
+            <Link href="/settings" aria-label="Settings"
+              className={clsx("inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-medium text-slate-600 hover:bg-slate-100 hover:text-ink", pathname === "/settings" && "bg-slate-100 text-ink")}>
+              <Settings className="h-4 w-4" /><span className="hidden sm:inline">Settings</span>
+            </Link>
             <Button variant="ghost" size="sm" onClick={logout} aria-label="Sign out">
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Sign out</span>
             </Button>
           </div>
         </header>
-        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:py-8">{children}</main>
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:py-8">{section || pathname === "/pipeline" ? <Spinner /> : children}</main>
       </div>
     </div>
   );
@@ -175,7 +208,7 @@ export function RequireProject({ children }: { children: (projectId: string) => 
         title="No business project yet"
         action={
           <div className="flex flex-wrap justify-center gap-2">
-            <Link href="/pipeline">
+            <Link href="/products">
               <Button>Snap a product photo</Button>
             </Link>
             <Link href="/projects?new=1">

@@ -10,6 +10,7 @@ import { Alert, Badge, Button, Card, CardBody, EmptyState, PageHeader, Spinner }
 import { errorText } from "@/lib/api";
 import { ago, money, pct, titleCase } from "@/lib/format";
 import { useApi, usePolling } from "@/lib/hooks";
+import { productHref, type SectionId } from "@/lib/sections";
 import type { Decision, PipelineItem } from "@/lib/types";
 
 const FILTERS: { value: Decision | "all"; label: string }[] = [
@@ -20,7 +21,7 @@ const FILTERS: { value: Decision | "all"; label: string }[] = [
   { value: "no_go", label: "No-go" },
 ];
 
-export default function PipelinePage() {
+export default function ProductsPage() {
   const { data, error, loading, reload } = useApi<PipelineItem[]>("/api/pipeline");
   const { select, reload: reloadProjects } = useProjects();
   const router = useRouter();
@@ -36,15 +37,15 @@ export default function PipelinePage() {
   }, [data]);
   const rows = (data ?? []).filter((p) => filter === "all" || p.decision === filter);
 
-  function open(p: PipelineItem, path: string) {
+  function open(p: PipelineItem, section?: SectionId) {
     select(p.id);
-    router.push(path);
+    router.push(productHref(p.id, section));
   }
 
   return (
     <>
-      <PageHeader title="Product Pipeline"
-        description="Every product or category you are evaluating, with its research status, the AI's recommendation, and your own go / no-go decision. Everything is saved for future reference." />
+      <PageHeader title="Products"
+        description="Every product or category you are evaluating. Open one to see its full report - research, competitors, sizing, suppliers, channels and economics in one place - and what to improve." />
       <div className="mb-6"><ProductSnap compact /></div>
       <div className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
@@ -73,7 +74,7 @@ export default function PipelinePage() {
                     <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-400"><ImageIcon className="h-6 w-6" /></div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <button onClick={() => open(p, "/dashboard")} className="block truncate text-left font-serif text-lg font-semibold text-brand-700 hover:underline">{p.name}</button>
+                    <button onClick={() => open(p)} className="block truncate text-left font-serif text-lg font-semibold text-primary-700 hover:underline">{p.name}</button>
                     <p className="truncate text-xs text-slate-500">{p.category} · {p.target_country}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <DecisionBadge decision={p.decision} />
@@ -100,8 +101,8 @@ export default function PipelinePage() {
                   {p.decision_note && <p className="text-slate-700">&ldquo;{p.decision_note}&rdquo; <span className="text-slate-400">{ago(p.decided_at)}</span></p>}
                   <div className="flex flex-wrap gap-2 pt-1">
                     <Button size="sm" onClick={() => setDeciding(p)}>Decide</Button>
-                    <Button size="sm" variant="secondary" onClick={() => open(p, "/market")}>Research</Button>
-                    <Button size="sm" variant="ghost" onClick={() => open(p, "/dashboard")}>Brief</Button>
+                    <Button size="sm" variant="secondary" onClick={() => open(p, "market")}>Research</Button>
+                    <Button size="sm" variant="ghost" onClick={() => open(p, "review")}>What to improve</Button>
                   </div>
                 </CardBody>
               </Card>

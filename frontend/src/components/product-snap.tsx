@@ -8,6 +8,7 @@ import { useProjects, useStatus } from "./providers";
 import { Alert, Badge, Button, Card, CardBody, CardHeader, ConfigNotice, Field, Input } from "./ui";
 import { ApiError, api, errorText } from "@/lib/api";
 import { prepareImage } from "@/lib/image";
+import { productHref } from "@/lib/sections";
 import type { ProductScan } from "@/lib/types";
 
 type ScanResult = {
@@ -169,7 +170,7 @@ export function ProductSnap({ compact }: { compact?: boolean }) {
               {result.research_note && <Alert tone="blue">{result.research_note}</Alert>}
               {result.project_id && (
                 <div className="flex flex-wrap gap-2 pt-1">
-                  <Button size="sm" onClick={() => { select(result.project_id!); router.push("/market"); }}>
+                  <Button size="sm" onClick={() => { select(result.project_id!); router.push(productHref(result.project_id!, "market")); }}>
                     {result.run ? "Watch research progress" : "Open project"} <ArrowRight className="h-3.5 w-3.5" />
                   </Button>
                   <Button size="sm" variant="secondary" onClick={() => { select(result.project_id!); router.push("/projects"); }}>Edit details</Button>

@@ -2,7 +2,7 @@
 
 import { FileText } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RequireProject } from "@/components/app-shell";
 import { CompareTab } from "@/components/market/compare";
 import { FindingsExplorer } from "@/components/market/findings-explorer";
@@ -12,7 +12,7 @@ import { RunsList } from "@/components/market/runs";
 import { SegmentsTab, SourcesTab } from "@/components/market/segments-sources";
 import { AttractivenessBadge, isActive } from "@/components/market/shared";
 import { useProjects } from "@/components/providers";
-import { Alert, Card, EmptyState, PageHeader, Spinner, Tabs } from "@/components/ui";
+import { Alert, Card, EmptyState, PageHeader, Spinner, Tabs, useEmbedded } from "@/components/ui";
 import { errorText } from "@/lib/api";
 import { date } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
@@ -23,6 +23,7 @@ const TAB_KEYS: TabKey[] = ["research", "reports", "findings", "segments", "sour
 
 function MarketPage({ projectId }: { projectId: string }) {
   const { project } = useProjects();
+  const embed = useEmbedded();
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -67,9 +68,10 @@ function MarketPage({ projectId }: { projectId: string }) {
     (id: string) => {
       setTab("reports");
       setUrl({ report: id, tab: "reports" });
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      if (embed) document.getElementById(embed.id)?.scrollIntoView({ behavior: "smooth" });
+      else window.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [setUrl],
+    [setUrl, embed],
   );
 
   const onRunFinished = useCallback(() => {
@@ -85,6 +87,15 @@ function MarketPage({ projectId }: { projectId: string }) {
     });
     return m;
   }, [reports.data]);
+
+  // Inside a product report, open on the latest report when there is one - that is what you review.
+  const autoOpened = useRef(false);
+  useEffect(() => {
+    if (embed && !tabParam && !autoOpened.current && reports.data?.length) {
+      autoOpened.current = true;
+      setTab("reports");
+    }
+  }, [embed, tabParam, reports.data]);
 
   const hasActiveRun = (runs.data ?? []).some((r) => isActive(r.status));
   const selectedReport = reports.data?.find((r) => r.id === reportParam) ?? reports.data?.[0];
