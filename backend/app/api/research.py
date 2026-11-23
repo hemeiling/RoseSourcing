@@ -6,6 +6,7 @@ from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import or_, select
+from sqlalchemy.orm.attributes import flag_modified
 
 from .. import audit
 from ..config import get_settings
@@ -22,6 +23,7 @@ from ..schemas import (
 )
 from ..services.agents.opportunity import initial_steps, submit_run
 from ..services.llm.anthropic_provider import get_llm
+from ..services import demand
 from ..services.research.providers import PROVIDERS, get_research_provider
 from .deps import DB, CurrentUser, ProjectDep, owned
 
@@ -135,6 +137,41 @@ def latest_snapshot(kind: Literal["price_tiers", "compliance_checklist", "listin
     return {"id": str(snap.id), "kind": snap.kind, "content": content, "created_at": snap.created_at}
 
 
+@router.post("/projects/{project_id}/snapshots/price_tiers/pictures")
+def find_tier_pictures(project: ProjectDep, db: DB, user: CurrentUser) -> dict:
+    """Look the tier examples up again in Amazon and Google Shopping listings (up to 4 SerpApi searches, no AI) and save the
+    picture and listing link of each example that has none."""
+    snap = db.scalars(select(AnalysisSnapshot).where(AnalysisSnapshot.project_id == project.id, AnalysisSnapshot.kind == "price_tiers")
+                      .order_by(AnalysisSnapshot.created_at.desc())).first()
+    if snap is None:
+        raise HTTPException(404, "No price tiers yet.")
+    if not demand.configured():
+        raise HTTPException(503, {"code": "serpapi_not_configured", "message": "Pictures come from marketplace listings through SerpApi: connect it in Settings > Data sources."})
+    run = db.get(ResearchRun, uuid.UUID(snap.content["research_run_id"])) if snap.content.get("research_run_id") else None
+    keywords = snap.content.get("keywords") or ((run.params or {}).get("keywords") if run else None) or [project.product_category[:60]]
+    obs, errors, calls = demand.price_tier_evidence(keywords, "US")
+    media = {line: m for o in obs for line, m in o.media.items()}
+    found = 0
+    tiers = []
+    for t in snap.content.get("tiers") or []:
+        examples = []
+        for e in t.get("examples") or []:
+            m = None if e.get("image") else demand.match_listing(e.get("product") or "", media)
+            if m and m.get("image"):
+                search_page = not e.get("url") or e.get("url") == e.get("source_url") or "/search?" in (e.get("url") or "")
+                e = {**e, "image": m["image"], "url": m.get("url") if search_page and m.get("url") else e.get("url")}
+                found += 1
+            examples.append(e)
+        tiers.append({**t, "examples": examples})
+    snap.content = {**snap.content, "tiers": tiers}
+    flag_modified(snap, "content")
+    audit.record(db, "price_tiers.pictures_found", user_id=user.id, project_id=project.id, entity_type="analysis_snapshot",
+                 entity_id=snap.id, details={"found": found, "serpapi_calls": calls})
+    db.commit()
+    missing = sum(1 for t in tiers for e in t["examples"] if not e.get("image"))
+    return {"found": found, "still_missing": missing, "serpapi_calls": calls, "errors": errors[:3]}
+
+
 def _with_listing_pictures(db, project_id: uuid.UUID, content: dict) -> dict:
     """Tier examples saved before pictures were kept borrow the picture of the same tracked listing (same link or title)."""
     tracker = db.scalars(select(AnalysisSnapshot).where(AnalysisSnapshot.project_id == project_id, AnalysisSnapshot.kind == "listing_tracker")
@@ -143,13 +180,12 @@ def _with_listing_pictures(db, project_id: uuid.UUID, content: dict) -> dict:
     if not rows:
         return content
     by_url = {r["url"]: r for r in rows if r.get("url")}
-    norm = lambda s: " ".join(str(s).lower().split())[:60]  # noqa: E731
-    by_title = {norm(r["title"]): r for r in rows}
+    media = {r["title"]: {"url": r.get("url"), "image": r["image"]} for r in rows}
     tiers = []
     for t in content.get("tiers") or []:
         examples = []
         for e in t.get("examples") or []:
-            hit = None if e.get("image") else by_url.get(e.get("url") or "") or by_title.get(norm(e.get("product") or ""))
+            hit = None if e.get("image") else by_url.get(e.get("url") or "") or demand.match_listing(e.get("product") or "", media)
             examples.append({**e, "image": hit["image"], "url": e.get("url") or hit.get("url")} if hit else e)
         tiers.append({**t, "examples": examples})
     return {**content, "tiers": tiers}

@@ -203,3 +203,30 @@ def test_trends_explorer_compares_phrases_regions_and_related(authed, project, m
     assert rel["topics"]["top"][0]["name"] == "Hairband"
     assert authed.post(f"/api/projects/{pid}/trends/related", json={"term": "facial mask"}).status_code == 404
     assert authed.post(f"/api/projects/{pid}/trends", json={"terms": ["a", "b", "c", "d", "e", "f"]}).status_code == 422
+
+
+def test_match_listing_ignores_store_suffix_and_finds_tier_pictures(authed, project, monkeypatch):
+    import uuid as _uuid
+
+    from app.db import session_scope
+    from app.models import AnalysisSnapshot
+
+    line = "Women's Knotted Headband - $14.00 - 4.9 stars (77 ratings) - Boon Ties"
+    media = {line: {"url": "https://www.google.com/shopping/product/9", "image": "https://img.example/boon.jpg"}}
+    assert demand.match_listing("Women's Knotted Headband (Boon Ties)", media)["image"] == "https://img.example/boon.jpg"
+    assert demand.match_listing("Headband", media) is None  # too short to identify one listing
+    assert demand.match_listing("Velvet Knotted Headband (Boon Ties)", media) is None
+
+    search = "https://www.google.com/search?tbm=shop&q=knotted+headband"
+    with session_scope() as db:
+        db.add(AnalysisSnapshot(project_id=_uuid.UUID(project["id"]), kind="price_tiers", content={"keywords": ["knotted headband"], "tiers": [
+            {"tier": "premium", "examples": [
+                {"product": "Women's Knotted Headband (Boon Ties)", "price": 14, "currency": "USD", "url": search, "source_url": search},
+                {"product": "Unknown Boutique Band", "price": 15, "currency": "USD", "url": None, "source_url": search}]}]}))
+    monkeypatch.setattr(demand, "configured", lambda: True)
+    monkeypatch.setattr(demand, "price_tier_evidence", lambda kws, geo: ([demand.DemandObservation(title="t", url="u", excerpts=[line], media=media)], [], 2))
+    r = authed.post(f"/api/projects/{project['id']}/snapshots/price_tiers/pictures").json()
+    assert r == {"found": 1, "still_missing": 1, "serpapi_calls": 2, "errors": []}
+    ex = authed.get(f"/api/projects/{project['id']}/snapshots/price_tiers").json()["content"]["tiers"][0]["examples"]
+    assert ex[0]["image"] == "https://img.example/boon.jpg" and ex[0]["url"] == "https://www.google.com/shopping/product/9"
+    assert not ex[1].get("image")

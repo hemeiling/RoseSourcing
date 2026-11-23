@@ -199,6 +199,20 @@ class Listing:
     image: str | None = None
 
 
+def _plain(s: str) -> str:
+    s = str(s).replace("’", "'").replace("“", '"').replace("”", '"')
+    return re.sub(r"\s+", " ", s).strip().lower()
+
+
+def match_listing(name: str, media: dict[str, dict[str, str | None]]) -> dict[str, str | None] | None:
+    """The listing a product name refers to: its title starts with the name. A trailing "(Store)" the AI adds to a name
+    is ignored, and long names compare on their first 50 characters."""
+    n = _plain(re.sub(r"\s*\([^()]*\)\s*$", "", name))[:50].rstrip(" .,-")
+    if len(n) < 12:
+        return None
+    return next((m for line, m in media.items() if _plain(line).startswith(n)), None)
+
+
 def image_url(v: Any) -> str | None:
     """A listing's picture as the API returned it: a web address, or a small inline image (some Google results)."""
     if isinstance(v, str) and (v.startswith("https://") or v.startswith("http://") or (v.startswith("data:image/") and len(v) < 40000)):

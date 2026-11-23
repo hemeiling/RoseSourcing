@@ -1,8 +1,10 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, CircleHelp, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleHelp, Image as ImageIcon, ThumbsDown, ThumbsUp } from "lucide-react";
+import { useState } from "react";
 import { ResearchRunStarter } from "@/components/research-run-starter";
-import { Badge, Card, CardBody, ExternalLink, ProductThumb, Spinner, type Tone } from "@/components/ui";
+import { Badge, Button, Card, CardBody, ExternalLink, ProductThumb, Spinner, type Tone } from "@/components/ui";
+import { errorText, post } from "@/lib/api";
 import { date, domainOf, money, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 
@@ -35,6 +37,16 @@ function range(t: Tier): string {
 export function PriceTiersSection({ projectId }: { projectId: string }) {
   const snap = useApi<Snapshot<{ tiers: Tier[] }>>(`/api/projects/${projectId}/snapshots/price_tiers`);
   const tiers = snap.data?.content.tiers ?? [];
+  const noPicture = tiers.reduce((n, t) => n + t.examples.filter((e) => !e.image).length, 0);
+  const [pics, setPics] = useState<{ busy: boolean; note: string | null }>({ busy: false, note: null });
+  const findPictures = async () => {
+    setPics({ busy: true, note: null });
+    try {
+      const r = await post<{ found: number; still_missing: number; serpapi_calls: number }>(`/api/projects/${projectId}/snapshots/price_tiers/pictures`);
+      setPics({ busy: false, note: `Found ${r.found} picture${r.found === 1 ? "" : "s"} (${r.serpapi_calls} SerpApi searches)${r.still_missing ? `; ${r.still_missing} example${r.still_missing === 1 ? " is" : "s are"} not in today's listings` : ""}.` });
+      snap.reload();
+    } catch (e) { setPics({ busy: false, note: errorText(e) }); }
+  };
   return (
     <div className="space-y-4">
       <ResearchRunStarter projectId={projectId} kind="price_tiers" label="Research price tiers" onFinished={snap.reload}
@@ -44,7 +56,15 @@ export function PriceTiersSection({ projectId }: { projectId: string }) {
         <p className="text-sm text-slate-500">No price-tier research yet for this product.</p>
       ) : (
         <>
-          <p className="text-xs text-slate-500">From the run on {date(snap.data.created_at)}. Example prices are shown only when they appeared on the source page.</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="text-xs text-slate-500">From the run on {date(snap.data.created_at)}. Example prices are shown only when they appeared on the source page.</p>
+            {noPicture > 0 && (
+              <Button size="sm" variant="ghost" onClick={findPictures} loading={pics.busy} title="Looks the examples up in Amazon and Google Shopping listings (up to 4 SerpApi searches, no AI)">
+                <ImageIcon className="h-3.5 w-3.5" /> Find {noPicture} missing picture{noPicture === 1 ? "" : "s"}
+              </Button>
+            )}
+            {pics.note && <span className="text-xs text-slate-600">{pics.note}</span>}
+          </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {tiers.map((t) => (
               <Card key={t.tier} className="flex flex-col">

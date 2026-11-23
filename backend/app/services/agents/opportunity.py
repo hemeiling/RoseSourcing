@@ -776,12 +776,6 @@ def _shopper_keywords(run_id: uuid.UUID, ctx: dict[str, str], llm, usage: LLMUsa
     return kws
 
 
-def _same_product(name: str, listing_line: str) -> bool:
-    """The example names the listing: its first words match the start of the listing title."""
-    n, line = _norm(name)[:50].rstrip(" .,-"), _norm(listing_line)
-    return len(n) >= 12 and line.startswith(n)
-
-
 def _persist_price_tiers(db, run: ResearchRun, bundle: EvidenceBundle, ext: StepExtraction) -> int:
     """Save the price-tier breakdown. Example prices are kept only when they appear in the cited excerpt; a tier's range is
     kept when its numbers appear in the tier's sources, otherwise it is derived from the kept examples."""
@@ -796,7 +790,7 @@ def _persist_price_tiers(db, run: ResearchRun, bundle: EvidenceBundle, ext: Step
             src = refs.get(e.source_ref)
             if src and _price_in_excerpts(e.price, src.excerpts):
                 # A marketplace listing line for this product carries its own link and picture.
-                media = next((bundle.media[x] for x in src.excerpts if x in bundle.media and _same_product(e.product_name, x)), {})
+                media = demand.match_listing(e.product_name, {x: bundle.media[x] for x in src.excerpts if x in bundle.media}) or {}
                 examples.append({"product": e.product_name, "price": e.price, "currency": e.currency.upper()[:8],
                                  "url": e.product_url or media.get("url") or src.url, "source_url": src.url, "image": media.get("image")})
             else:
@@ -818,7 +812,8 @@ def _persist_price_tiers(db, run: ResearchRun, bundle: EvidenceBundle, ext: Step
             "sources": [{"url": s.url, "title": s.title} for s in srcs],
         })
     db.add(AnalysisSnapshot(project_id=run.project_id, kind="price_tiers",
-                            content={"tiers": tiers, "research_run_id": str(run.id), "generated_at": datetime.now(timezone.utc).isoformat()}))
+                            content={"tiers": tiers, "research_run_id": str(run.id), "generated_at": datetime.now(timezone.utc).isoformat(),
+                                     "keywords": (run.params or {}).get("keywords") or []}))
     return dropped
 
 
