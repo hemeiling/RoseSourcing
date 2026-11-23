@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowRight, Calculator, Compass, Flag, Lightbulb, ListCh
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { BasisBadge, EVIDENCE_META, FindingCard } from "@/components/evidence";
-import { Alert, Badge, Button, Card, CardBody, CardHeader, Modal, StatCard, Td, Th } from "@/components/ui";
+import { Alert, Badge, Button, Card, CardBody, CardHeader, Modal, StatCard, Td, Th, useEmbedded } from "@/components/ui";
 import { del, errorText } from "@/lib/api";
 import { date, dateTime, money, num, pct, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
@@ -100,6 +100,7 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
 
   const ue = r.unit_economics;
   const results = ue?.results;
+  const embedded = !!useEmbedded();
   const byType = r.evidence_summary?.by_type ?? {};
 
   return (
@@ -204,7 +205,7 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
             </Link>
           }
         >
-          {results && !results.error && (
+          {results && !results.error && !embedded && (
             <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard label="Contribution margin / unit" value={money(results.contribution_margin)} hint="after marketing, returns and fees" />
               <StatCard label="Contribution margin %" value={pct(results.contribution_margin_pct)} hint="of revenue after returns" />
@@ -213,7 +214,10 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
             </div>
           )}
           {results?.error && <Alert tone="red">{results.error}</Alert>}
-          {results?.warnings?.length > 0 && (
+          {embedded && results && !results.error && (
+            <p className="mb-3 text-sm text-slate-600">Margins and costs from these inputs are in the <a href="#economics" className="font-semibold text-primary-700 hover:underline">Unit economics</a> tab.</p>
+          )}
+          {!embedded && results?.warnings?.length > 0 && (
             <div className="mb-4 space-y-2">
               {results.warnings.map((w, i) => (
                 <Alert key={i}>{w}</Alert>

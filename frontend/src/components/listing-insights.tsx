@@ -1,11 +1,10 @@
 "use client";
 
-import { Star, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { Star } from "lucide-react";
 import { useMemo, useState } from "react";
-import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ResearchRunStarter } from "@/components/research-run-starter";
-import { Badge, Card, CardBody, CardHeader, ExternalLink, ProductThumb, Spinner, type Tone } from "@/components/ui";
-import { date, domainOf, money, num, titleCase, monthYear } from "@/lib/format";
+import { Badge, Card, CardBody, CardHeader, ExternalLink, ProductThumb, Spinner } from "@/components/ui";
+import { date, domainOf, money, num, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 
 type Snapshot<T> = { id: string; content: T; created_at: string } | null;
@@ -44,53 +43,6 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
 };
 
-function TrendCard({ trend }: { trend: NonNullable<Tracker["trend"]> }) {
-  const data = trend.series.map(([d, v]) => ({ d, v }));
-  const ch = trend.change_pct;
-  // Many zero weeks = too few searches for Trends to show a direction; the swings are noise.
-  const zeros = trend.series.filter(([, v]) => v === 0).length;
-  const sparse = zeros / Math.max(1, trend.series.length) >= 0.2;
-  const [tone, Icon, word]: [Tone, typeof TrendingUp, string] = sparse ? ["slate", Minus, "Low search volume"]
-    : ch === null || Math.abs(ch) <= 15 ? ["slate", Minus, "Steady"] : ch > 0 ? ["green", TrendingUp, "Rising"] : ["amber", TrendingDown, "Falling"];
-  return (
-    <Card>
-      <CardHeader title={`Google search interest: "${trend.keyword}"`}
-        subtitle={<>Weekly, past 12 months, {trend.series.length} points. 100 = the busiest week; values are relative, not search volumes. <ExternalLink href={trend.url}>Open in Google Trends</ExternalLink></>}
-        actions={<Badge tone={tone}><Icon className="h-3 w-3" aria-hidden /> {word}{ch !== null && !sparse ? ` ${ch > 0 ? "+" : ""}${ch.toFixed(0)}%` : ""}</Badge>} />
-      <CardBody>
-        {sparse && (
-          <p className="mb-2 text-sm text-slate-600">
-            {zeros} of {trend.series.length} weeks are 0: too few people search this exact phrase for Trends to show a real direction.
-            Track a broader phrase too (e.g. the plain product name) to judge demand.
-          </p>
-        )}
-        <p className="mb-2 text-sm text-slate-600">
-          Last 13 weeks average <b className="text-ink">{trend.recent_average.toFixed(0)}</b> vs <b className="text-ink">{trend.prior_average.toFixed(0)}</b> before ·
-          12-month average {trend.average.toFixed(0)} · peak {trend.peak.toFixed(0)}
-        </p>
-        <div className="h-44 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
-              <CartesianGrid stroke="#e2e8f0" vertical={false} />
-              <XAxis dataKey="d" tick={{ fontSize: 11, fill: "#64748b" }} interval="preserveStartEnd" minTickGap={48}
-                tickFormatter={monthYear} />
-              <YAxis domain={[0, 100]} ticks={[0, 50, 100]} tick={{ fontSize: 11, fill: "#64748b" }} />
-              <Tooltip cursor={{ stroke: "#94a3b8" }}
-                content={({ active, payload }) => active && payload?.length ? (
-                  <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow">
-                    <div className="text-slate-500">{(payload[0].payload as { d: string }).d}</div>
-                    <div className="font-semibold text-ink">Interest {payload[0].value as number}</div>
-                  </div>
-                ) : null} />
-              <Line type="monotone" dataKey="v" stroke="#334155" strokeWidth={2} dot={false} activeDot={{ r: 4 }} isAnimationActive={false} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </CardBody>
-    </Card>
-  );
-}
-
 function Rating({ rating, reviews }: { rating: number | null; reviews: number | null }) {
   if (rating === null && reviews === null) return <span className="text-slate-400">No reviews shown</span>;
   return (
@@ -120,7 +72,7 @@ export function ListingTrackerSection({ projectId, onLogged }: { projectId: stri
         <p className="text-sm text-slate-500">No listings tracked yet for this product.</p>
       ) : (
         <>
-          {t.trend && <TrendCard trend={t.trend} />}
+          <p className="text-xs text-slate-500">Search interest over time is in <a href="#trends" className="font-semibold text-primary-700 hover:underline">Search trends</a>.</p>
           <Card>
             <CardHeader title={`${t.listings.length} comparable listings`}
               subtitle={`Picked from ${t.candidates_considered} search results for "${t.keywords.join('", "')}" on ${date(t.retrieved_at)}. ${t.left_out}`} />

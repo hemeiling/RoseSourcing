@@ -20,7 +20,7 @@ function BarValue(props: { x?: unknown; y?: unknown; width?: unknown; height?: u
   const x = Number(props.x ?? 0), y = Number(props.y ?? 0), w = Number(props.width ?? 0), h = Number(props.height ?? 0), v = Number(props.value ?? 0);
   // Always to the right of the bar's right end (for a loss that is the $0 line), so it never covers the row names.
   return (
-    <text x={Math.max(x, x + w) + 4} y={y + h / 2} dy={4} fontSize={11} fill={v < 0 ? "#b91c1c" : "#334155"} fontWeight={v < 0 ? 600 : 400}>
+    <text x={Math.max(x, x + w) + 4} y={y + h / 2} dy={4} fontSize={11} fill={v < 0 ? "#b0204f" : "#334155"} fontWeight={v < 0 ? 600 : 400}>
       {money(v, { decimals: 2 })}
     </text>
   );
@@ -163,7 +163,7 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
     { name: "Channel fees", value: pu.channel_fees ?? 0, color: COST },
     { name: "Returns", value: (pu.return_handling ?? 0) + (pu.unsellable_loss ?? 0), color: COST },
     { name: "Marketing", value: pu.marketing, color: COST },
-    { name: "Contribution", value: r.contribution_margin, color: r.contribution_margin >= 0 ? "#15803d" : "#dc2626" },
+    { name: "Contribution", value: r.contribution_margin, color: r.contribution_margin >= 0 ? "#0f9e90" : "#e8467c" },
   ];
   const lo = Math.min(0, ...waterfall.map((d) => d.value));
   const hi = Math.max(0, ...waterfall.map((d) => d.value));
@@ -225,7 +225,7 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="price" tickFormatter={(v) => `$${v}`} fontSize={11} />
               <YAxis tickFormatter={(v) => `$${v}`} fontSize={11} />
-              <ReferenceLine y={0} stroke="#dc2626" strokeDasharray="4 4" />
+              <ReferenceLine y={0} stroke="#e8467c" strokeDasharray="4 4" />
               <Tooltip formatter={(v, n) => (n === "margin_pct" ? pct(Number(v)) : money(Number(v)))} labelFormatter={(l) => `Price ${money(Number(l))}`} />
               <Line type="monotone" dataKey="contribution_margin" name="Contribution" stroke="#4e2a84" strokeWidth={2} dot />
             </LineChart>

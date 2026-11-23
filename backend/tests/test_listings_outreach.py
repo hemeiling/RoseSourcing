@@ -252,3 +252,59 @@ def test_price_for_margin_and_shipment_size():
     impossible = price_for_margin(i.model_copy(update={"channel_commission_pct": 60, "payment_fee_pct": 30}), 20)
     assert impossible["contribution_margin_price"] is None and "no price reaches" in impossible["contribution_note"]
     assert [t["target_pct"] for t in r["price_targets"]] == [10, 20, 30, 40, 50]
+
+
+def test_dedupe_channels_and_recommendations(authed, project):
+    import uuid as _uuid
+
+    from app.db import session_scope
+    from app.models import SalesChannel
+    from app.services.dedupe import add_recommendation, find_channel, same_channel, similar_text
+
+    assert same_channel("Instagram", "Instagram Shopping")
+    assert same_channel("Wholesale to boutiques via Faire", "Wholesale via Faire / direct to boutiques")
+    assert same_channel("Markets and trade shows", "Markets, craft fairs and pop-ups")
+    assert not same_channel("Amazon US", "Walmart Marketplace") and not same_channel("TikTok Shop", "Own Shopify store")
+    assert similar_text("Open a Shopify Basic store using Shopify Payments.", "Open a Shopify Basic store with Shopify Payments")
+    assert not similar_text("Open a Shopify Basic store.", "Revisit Amazon after confirming the category and fees.")
+
+    pid = _uuid.UUID(project["id"])
+    with session_scope() as db:
+        db.add(SalesChannel(project_id=pid, name="Instagram", channel_type="social_commerce", status="considering"))
+        db.add(SalesChannel(project_id=pid, name="TikTok Shop", channel_type="social_commerce", status="considering"))
+        db.flush()
+        assert find_channel(db, pid, "Instagram Shopping", "social_commerce").name == "Instagram"
+        assert find_channel(db, pid, "Instagram Shopping", "marketplace") is None  # a different kind of channel
+        first = add_recommendation(db, project_id=pid, title="Open a Shopify Basic store using Shopify Payments.", body="a", priority="medium")
+        again = add_recommendation(db, project_id=pid, title="Open a Shopify Basic store with Shopify Payments", body="b", priority="high")
+        other = add_recommendation(db, project_id=pid, title="Revisit Amazon after confirming the category and fees.", body="c")
+        assert again.id == first.id and first.priority == "high" and other.id != first.id
+
+
+def test_split_supplier_listings_and_delete_finding(authed, project):
+    pid = project["id"]
+    sup = authed.post(f"/api/projects/{pid}/suppliers", json={"name": "Unnamed supplier (not shown in excerpt)", "platform": "alibaba"}).json()
+    for title, url in (("Velvet knot headband", "https://www.alibaba.com/product-detail/velvet_1.html"),
+                       ("Tweed top knot band", "https://www.made-in-china.com/prod/tweed_2.html")):
+        q = authed.post(f"/api/suppliers/{sup['id']}/quotes", json={"product_name": title, "unit_price": 1.2, "moq": 50}).json()
+        from app.db import session_scope
+        from app.models import SupplierQuote
+        import uuid as _uuid
+        with session_scope() as db:
+            db.get(SupplierQuote, _uuid.UUID(q["id"])).source_url = url
+    authed.post(f"/api/suppliers/{sup['id']}/communications", json={"direction": "draft", "subject": "Compliance questions", "summary": "Q?"})
+    r = authed.post(f"/api/suppliers/{sup['id']}/split-listings").json()
+    assert sorted(c["name"] for c in r["created"]) == ["Alibaba.com listing: Velvet knot headband", "Made-in-China.com listing: Tweed top knot band"]
+    sups = authed.get(f"/api/projects/{pid}/suppliers").json()
+    assert len(sups) == 2 and all(len(s["quotes"]) == 1 and len(s["communications"]) == 1 for s in sups)
+    assert authed.get(f"/api/suppliers/{sup['id']}").status_code == 404
+
+    from app.models import ResearchFinding
+    with session_scope() as db:
+        f = ResearchFinding(project_id=_uuid.UUID(pid), section="demand", claim="old", evidence_type="sourced", confidence="low",
+                            verification_status="unverified", flags=[])
+        db.add(f)
+        db.flush()
+        fid = f.id
+    assert authed.delete(f"/api/findings/{fid}").status_code == 204
+    assert authed.delete(f"/api/findings/{fid}").status_code == 404

@@ -23,6 +23,7 @@ from ..schemas import (
 )
 from ..services import csv_import
 from ..services.agents.generators import draft_rfq
+from ..services.agents.opportunity import PLATFORM_LABEL
 from ..services.agents.sourcing import supplier_comparison
 from .deps import DB, CurrentUser, ProjectDep, owned
 
@@ -94,6 +95,43 @@ def delete_supplier(supplier_id: uuid.UUID, db: DB, user: CurrentUser) -> None:
     audit.record(db, "supplier.deleted", user_id=user.id, project_id=s.project_id, entity_type="supplier", entity_id=s.id, details={"name": s.name})
     db.delete(s)
     db.commit()
+
+
+SITE_LABELS = {"alibaba.com": "Alibaba.com", "1688.com": "1688.com", "made-in-china.com": "Made-in-China.com",
+               "globalsources.com": "Global Sources", "dhgate.com": "DHgate"}
+
+
+@router.post("/suppliers/{supplier_id}/split-listings")
+def split_listings(supplier_id: uuid.UUID, db: DB, user: CurrentUser) -> dict:
+    """A supplier record that holds listings from different, unnamed sellers becomes one supplier per listing.
+    Each quote moves to its own supplier with its link; drafts are copied to each; the old record is removed."""
+    s = owned(db, Supplier, supplier_id, user)
+    if len(s.quotes) < 2:
+        raise HTTPException(400, "Only a supplier with two or more listings can be split.")
+    drafts = [c for c in s.communications if c.direction == "draft"]
+    created = []
+    for q in list(s.quotes):
+        site = next((label for key, label in SITE_LABELS.items() if key in (q.source_url or "")), None)
+        base = f"{site or PLATFORM_LABEL.get(s.platform or '', 'B2B marketplace')} listing: {q.product_name.strip()[:80]}"
+        name, n = base, 2
+        while db.scalars(select(Supplier).where(Supplier.project_id == s.project_id, Supplier.name.ilike(name))).first():
+            name, n = f"{base} ({n})", n + 1
+        new = Supplier(project_id=s.project_id, name=name[:300], country=s.country, platform=s.platform, source=s.source,
+                       website=q.source_url, notes=f"Split from '{s.name}', which held listings from several sellers.")
+        db.add(new)
+        db.flush()
+        q.supplier_id = new.id
+        for c in drafts:
+            db.add(SupplierCommunication(supplier_id=new.id, occurred_at=c.occurred_at, channel=c.channel, direction="draft",
+                                         subject=c.subject, summary=c.summary, next_action=c.next_action))
+        created.append({"id": str(new.id), "name": new.name})
+    db.flush()
+    db.expire(s, ["quotes"])
+    audit.record(db, "supplier.split", user_id=user.id, project_id=s.project_id, entity_type="supplier", entity_id=s.id,
+                 details={"into": [c["name"] for c in created]})
+    db.delete(s)
+    db.commit()
+    return {"created": created}
 
 
 @router.post("/suppliers/{supplier_id}/quotes", response_model=QuoteOut, status_code=201)

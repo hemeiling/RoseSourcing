@@ -31,13 +31,13 @@ from ...models import (
     EvidenceSource,
     FindingEvidence,
     PriceObservation,
-    Recommendation,
     ResearchFinding,
     ResearchRun,
 )
 from .. import demand
 from ..llm.anthropic_provider import get_llm
 from ..llm.base import LLMUsage
+from ..dedupe import add_recommendation
 from ..price_tiers import apply_to_competitors
 from .runtime import apply_usage, finish_execution, start_execution, with_retries
 
@@ -439,8 +439,8 @@ def _save_review_tags(run_id: uuid.UUID, project_id: uuid.UUID, user_id: uuid.UU
             db.add(f)
             findings += 1
             if len(mine) >= 2 and t.tag in ("comfort", "fit", "durability", "quality"):
-                db.add(Recommendation(project_id=project_id, source="research", title=f"Spec sheet: prevent {t.tag} complaints"[:300],
-                                      body=t.fix, priority="high" if len(mine) >= 4 else "medium", research_run_id=run_id))
+                add_recommendation(db, project_id=project_id, title=f"Spec sheet: prevent {t.tag} complaints", body=t.fix,
+                                   priority="high" if len(mine) >= 4 else "medium", research_run_id=run_id)
         themes.sort(key=lambda t: -t["count"])
         content = {"summary": out.summary, "themes": themes, "reviews": kept, "products": products, "unverified_dropped": dropped,
                    "research_run_id": str(run_id),

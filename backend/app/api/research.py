@@ -232,6 +232,16 @@ def review_finding(finding_id: uuid.UUID, body: FindingReviewIn, db: DB, user: C
     return finding_out(f)
 
 
+@router.delete("/findings/{finding_id}", status_code=204)
+def delete_finding(finding_id: uuid.UUID, db: DB, user: CurrentUser) -> None:
+    """Remove a finding that a later run superseded (its sources stay)."""
+    f = owned(db, ResearchFinding, finding_id, user)
+    audit.record(db, "finding.deleted", user_id=user.id, project_id=f.project_id, entity_type="finding", entity_id=f.id,
+                 details={"claim": f.claim[:300]})
+    db.delete(f)
+    db.commit()
+
+
 @router.get("/projects/{project_id}/segments", response_model=list[SegmentOut])
 def list_segments(project: ProjectDep, db: DB, run_id: uuid.UUID | None = None) -> list[CustomerSegment]:
     stmt = select(CustomerSegment).where(CustomerSegment.project_id == project.id)

@@ -13,6 +13,8 @@ import { Button, EmptyState, Spinner } from "./ui";
 export { BrandMark } from "./brand-logo";
 
 const DECISION_LABEL: Record<string, string> = { go: "Go", no_go: "No-go", on_hold: "On hold", undecided: "" };
+// The decision is the only status shown in the list, in the logo colours: teal = go, yellow = on hold, pink = no-go.
+const DECISION_COLOR: Record<string, string> = { go: "text-green-700", no_go: "text-red-700", on_hold: "text-amber-700", undecided: "" };
 
 function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () => void; collapsed?: boolean; onToggle?: () => void }) {
   const pathname = usePathname();
@@ -63,7 +65,7 @@ function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () 
                   onClick={onNavigate}
                   title={p.name}
                   className={clsx(
-                    "flex items-center gap-2 rounded-md text-[13.5px] transition-colors",
+                    "flex items-start gap-2 rounded-md text-[13.5px] leading-snug transition-colors",
                     collapsed ? "justify-center py-1.5" : "px-3 py-1.5",
                     active ? "bg-primary-50 font-semibold text-primary-800" : "text-primary-700 hover:bg-primary-50",
                   )}
@@ -74,9 +76,8 @@ function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () 
                       active ? "bg-primary-600 text-white" : "bg-primary-50 text-primary-700")}>{initials(p.name)}</span>
                   ) : (
                     <>
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-300" aria-hidden />
-                      <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                      {DECISION_LABEL[p.decision] && <span className="shrink-0 text-[10px] font-semibold text-primary-400">{DECISION_LABEL[p.decision]}</span>}
+                      <span className="min-w-0 flex-1">{p.name}</span>
+                      {DECISION_LABEL[p.decision] && <span className={clsx("mt-0.5 shrink-0 text-[10px] font-semibold", DECISION_COLOR[p.decision])}>{DECISION_LABEL[p.decision]}</span>}
                     </>
                   )}
                 </Link>

@@ -5,20 +5,90 @@
   --font-sans: var(--font-barlow), "Barlow", Arial, "Helvetica Neue", Helvetica, sans-serif;
   --font-serif: var(--font-sans);
 
-  /* Primary: deep purple - buttons, links, selected controls and the sidebar frame */
-  --color-primary-50: #f4f1fa;
-  --color-primary-100: #e8e1f3;
-  --color-primary-200: #cfc1e6;
-  --color-primary-300: #ae97d4;
-  --color-primary-400: #8a6bbd;
-  --color-primary-500: #6a48a3;
-  --color-primary-600: #4e2a84;
-  --color-primary-700: #43246f;
-  --color-primary-800: #371d5c;
-  --color-primary-900: #261343;
-  /* Colour means something: purple = actions (primary-*), green = good/verified, amber = needs your judgment,
-     red = problems and losses (Tailwind's own green/emerald/amber/yellow/red/rose). Everything else is grey:
-     the old brand/accent tokens and the remaining hue palettes resolve to slate. */
+  /* The logo's four colours, one job each (kept simple):
+     purple = actions, links, selected; teal = good / verified; yellow = needs your judgment; pink = problems and losses.
+     Everything else is grey. Tailwind's green/emerald, amber/yellow and red/rose names point at the logo colours. */
+  --color-primary-50: #f5f2fe;
+  --color-primary-100: #ebe5fd;
+  --color-primary-200: #d6cbfb;
+  --color-primary-300: #b9a7f6;
+  --color-primary-400: #9b84f2;
+  --color-primary-500: #8b6cf0;
+  --color-primary-600: #5b3bc9;
+  --color-primary-700: #4e2a84;
+  --color-primary-800: #3f2270;
+  --color-primary-900: #2c1852;
+  --color-logo-purple: #8b6cf0;
+  --color-logo-pink: #f25f8b;
+  --color-logo-teal: #14a89b;
+  --color-logo-yellow: #ffd166;
+  --color-green-50: #eaf8f6;
+  --color-green-100: #c9efea;
+  --color-green-200: #98e0d7;
+  --color-green-300: #5ccbbf;
+  --color-green-400: #2fb6a8;
+  --color-green-500: #14a89b;
+  --color-green-600: #0f9e90;
+  --color-green-700: #0b7f75;
+  --color-green-800: #0a655d;
+  --color-green-900: #084f49;
+  --color-green-950: #05302c;
+  --color-emerald-50: #eaf8f6;
+  --color-emerald-100: #c9efea;
+  --color-emerald-200: #98e0d7;
+  --color-emerald-300: #5ccbbf;
+  --color-emerald-400: #2fb6a8;
+  --color-emerald-500: #14a89b;
+  --color-emerald-600: #0f9e90;
+  --color-emerald-700: #0b7f75;
+  --color-emerald-800: #0a655d;
+  --color-emerald-900: #084f49;
+  --color-emerald-950: #05302c;
+  --color-amber-50: #fff8e6;
+  --color-amber-100: #ffefc2;
+  --color-amber-200: #ffe08a;
+  --color-amber-300: #ffd166;
+  --color-amber-400: #ffc53d;
+  --color-amber-500: #f0a800;
+  --color-amber-600: #c98500;
+  --color-amber-700: #9a6400;
+  --color-amber-800: #7a4f00;
+  --color-amber-900: #5c3b00;
+  --color-amber-950: #3a2500;
+  --color-yellow-50: #fff8e6;
+  --color-yellow-100: #ffefc2;
+  --color-yellow-200: #ffe08a;
+  --color-yellow-300: #ffd166;
+  --color-yellow-400: #ffc53d;
+  --color-yellow-500: #f0a800;
+  --color-yellow-600: #c98500;
+  --color-yellow-700: #9a6400;
+  --color-yellow-800: #7a4f00;
+  --color-yellow-900: #5c3b00;
+  --color-yellow-950: #3a2500;
+  --color-red-50: #fff0f5;
+  --color-red-100: #ffdde8;
+  --color-red-200: #ffbcd1;
+  --color-red-300: #ff8fb0;
+  --color-red-400: #f25f8b;
+  --color-red-500: #e8467c;
+  --color-red-600: #d02f66;
+  --color-red-700: #b0204f;
+  --color-red-800: #8c1a40;
+  --color-red-900: #6b1532;
+  --color-red-950: #420c1e;
+  --color-rose-50: #fff0f5;
+  --color-rose-100: #ffdde8;
+  --color-rose-200: #ffbcd1;
+  --color-rose-300: #ff8fb0;
+  --color-rose-400: #f25f8b;
+  --color-rose-500: #e8467c;
+  --color-rose-600: #d02f66;
+  --color-rose-700: #b0204f;
+  --color-rose-800: #8c1a40;
+  --color-rose-900: #6b1532;
+  --color-rose-950: #420c1e;
+  /* The old brand/accent tokens and the remaining hue palettes resolve to slate. */
   --color-brand-50: oklch(98.4% 0.003 247.858);
   --color-brand-100: oklch(96.8% 0.007 247.896);
   --color-brand-200: oklch(92.9% 0.013 255.508);
@@ -165,8 +235,8 @@
   /* Supporting */
   --color-mist: oklch(86.9% 0.022 252.894);
   --color-ink: #2d2d2d;
-  --color-canvas: #f1f1f6;
-  --color-line: #d7d7d7;
+  --color-canvas: #f6f4fb;
+  --color-line: #e2ddef;
 
   --radius-xs: 2px;
   --radius-sm: 3px;

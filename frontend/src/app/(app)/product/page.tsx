@@ -19,7 +19,7 @@ import { useApi } from "@/lib/hooks";
 import { AGENTS } from "@/lib/agents";
 import { errorText, post } from "@/lib/api";
 import { ago } from "@/lib/format";
-import { SECTIONS, SECTION_BY_ROUTE, type SectionId } from "@/lib/sections";
+import { SECTIONS, SECTION_BY_ROUTE, TAB_OF, type Part, type SectionId } from "@/lib/sections";
 import type { Opportunity, ResearchRun } from "@/lib/types";
 import AnalyticsPage from "../analytics/page";
 import BrandPage from "../brand/page";
@@ -31,15 +31,16 @@ import MarketPage from "../market/page";
 import SizingPage from "../sizing/page";
 import SuppliersPage from "../suppliers/page";
 
+// What each tab or part shows. Tabs with parts render each part under its own heading and anchor.
 const CUSTOM: Partial<Record<SectionId, (p: { projectId: string }) => ReactNode>> = {
-  trends: TrendsExplorer, pricing: PriceTiersSection, listings: ListingTrackerSection, reviews: ReviewInsightsSection, outreach: OutreachSection, compliance: ComplianceSection,
+  trends: TrendsExplorer, pricing: PriceTiersSection, listings: ListingTrackerSection, reviews: ReviewInsightsSection, outreach: OutreachSection,
+  compliance: ComplianceSection,
+};
+const PAGES: Partial<Record<SectionId, () => ReactNode>> = {
+  decision: DashboardPage, research: MarketPage, brands: CompetitorsPage, sizing: SizingPage, "supplier-list": SuppliersPage,
+  channels: ChannelsPage, economics: AnalyticsPage, "brand-concepts": BrandPage, commerce: CommercePage,
 };
 const FOLD_KEY = "136sourcing.foldedSections";
-
-const PAGES: Partial<Record<SectionId, () => ReactNode>> = {
-  overview: DashboardPage, market: MarketPage, competitors: CompetitorsPage, sizing: SizingPage, suppliers: SuppliersPage,
-  channels: ChannelsPage, economics: AnalyticsPage, brand: BrandPage, commerce: CommercePage,
-};
 
 type Dashboard = {
   counts: Record<string, number>;
@@ -91,11 +92,11 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
   const unavailable = dash.data.findings_by_type.unavailable ?? 0;
   const todos: Todo[] = [];
   const cm = dash.data.latest_scenario?.contribution_margin;
-  if (!c.research_runs) todos.push({ text: "Run market research", detail: "Nothing has been researched for this product yet.", section: "market", tone: "amber" });
+  if (!c.research_runs) todos.push({ text: "Run market research", detail: "Nothing has been researched for this product yet.", section: "research", tone: "amber" });
   if (cm !== null && cm !== undefined && cm < 0)
     todos.push({ text: `Unit contribution is negative (${money(cm)})`, detail: `At ${money(dash.data.latest_scenario?.retail_price)} retail you lose money on each sale - revisit price or costs.`, section: "economics", tone: "red" });
-  if (!c.suppliers) todos.push({ text: "No suppliers yet", detail: "Factory cost, MOQ and lead time are still assumptions - search B2B listings to start.", section: "suppliers", tone: "amber" });
-  if (!c.competitors) todos.push({ text: "No competitors tracked", detail: "Add the brands you compete with and their prices.", section: "competitors", tone: "amber" });
+  if (!c.suppliers) todos.push({ text: "No suppliers yet", detail: "Factory cost, MOQ and lead time are still assumptions - search B2B listings to start.", section: "supplier-list", tone: "amber" });
+  if (!c.competitors) todos.push({ text: "No competitors tracked", detail: "Add the brands you compete with and their prices.", section: "brands", tone: "amber" });
   if (!c.size_charts) todos.push({ text: "No size chart yet", detail: "Add your size guide or a supplier's chart so customers can find their size.", section: "sizing", tone: "slate" });
   if (!c.channels) todos.push({ text: "Selling channels not compared", detail: "Compare marketplace and store fees for this product.", section: "channels", tone: "slate" });
   if (!c.scenarios) todos.push({ text: "No unit economics yet", detail: "Model cost, price and margin.", section: "economics", tone: "slate" });
@@ -108,8 +109,8 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
     todos.push({ text: c.rfqs_sent ? `Only ${c.rfqs_sent} supplier${c.rfqs_sent === 1 ? "" : "s"} asked for quotes` : "No supplier asked for quotes yet",
       detail: "Send the spec sheet to 5+ suppliers for prices at 100 / 300 / 500 units.", section: "outreach", tone: "amber" });
   if (c.rfq_quotes && c.sample_orders < 2) todos.push({ text: "Order 2-3 samples", detail: "Pick the best quotes and track each sample until you have scored it.", section: "outreach", tone: "slate" });
-  if (unavailable) todos.push({ text: `${unavailable} research questions had no reliable data`, detail: "Listed as 'data unavailable' findings - these are your evidence gaps.", section: "market", tone: "slate" });
-  if (decision === "undecided") todos.push({ text: "Record your go / no-go decision", detail: "Your decision is saved with a snapshot of the evidence.", section: "overview", tone: "slate" });
+  if (unavailable) todos.push({ text: `${unavailable} research questions had no reliable data`, detail: "Listed as 'data unavailable' findings - these are your evidence gaps.", section: "research", tone: "slate" });
+  if (decision === "undecided") todos.push({ text: "Record your go / no-go decision", detail: "Your decision is saved with a snapshot of the evidence.", section: "decision", tone: "slate" });
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -117,7 +118,7 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
       <Card>
         <CardHeader title="Checklist" icon={<ListChecks className="h-4 w-4" />} subtitle="What is missing or weak, based on everything saved for this product." />
         <CardBody>
-          {todos.length === 0 ? <p className="text-sm text-slate-600">Nothing obvious is missing. Review the evidence gaps on the right.</p> : (
+          {todos.length === 0 ? <p className="text-sm text-slate-600">Nothing obvious is missing. Evidence gaps are listed in the market research report.</p> : (
             <ul className="divide-y divide-slate-100">
               {todos.map((t) => (
                 <li key={t.text}>
@@ -132,34 +133,6 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
                 </li>
               ))}
             </ul>
-          )}
-        </CardBody>
-      </Card>
-      <Card>
-        <CardHeader title="From the latest research report" subtitle={report ? "Evidence gaps and the suggested next steps." : "Run market research to get evidence gaps and next steps."} />
-        <CardBody className="space-y-4">
-          {!report ? <a href="#market" className="text-sm font-medium text-primary-700 hover:underline">Go to market research</a> : (
-            <>
-              {report.evidence_gaps.length > 0 && (
-                <div>
-                  <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Evidence gaps</h3>
-                  <ul className="space-y-2">
-                    {report.evidence_gaps.slice(0, 5).map((g) => (
-                      <li key={g.gap} className="text-sm"><span className="font-medium text-ink">{g.gap}.</span> <span className="text-slate-600">{g.how_to_close}</span></li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {report.next_steps.length > 0 && (
-                <div>
-                  <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Next steps</h3>
-                  <ol className="list-decimal space-y-1.5 pl-5 text-sm text-ink">
-                    {report.next_steps.slice(0, 4).map((s) => <li key={s.action}>{s.action}</li>)}
-                  </ol>
-                </div>
-              )}
-              <a href="#market" className="inline-block text-sm font-medium text-primary-700 hover:underline">Read the full report</a>
-            </>
           )}
         </CardBody>
       </Card>
@@ -209,15 +182,17 @@ function ProductReport({ id }: { id: string }) {
     if (exists && project?.id !== id) select(id);
   }, [exists, project?.id, id, select]);
 
+  // Jump to a tab or a part inside one; a folded tab opens first.
   const jump = useCallback((section: string, smooth = true) => {
-    if (foldedRef.current.has(section)) {
+    const tab = TAB_OF[section] ?? section;
+    if (foldedRef.current.has(tab)) {
       const next = new Set(foldedRef.current);
-      next.delete(section);
+      next.delete(tab);
       saveFolded(next);
     }
     requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" }));
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${section}`);
-    setActive(section);
+    setActive(tab);
   }, [saveFolded]);
 
   // Deep links (#market): sections above load their data asynchronously, so re-align a few times unless the user scrolls.
@@ -225,7 +200,7 @@ function ProductReport({ id }: { id: string }) {
   useEffect(() => {
     if (!ready) return;
     const hash = window.location.hash.slice(1);
-    if (!hash || !SECTIONS.some((s) => s.id === hash)) return;
+    if (!hash || !TAB_OF[hash]) return;
     userScrolled.current = false;
     const stop = () => { userScrolled.current = true; };
     window.addEventListener("wheel", stop, { once: true });
@@ -262,6 +237,37 @@ function ProductReport({ id }: { id: string }) {
     url.searchParams.forEach((v, k) => sp.set(k, v));
     router.replace(`/product?${sp.toString()}#${section}`, { scroll: false });
     setTimeout(() => jump(section), 50);
+  };
+
+  // The content of one tab (without parts) or part.
+  const body = (sid: SectionId, part?: Part): ReactNode => {
+    if (sid === "review") return <Review projectId={id} decision={project?.decision ?? "undecided"} />;
+    const Custom = CUSTOM[sid];
+    if (Custom) return <Custom projectId={id} />;
+    const Page = PAGES[sid];
+    if (!Page) return null;
+    const tab = SECTIONS.find((t) => t.id === sid);
+    return (
+      <EmbedContext.Provider value={{ id: sid, title: part?.title ?? tab?.title ?? "", description: part?.description ?? tab?.description }}>
+        {sid === "supplier-list" && (
+          <div className="mb-4">
+            <h4 className="mb-2 text-sm font-semibold text-ink">Find suppliers on B2B marketplaces</h4>
+            <ResearchRunStarter projectId={id} kind="supplier_listings" label="Search supplier listings"
+              onFinished={() => setSuppliersVersion((v) => v + 1)}
+              approval="This searches Alibaba.com, 1688, Made-in-China, Global Sources and DHgate listings through web search. Each supplier found is saved as unverified, with its listed price and MOQ as a 'listing price' quote - only numbers shown on the source are kept. Nothing is ordered or sent."
+              focusPlaceholder="e.g. knotted headbands, custom tweed fabric, MOQ under 500" />
+          </div>
+        )}
+        {sid === "brands" && (
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm">
+            <span className="text-slate-600">Place each competitor in the budget / mid / premium / luxury tiers found by the Price Tier Agent, using its prices or matching listings.</span>
+            <Button size="sm" variant="secondary" onClick={assignTiers}>Assign price tiers</Button>
+            {tierNote && <span className="w-full text-xs text-slate-500">{tierNote}</span>}
+          </div>
+        )}
+        <Page key={sid === "supplier-list" ? suppliersVersion : sid === "brands" ? competitorsVersion : undefined} />
+      </EmbedContext.Provider>
+    );
   };
 
   if (loading) return <Spinner />;
@@ -313,11 +319,9 @@ function ProductReport({ id }: { id: string }) {
 
       <div className="space-y-8">
         {SECTIONS.map((s) => {
-          const Page = PAGES[s.id];
-          const Custom = CUSTOM[s.id];
           const isFolded = folded.has(s.id);
           return (
-          <section key={s.id} id={s.id} className="scroll-mt-20 sm:scroll-mt-44" aria-label={s.title}>
+          <section key={s.id} id={s.id} className="scroll-mt-20 sm:scroll-mt-36" aria-label={s.title}>
             <div className={clsx("border-b border-line pb-3", !isFolded && "mb-4")}>
               <h2 className="text-2xl font-semibold leading-tight text-ink">
                 <button type="button" onClick={() => toggle(s.id)} aria-expanded={!isFolded} aria-controls={`${s.id}-body`}
@@ -326,36 +330,22 @@ function ProductReport({ id }: { id: string }) {
                   <span>{s.title}</span>
                 </button>
               </h2>
-              {s.description && !isFolded && <p className="ml-8 mt-1 max-w-3xl text-sm text-slate-600">{s.description}</p>}
+              {!isFolded && (s.description
+                ? <p className="ml-8 mt-1 max-w-3xl text-sm text-slate-600">{s.description}</p>
+                : s.parts && <p className="ml-8 mt-1 text-sm text-slate-600">{s.parts.map((p) => p.title).join(" · ")}</p>)}
             </div>
             {!isFolded && (
-            <div id={`${s.id}-body`}>
-            {Custom ? (
-              <Custom projectId={id} />
-            ) : Page ? (
-              <EmbedContext.Provider value={{ id: s.id, title: s.title, description: s.description }}>
-                {s.id === "suppliers" && (
-                  <div className="mb-4">
-                    <h3 className="mb-2 text-sm font-semibold text-ink">Find suppliers on B2B marketplaces</h3>
-                    <ResearchRunStarter projectId={id} kind="supplier_listings" label="Search supplier listings"
-                      onFinished={() => setSuppliersVersion((v) => v + 1)}
-                      approval="This searches Alibaba.com, 1688, Made-in-China, Global Sources and DHgate listings through web search. Each supplier found is saved as unverified, with its listed price and MOQ as a 'listing price' quote - only numbers shown on the source are kept. Nothing is ordered or sent."
-                      focusPlaceholder="e.g. knotted headbands, custom tweed fabric, MOQ under 500" />
-                  </div>
-                )}
-                {s.id === "competitors" && (
-                  <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm">
-                    <span className="text-slate-600">Place each competitor in the budget / mid / premium / luxury tiers found by the Price Tier Agent, using its prices or matching listings.</span>
-                    <Button size="sm" variant="secondary" onClick={assignTiers}>Assign price tiers</Button>
-                    {tierNote && <span className="w-full text-xs text-slate-500">{tierNote}</span>}
-                  </div>
-                )}
-                <Page key={s.id === "suppliers" ? suppliersVersion : s.id === "competitors" ? competitorsVersion : undefined} />
-              </EmbedContext.Provider>
-            ) : (
-              <Review projectId={id} decision={project.decision} />
-            )}
-            </div>
+              <div id={`${s.id}-body`} className="space-y-10">
+                {s.parts
+                  ? s.parts.map((part) => (
+                    <div key={part.id} id={part.id} className="scroll-mt-20 sm:scroll-mt-36">
+                      <h3 className="text-lg font-semibold text-ink">{part.title}</h3>
+                      {part.description && <p className="mb-3 mt-0.5 max-w-3xl text-sm text-slate-600">{part.description}</p>}
+                      {body(part.id, part)}
+                    </div>
+                  ))
+                  : body(s.id)}
+              </div>
             )}
           </section>
           );

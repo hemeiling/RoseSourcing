@@ -37,7 +37,6 @@ from ...models import (
     ShippingOption,
     PriceObservation,
     ProductConcept,
-    Recommendation,
     ResearchFinding,
     ResearchRun,
     SizeChart,
@@ -49,6 +48,7 @@ from .. import demand
 from ..llm.anthropic_provider import get_llm
 from ..logistics import PackagingSpec, Shipment, channel_economics, compare_shipping
 from ..llm.base import LLMError, LLMNotConfigured, LLMRefusal, LLMUsage
+from ..dedupe import add_recommendation, find_channel
 from ..price_tiers import apply_to_competitors as apply_tiers_to_competitors
 from ..research.providers import EvidenceBundle, SourceDoc, get_research_provider
 from ..unit_economics import UnitEconomicsInputs, calculate
@@ -688,8 +688,7 @@ def _persist_channels_and_shipping(db, run: ResearchRun, bundle: EvidenceBundle,
                 kept[field] = Decimal(str(v))
             else:
                 dropped_fees += 1
-        existing = db.scalars(select(SalesChannel).where(SalesChannel.project_id == run.project_id,
-                                                         SalesChannel.name.ilike(c.name.strip()))).first()
+        existing = find_channel(db, run.project_id, c.name, c.channel_type)  # also catches "Instagram" vs "Instagram Shopping"
         ch = existing or SalesChannel(project_id=run.project_id, name=c.name.strip()[:200], channel_type=c.channel_type,
                                       platform=c.platform, status="considering", research_run_id=run.id)
         if existing is None:
@@ -1300,8 +1299,7 @@ def _run_synthesis(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
         for f in db.scalars(select(ResearchFinding).where(ResearchFinding.research_run_id == run_id)):
             f.market_opportunity_id = opp.id
         for n in synth.next_steps:
-            db.add(Recommendation(project_id=run.project_id, source="research", title=n.action[:300], body=n.rationale,
-                                  priority=n.priority, research_run_id=run.id))
+            add_recommendation(db, project_id=run.project_id, title=n.action, body=n.rationale, priority=n.priority, research_run_id=run.id)
         ex = db.get(AgentExecution, ex_id)
         apply_usage(ex, usage)
         finish_execution(ex, output={"market_opportunity_id": str(opp.id), "attractiveness": synth.attractiveness})
@@ -1393,8 +1391,7 @@ def _run_channel_plan(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
         snap = AnalysisSnapshot(project_id=project_id, kind="channel_logistics_plan", content=content, agent_execution_id=ex_id)
         db.add(snap)
         for n in plan.next_steps:
-            db.add(Recommendation(project_id=project_id, source="research", title=n.action[:300], body=n.rationale,
-                                  priority=n.priority, research_run_id=run_id))
+            add_recommendation(db, project_id=project_id, title=n.action, body=n.rationale, priority=n.priority, research_run_id=run_id)
         ex = db.get(AgentExecution, ex_id)
         apply_usage(ex, usage)
         finish_execution(ex, output={"launch_channels": [p.channel for p in plan.launch_channels]})
@@ -1459,8 +1456,8 @@ def _run_compliance_plan(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
         db.add(snap)
         for item in plan.items:
             if item.status == "action_needed":
-                db.add(Recommendation(project_id=project_id, source="research", title=f"{item.requirement}"[:300], body=item.what_to_do,
-                                      priority="high" if item.area in ("design_ip", "forced_labor") else "medium", research_run_id=run_id))
+                add_recommendation(db, project_id=project_id, title=item.requirement, body=item.what_to_do,
+                                   priority="high" if item.area in ("design_ip", "forced_labor") else "medium", research_run_id=run_id)
         ex = db.get(AgentExecution, ex_id)
         apply_usage(ex, usage)
         finish_execution(ex, output={"items": len(plan.items), "supplier_drafts": drafted})

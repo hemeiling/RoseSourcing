@@ -188,7 +188,7 @@ export function ChannelsTab({ projectId, version }: { projectId: string; version
                     tickFormatter={(s: string) => truncate(s, narrow ? 17 : 32)} />
                   <ReferenceLine x={0} stroke="#94a3b8" />
                   <Tooltip formatter={(v) => [money(Number(v)), "Contribution / unit"]} />
-                  <Bar dataKey="value" barSize={16} radius={[0, 3, 3, 0]}>{chart.map((d) => <Cell key={d.name} fill={d.value >= 0 ? "#4e2a84" : "#dc2626"} />)}</Bar>
+                  <Bar dataKey="value" barSize={16} radius={[0, 3, 3, 0]}>{chart.map((d) => <Cell key={d.name} fill={d.value >= 0 ? "#0f9e90" : "#e8467c"} />)}</Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>

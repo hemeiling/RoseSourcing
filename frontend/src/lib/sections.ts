@@ -1,29 +1,52 @@
-// Sections of a product report, in review order. `route` is the old standalone page, which now opens this section.
+// A product report: 9 tabs in review order. A tab can hold several parts; every tab and part has its own anchor
+// (e.g. #listings), so links and deep links reach the exact part. `route` is the old standalone page it replaces.
 
-export type SectionId = "review" | "overview" | "market" | "trends" | "pricing" | "listings" | "reviews" | "competitors" | "sizing" | "suppliers" | "outreach"
-  | "compliance" | "channels" | "economics" | "brand" | "commerce";
+export type TabId = "overview" | "market" | "competitors" | "fit" | "suppliers" | "compliance" | "channels" | "economics" | "brand";
+export type PartId = "review" | "decision" | "research" | "trends" | "pricing" | "listings" | "brands" | "reviews" | "sizing"
+  | "supplier-list" | "outreach" | "brand-concepts" | "commerce";
+export type SectionId = TabId | PartId;
 
-export const SECTIONS: { id: SectionId; title: string; route?: string; description?: string }[] = [
-  { id: "review", title: "What to improve", description: "A quick read of what is missing or weak. Each item jumps to the section to fix it." },
-  { id: "overview", title: "Overview & decision", route: "/dashboard", description: "Your go / no-go decision, key numbers, open recommendations and recent activity." },
-  { id: "market", title: "Market research", route: "/market", description: "Demand, market size, customers, competitors, sourcing and risks - every finding linked to its source." },
-  { id: "trends", title: "Search trends", description: "Google Trends: compare up to 5 search phrases over time, see where each is searched most, and the related searches and topics that are rising." },
-  { id: "pricing", title: "Price tiers & needs", description: "Budget to luxury: prices, quality differences, and what buyers in each tier want and complain about." },
-  { id: "listings", title: "Listing tracker", description: "Google Trends interest and 15-20 directly comparable listings on Amazon, Etsy and brand sites, with price, rating, review count and badges." },
-  { id: "reviews", title: "Low-star reviews", description: "Complaints in 1-3 star reviews of the leading listings, tagged for comfort, fit and durability - each quote checked against its source." },
-  { id: "competitors", title: "Competitors", route: "/competitors", description: "Who sells this today, at what prices, and how they position themselves." },
-  { id: "sizing", title: "Sizing & fit", route: "/sizing", description: "Size charts, the fit finder and fit research for this product." },
-  { id: "suppliers", title: "Suppliers", route: "/suppliers", description: "Factories, quotes, landed cost and communication." },
-  { id: "outreach", title: "Quotes & samples", description: "A spec sheet, requests for quotation at 100 / 300 / 500 units to 5+ suppliers, their price breaks, and 2-3 sample orders." },
+export type Part = { id: PartId; title: string; route?: string; description?: string };
+export type Tab = { id: TabId; title: string; route?: string; description?: string; parts?: Part[] };
+
+export const SECTIONS: Tab[] = [
+  { id: "overview", title: "Overview", parts: [
+    { id: "review", title: "What to improve", description: "What is missing or weak, and the research agents. Each item jumps to the part that fixes it." },
+    { id: "decision", title: "Decision & key numbers", route: "/dashboard", description: "Your go / no-go decision, key counts, open recommendations and recent activity." },
+  ] },
+  { id: "market", title: "Market & demand", parts: [
+    { id: "research", title: "Market research", route: "/market", description: "Demand, market size, customers, competitors, sourcing and risks - every finding linked to its source." },
+    { id: "trends", title: "Search trends", description: "Google Trends: compare up to 5 search phrases over time, see where each is searched most, and the related searches and topics that are rising." },
+  ] },
+  { id: "competitors", title: "Competitors & pricing", parts: [
+    { id: "pricing", title: "Price tiers & needs", description: "Budget to luxury: prices, quality differences, and what buyers in each tier want and complain about." },
+    { id: "listings", title: "Listing tracker", description: "15-20 directly comparable listings on Amazon, Etsy and brand sites, with price, rating, review count and badges." },
+    { id: "brands", title: "Competitors", route: "/competitors", description: "Who sells this today, at what prices, and how they position themselves." },
+  ] },
+  { id: "fit", title: "Reviews & fit", parts: [
+    { id: "reviews", title: "Low-star reviews", description: "Complaints in 1-3 star reviews of the leading listings, tagged for comfort, fit and durability - each quote checked against its source." },
+    { id: "sizing", title: "Sizing & fit", route: "/sizing", description: "Size charts, the fit finder and fit research for this product." },
+  ] },
+  { id: "suppliers", title: "Suppliers & quotes", parts: [
+    { id: "supplier-list", title: "Suppliers", route: "/suppliers", description: "Factories, quotes, landed cost and communication." },
+    { id: "outreach", title: "Quotes & samples", description: "A spec sheet, requests for quotation at 100 / 300 / 500 units to 5+ suppliers, their price breaks, and 2-3 sample orders." },
+  ] },
   { id: "compliance", title: "Compliance & IP", description: "Design patents and trademarks, labelling rules, and UFLPA forced-labour requirements - with questions for your supplier." },
   { id: "channels", title: "Shipping & channels", route: "/channels", description: "Where to sell, fees, and how to ship." },
   { id: "economics", title: "Unit economics", route: "/analytics", description: "Cost scenarios, margins and experiments." },
-  { id: "brand", title: "Brand", route: "/brand", description: "Names, positioning, personas and palettes." },
-  { id: "commerce", title: "Inventory & listings", route: "/commerce", description: "Products, stock and listing approvals." },
+  { id: "brand", title: "Brand & launch", parts: [
+    { id: "brand-concepts", title: "Brand", route: "/brand", description: "Names, positioning, personas and palettes." },
+    { id: "commerce", title: "Inventory & listings", route: "/commerce", description: "Products, stock and listing approvals." },
+  ] },
 ];
 
+/** The tab each anchor lives in (a tab is its own parent). */
+export const TAB_OF: Record<string, TabId> = Object.fromEntries(
+  SECTIONS.flatMap((t) => [[t.id, t.id], ...(t.parts ?? []).map((p) => [p.id, t.id])]),
+) as Record<string, TabId>;
+
 export const SECTION_BY_ROUTE: Record<string, SectionId> = Object.fromEntries(
-  SECTIONS.filter((s) => s.route).map((s) => [s.route!, s.id]),
+  SECTIONS.flatMap((t) => [t, ...(t.parts ?? [])]).filter((s) => s.route).map((s) => [s.route!, s.id]),
 ) as Record<string, SectionId>;
 
 export const productHref = (id: string, section?: SectionId) => `/product?id=${id}${section ? `#${section}` : ""}`;

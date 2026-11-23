@@ -44,7 +44,7 @@ type PriceComparison = {
   price_hypothesis: { min: number; max: number } | null;
 };
 
-const VERIFY_COLOR: Record<string, string> = { source_linked: "#6a48a3", human_verified: "#16a34a", unverified: "#cfc1e6", disputed: "#dc2626" };
+const VERIFY_COLOR: Record<string, string> = { source_linked: "#8b6cf0", human_verified: "#0f9e90", unverified: "#d6cbfb", disputed: "#e8467c" };
 
 export function PriceComparisonCard({ projectId, version }: { projectId: string; version: number }) {
   const narrow = useNarrow();

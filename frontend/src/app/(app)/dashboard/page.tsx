@@ -81,6 +81,7 @@ function DashboardView({ projectId }: { projectId: string }) {
 
       <div className="mt-5 grid gap-5 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
+          {!embed && (
           <Card>
             <CardHeader title="Latest opportunity assessment" icon={<TrendingUp className="h-4 w-4" />}
               actions={<Link href={data.latest_report ? `/market?report=${data.latest_report.id}` : "/market"} className="text-xs font-medium text-primary-700 hover:underline">
@@ -113,7 +114,7 @@ function DashboardView({ projectId }: { projectId: string }) {
               )}
             </CardBody>
           </Card>
-
+          )}
           <Card>
             <CardHeader title="Open recommendations" icon={<Lightbulb className="h-4 w-4" />} subtitle="From research reports and the copilot. Mark them done or dismiss." />
             <CardBody className="p-0">
@@ -163,6 +164,8 @@ function DashboardView({ projectId }: { projectId: string }) {
         </div>
 
         <div className="space-y-5">
+          {!embed && (
+            <>
           <Card>
             <CardHeader title="Getting started" />
             <CardBody>
@@ -196,6 +199,8 @@ function DashboardView({ projectId }: { projectId: string }) {
               )}
             </CardBody>
           </Card>
+            </>
+          )}
 
           <Card>
             <CardHeader title="Recent activity" subtitle={`Estimated AI spend on this project: ${money(data.ai_spend_usd, { decimals: 2 })}`} />

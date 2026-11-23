@@ -224,7 +224,7 @@ function Rfqs({ projectId, data, onChange }: { projectId: string; data: Outreach
         actions={<Badge tone={contacted >= TARGET_SUPPLIERS ? "green" : "amber"}>{contacted} of {TARGET_SUPPLIERS}+ suppliers asked</Badge>} />
       <CardBody className="space-y-3">
         {!data.suppliers.length ? (
-          <p className="text-sm text-slate-500">No suppliers yet. Use <a href="#suppliers" className="font-semibold text-primary-700 underline">Search supplier listings</a> in Suppliers, or add them there.</p>
+          <p className="text-sm text-slate-500">No suppliers yet. Use <a href="#supplier-list" className="font-semibold text-primary-700 underline">Search supplier listings</a> in Suppliers, or add them there.</p>
         ) : (
           <>
             {fresh.length > 0 && (
