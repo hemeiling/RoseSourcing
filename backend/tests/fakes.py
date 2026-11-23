@@ -216,6 +216,15 @@ class FakeLLM:
                 {"source_ref": ref, "product": "Knot headband", "stars": 1, "quote": "An invented complaint nobody wrote",
                  "tags": ["fit"], "problem": "invented"},
             ]), usage
+        if output_model.__name__ == "UERecommendation":
+            ref = re.search(r"\[(E\d+)\] Supplier listing price", prompt)
+            return output_model(summary="Price in the premium tier.", inputs=[
+                {"field": "retail_price", "value": 28, "basis": "sourced_research", "refs": ["E1"], "why": "Premium tier."},
+                {"field": "factory_cost", "value": 1.2, "basis": "sourced_research", "refs": [ref.group(1)] if ref else [], "why": "Listing price."},
+                {"field": "duty_rate_pct", "value": 34.6, "basis": "sourced_research", "refs": ["E999"], "why": "Invented ref."},
+                {"field": "return_rate_pct", "value": 140, "basis": "assumption", "refs": [], "why": "Out of range."},
+                {"field": "moq", "value": 300, "basis": "assumption", "refs": [], "why": "Fits the budget."},
+            ]), usage
         if output_model.__name__ == "ProductIdentification":
             self.images = images
             return output_model(

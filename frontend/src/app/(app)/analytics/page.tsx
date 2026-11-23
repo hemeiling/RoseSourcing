@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertTriangle, Calculator, FlaskConical, Gauge, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import clsx from "clsx";
+import { AlertTriangle, Calculator, FlaskConical, Gauge, Pencil, Plus, Save, Sparkles, Trash2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -36,17 +37,112 @@ const GROUPS: { title: string; fields: string[] }[] = [
 
 const SCENARIO_TYPES = ["hypothetical", "quote_based", "actual", "research_estimate"] as const;
 
+// Each input's name and unit: the unit is written under the name and marked inside the box ($ before, % or units after).
+const FIELDS: Record<string, { label: string; unit: string; pre?: string; post?: string }> = {
+  retail_price: { label: "Retail price", unit: "USD per unit", pre: "$" },
+  avg_discount_pct: { label: "Average discount", unit: "% off the retail price", post: "%" },
+  factory_cost: { label: "Factory cost", unit: "USD per unit", pre: "$" },
+  freight_per_unit: { label: "International freight", unit: "USD per unit", pre: "$" },
+  shipment_fixed_costs: { label: "Fixed cost per shipment", unit: "USD per shipment", pre: "$" },
+  units_per_shipment: { label: "Units per shipment", unit: "units (0 = the MOQ)", post: "units" },
+  duty_rate_pct: { label: "Customs duty", unit: "% of factory cost", post: "%" },
+  import_clearance_per_unit: { label: "Import clearance", unit: "USD per unit", pre: "$" },
+  packaging_per_unit: { label: "Packaging", unit: "USD per unit", pre: "$" },
+  fulfillment_per_unit: { label: "Domestic fulfillment", unit: "USD per unit", pre: "$" },
+  payment_fee_pct: { label: "Payment fee", unit: "% of the sale price", post: "%" },
+  payment_fee_fixed: { label: "Payment fee, fixed", unit: "USD per order", pre: "$" },
+  channel_commission_pct: { label: "Channel commission", unit: "% of the sale price", post: "%" },
+  channel_fee_per_order: { label: "Channel fee", unit: "USD per order", pre: "$" },
+  units_per_order: { label: "Units per order", unit: "units", post: "units" },
+  marketing_cac: { label: "Marketing cost (CAC)", unit: "USD per order", pre: "$" },
+  return_rate_pct: { label: "Return rate", unit: "% of units sold", post: "%" },
+  return_cost_per_unit: { label: "Return cost", unit: "USD per returned unit", pre: "$" },
+  unsellable_return_pct: { label: "Unsellable returns", unit: "% of returned units", post: "%" },
+  monthly_fixed_costs: { label: "Monthly fixed costs", unit: "USD per month", pre: "$" },
+  initial_investment: { label: "Initial investment", unit: "USD in total", pre: "$" },
+  moq: { label: "Supplier MOQ", unit: "units", post: "units" },
+  sample_costs: { label: "Sample costs", unit: "USD in total", pre: "$" },
+};
+
 /** A number box that can be cleared and retyped: it keeps what you type and reports the number (empty = 0). */
-function NumberInput({ id, value, onValue }: { id: string; value: number; onValue: (v: number) => void }) {
+function NumberInput({ id, value, onValue, pre, post }: { id: string; value: number; onValue: (v: number) => void; pre?: string; post?: string }) {
   const [text, setText] = useState(Number.isFinite(value) ? String(value) : "");
   // Follow outside changes (a loaded scenario, "Use this price") without fighting what is being typed.
   useEffect(() => {
     setText((t) => (Number(t || 0) === value ? t : String(value)));
   }, [value]);
   return (
-    <Input id={id} type="number" step="any" min={0} inputMode="decimal" className="min-w-0 flex-1" value={text}
-      onFocus={(e) => e.target.select()}
-      onChange={(e) => { setText(e.target.value); const n = Number(e.target.value); onValue(e.target.value === "" || !Number.isFinite(n) ? 0 : n); }} />
+    <div className="relative min-w-0 flex-1">
+      {pre && <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-slate-500" aria-hidden>{pre}</span>}
+      <Input id={id} type="number" step="any" min={0} inputMode="decimal" className={clsx("w-full", pre && "pl-7", post && (post.length > 1 ? "pr-14" : "pr-8"))} value={text}
+        onFocus={(e) => e.target.select()}
+        onChange={(e) => { setText(e.target.value); const n = Number(e.target.value); onValue(e.target.value === "" || !Number.isFinite(n) ? 0 : n); }} />
+      {post && <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-500" aria-hidden>{post}</span>}
+    </div>
+  );
+}
+
+type Recommended = {
+  id: string; created_at: string;
+  content: {
+    summary: string; based_on_scenario: string; evidence_count: number;
+    inputs: { field: string; value: number; basis: string; why: string; exact_in_source: boolean; sources: { ref: string; label: string; url: string | null }[] }[];
+    results: { retail_price: number; landed_cost: number; contribution_margin: number; contribution_margin_pct: number | null; gross_margin_pct: number | null; breakeven_cac: number };
+    generated_by: { generated_at: string; cost_usd?: number };
+  };
+};
+
+function fmtField(k: string, v: number): string {
+  const f = FIELDS[k];
+  if (f?.pre === "$") return money(v, { decimals: 2 });
+  if (f?.post === "%") return `${v}%`;
+  if (f?.post === "units") return `${num(v)} units`;
+  return String(v);
+}
+
+/** One AI call proposes every input from the product's research; each value shows why and where it came from. */
+function RecommendPanel({ rec, busy, error, onRun, onUseAll }: {
+  rec: Recommended | null | undefined; busy: boolean; error: string | null; onRun: () => void; onUseAll: () => void;
+}) {
+  const r = rec?.content;
+  return (
+    <div className="rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 font-semibold text-primary-800"><Sparkles className="h-4 w-4" aria-hidden /> Recommended numbers from your research</div>
+        <div className="flex flex-wrap gap-2">
+          {r && <Button size="sm" onClick={onUseAll}>Use all</Button>}
+          <Button size="sm" variant={r ? "ghost" : "primary"} loading={busy} onClick={onRun}>{r ? "Recommend again" : "Recommend numbers"}</Button>
+        </div>
+      </div>
+      {!r ? (
+        <p className="mt-1 text-xs text-slate-600">Reads this product&apos;s price tiers, tracked listings, supplier prices, channel fees, shipping benchmarks, reviews and findings, then suggests each input with its reason and source. One AI call (usually under $0.50); nothing changes until you click Use.</p>
+      ) : (
+        <div className="mt-1 space-y-1 text-xs text-slate-700">
+          <p>{r.summary}</p>
+          <p>
+            With all of them: retail <b>{money(r.results.retail_price)}</b>, landed cost <b>{money(r.results.landed_cost)}</b> per unit,
+            contribution <b className={r.results.contribution_margin < 0 ? "text-red-700" : "text-green-700"}>{money(r.results.contribution_margin)}</b> per unit
+            ({pct(r.results.contribution_margin_pct)}), gross margin {pct(r.results.gross_margin_pct)}.
+          </p>
+          <p className="text-slate-500">From {r.evidence_count} pieces of evidence · {date(rec!.created_at)}{r.generated_by.cost_usd ? ` · AI cost ${money(r.generated_by.cost_usd, { decimals: 2 })}` : ""}</p>
+        </div>
+      )}
+      {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
+    </div>
+  );
+}
+
+function Suggestion({ item, current, onUse }: { item: Recommended["content"]["inputs"][number]; current: number; onUse: () => void }) {
+  const same = Math.abs((current ?? 0) - item.value) < 1e-9;
+  return (
+    <div className="mt-1 text-[11px] leading-snug text-slate-600">
+      <span className="font-semibold text-primary-800">Suggested {fmtField(item.field, item.value)}</span>
+      <span className="text-slate-500"> · {BASIS_META[item.basis]?.label ?? item.basis}{item.basis !== "assumption" && !item.exact_in_source ? " (estimated from the source)" : ""}</span>
+      {" "}{same ? <span className="text-green-700">· in use</span> : <button className="font-semibold text-primary-700 hover:underline" onClick={onUse}>Use</button>}
+      <div>{item.why}{item.sources.map((s, i) => (
+        <span key={s.ref}>{" "}{s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-primary-700 underline" title={s.label}>[{i + 1}]</a> : <span title={s.label}>[{i + 1}]</span>}</span>
+      ))}</div>
+    </div>
   );
 }
 
@@ -77,7 +173,7 @@ function PriceTargets({ r, inputs, onUsePrice }: { r: UEResults; inputs: Record<
         fees, returns and marketing. Click a price to use it.
       </p>
       <table className="w-full text-sm">
-        <thead><tr className="text-left text-xs text-slate-500"><th className="py-1 font-medium">Target</th><th className="py-1 font-medium">Gross margin</th><th className="py-1 font-medium">Contribution margin</th></tr></thead>
+        <thead><tr className="text-left text-xs text-slate-500"><th className="py-1 font-medium">Target margin (%)</th><th className="py-1 font-medium">Price for gross margin (USD)</th><th className="py-1 font-medium">Price for contribution margin (USD)</th></tr></thead>
         <tbody className="divide-y divide-slate-100">
           {rows.map((x, i) => (
             <tr key={`${x.target_pct}-${i}`}>
@@ -125,8 +221,8 @@ function ShipmentSizes({ r, fixed, onUse, onFixed }: { r: UEResults; fixed: numb
       </p>
       <table className="w-full text-sm">
         <thead><tr className="text-left text-xs text-slate-500">
-          <th className="py-1 font-medium">Units</th><th className="py-1 font-medium">Shipping / unit</th><th className="py-1 font-medium">Landed / unit</th>
-          <th className="py-1 font-medium">Contribution</th><th className="py-1 font-medium">Order cost</th>
+          <th className="py-1 font-medium">Shipment (units)</th><th className="py-1 font-medium">Shipping (USD/unit)</th><th className="py-1 font-medium">Landed (USD/unit)</th>
+          <th className="py-1 font-medium">Contribution (USD/unit)</th><th className="py-1 font-medium">Order cost (USD)</th>
         </tr></thead>
         <tbody className="divide-y divide-slate-100">
           {r.by_shipment_size.map((s) => (
@@ -173,22 +269,22 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg bg-slate-50 p-3">
-          <div className="text-xs text-slate-500">Contribution / unit</div>
+          <div className="text-xs text-slate-500">Contribution (USD per unit)</div>
           <div className={`text-2xl font-semibold ${r.contribution_margin >= 0 ? "text-ink" : "text-red-700"}`}>{money(r.contribution_margin)}</div>
           <div className="text-xs text-slate-500">{pct(r.contribution_margin_pct)} of net revenue</div>
         </div>
         <div className="rounded-lg bg-slate-50 p-3">
-          <div className="text-xs text-slate-500">Landed cost / unit</div>
+          <div className="text-xs text-slate-500">Landed cost (USD per unit)</div>
           <div className="text-2xl font-semibold text-slate-900">{money(lc.landed_cost)}</div>
           <div className="text-xs text-slate-500">Gross margin {pct(r.gross_margin_pct)}</div>
         </div>
       </div>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <div><dt className="text-xs text-slate-500">Break-even CAC</dt><dd className="font-medium">{money(r.breakeven_cac)}</dd></div>
-        <div><dt className="text-xs text-slate-500">Units/month to cover fixed costs</dt><dd className="font-medium">{num(r.breakeven_units_per_month, 1)}</dd></div>
+        <div><dt className="text-xs text-slate-500">Break-even CAC</dt><dd className="font-medium">{money(r.breakeven_cac)} <span className="text-xs font-normal text-slate-500">per order</span></dd></div>
+        <div><dt className="text-xs text-slate-500">Sales needed to cover fixed costs</dt><dd className="font-medium">{r.breakeven_units_per_month === null ? "-" : <>{num(r.breakeven_units_per_month, 1)} <span className="text-xs font-normal text-slate-500">units per month</span></>}</dd></div>
         <div><dt className="text-xs text-slate-500">MOQ inventory cost (landed)</dt><dd className="font-medium">{money(r.moq_inventory_cost)}</dd></div>
-        <div><dt className="text-xs text-slate-500">Units affordable with budget</dt><dd className="font-medium">{num(r.affordable_units_with_budget)}</dd></div>
-        <div className="col-span-2"><dt className="text-xs text-slate-500">Units to recover the initial investment</dt><dd className="font-medium">{num(r.units_to_recover_investment, 0)}</dd></div>
+        <div><dt className="text-xs text-slate-500">Units affordable with budget</dt><dd className="font-medium">{num(r.affordable_units_with_budget)} <span className="text-xs font-normal text-slate-500">units</span></dd></div>
+        <div className="col-span-2"><dt className="text-xs text-slate-500">Sales to recover the initial investment</dt><dd className="font-medium">{r.units_to_recover_investment === null ? "-" : <>{num(r.units_to_recover_investment, 0)} <span className="text-xs font-normal text-slate-500">units</span></>}</dd></div>
       </dl>
       {r.warnings.length > 0 && (
         <ul className="space-y-1">
@@ -198,7 +294,7 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
         </ul>
       )}
       <div>
-        <div className="mb-1 text-xs font-medium text-slate-600">Where each sale&apos;s revenue goes (per unit)</div>
+        <div className="mb-1 text-xs font-medium text-slate-600">Where each sale&apos;s revenue goes (USD per unit)</div>
         <div style={{ height: waterfall.length * 28 + 30 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={waterfall} layout="vertical" margin={{ left: 4, right: 56, top: 4, bottom: 4 }}>
@@ -218,7 +314,7 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
       <PriceTargets r={r} inputs={inputs} onUsePrice={(p) => onSet("retail_price", p)} />
       <ShipmentSizes r={r} fixed={inputs.shipment_fixed_costs ?? 0} onUse={(n) => onSet("units_per_shipment", n)} onFixed={(v) => onSet("shipment_fixed_costs", v)} />
       <div>
-        <div className="mb-1 text-xs font-medium text-slate-600">Price sensitivity: contribution per unit</div>
+        <div className="mb-1 text-xs font-medium text-slate-600">Price sensitivity: contribution (USD per unit) at each retail price (USD)</div>
         <div className="h-44">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={r.price_sensitivity} margin={{ left: 0, right: 20, top: 5 }}>
@@ -258,6 +354,21 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rec = useApi<Recommended | null>(`/api/projects/${projectId}/analytics/recommended-inputs`);
+  const [recBusy, setRecBusy] = useState(false);
+  const [recError, setRecError] = useState<string | null>(null);
+  const recBy = Object.fromEntries((rec.data?.content.inputs ?? []).map((i) => [i.field, i]));
+  const basisOf = (b: string) => (b in BASIS_META ? b : "assumption");
+  async function runRecommend() {
+    setRecBusy(true); setRecError(null);
+    try { rec.setData(await post<Recommended>(`/api/projects/${projectId}/analytics/recommended-inputs`)); }
+    catch (e) { setRecError(errorText(e)); } finally { setRecBusy(false); }
+  }
+  function applyAll() {
+    const items = rec.data?.content.inputs ?? [];
+    setInputs((cur) => ({ ...cur, ...Object.fromEntries(items.map((i) => [i.field, i.value])) }));
+    setBasis((b) => ({ ...b, ...Object.fromEntries(items.map((i) => [i.field, basisOf(i.basis)])) }));
+  }
 
   useEffect(() => {
     if (!loadId) return;
@@ -321,6 +432,7 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
         />
         <CardBody className="space-y-5">
           {!editing && <Alert tone="blue">{spec.note}</Alert>}
+          <RecommendPanel rec={rec.data} busy={recBusy} error={recError} onRun={runRecommend} onUseAll={applyAll} />
           {GROUPS.map((g) => (
             <fieldset key={g.title}>
               <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{g.title}</legend>
@@ -328,16 +440,21 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
                 {g.fields.map((k) => (
                   <div key={k}>
                     <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor={`in-${k}`} title={spec.descriptions[k]}>
-                      {spec.labels[k] ?? titleCase(k)}
+                      {FIELDS[k]?.label ?? spec.labels[k] ?? titleCase(k)}
+                      {FIELDS[k] && <span className="ml-1 font-normal text-slate-500">({FIELDS[k].unit})</span>}
                     </label>
                     <div className="flex gap-1.5">
-                      <NumberInput id={`in-${k}`} value={inputs[k]} onValue={(v) => setInputs((cur) => ({ ...cur, [k]: v }))} />
+                      <NumberInput id={`in-${k}`} value={inputs[k]} pre={FIELDS[k]?.pre} post={FIELDS[k]?.post} onValue={(v) => setInputs((cur) => ({ ...cur, [k]: v }))} />
                       <select aria-label={`Source of ${spec.labels[k]}`} title="Where this number came from" value={basis[k] ?? "assumption"}
                         onChange={(e) => setBasis((b) => ({ ...b, [k]: e.target.value }))}
                         className="w-[7.5rem] shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-1.5 text-[11px] text-slate-600">
                         {Object.entries(BASIS_META).map(([v, m]) => <option key={v} value={v}>{m.label}</option>)}
                       </select>
                     </div>
+                    {recBy[k] && <Suggestion item={recBy[k]} current={inputs[k]} onUse={() => {
+                      setInputs((cur) => ({ ...cur, [k]: recBy[k].value }));
+                      setBasis((b) => ({ ...b, [k]: basisOf(recBy[k].basis) }));
+                    }} />}
                   </div>
                 ))}
               </div>

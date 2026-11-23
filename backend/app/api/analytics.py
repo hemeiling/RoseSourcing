@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 
 from .. import audit
-from ..models import CostScenario, Experiment, Recommendation, SupplierQuote
+from ..models import AnalysisSnapshot, CostScenario, Experiment, Recommendation, SupplierQuote
 from ..schemas import (
     ExperimentIn,
     ExperimentOut,
@@ -16,6 +16,7 @@ from ..schemas import (
     ScenarioOut,
 )
 from ..services.agents.sourcing import baseline_inputs
+from ..services.agents.ue_recommend import recommend
 from ..services.unit_economics import INPUT_LABELS, UnitEconomicsInputs, calculate, price_for_margin
 from .deps import DB, CurrentUser, ProjectDep, owned
 
@@ -43,6 +44,24 @@ def model_spec(user: CurrentUser) -> dict:
 @router.post("/analytics/calculate")
 def calc(inputs: dict, user: CurrentUser) -> dict:
     return calculate(_validated(inputs))
+
+
+@router.get("/projects/{project_id}/analytics/recommended-inputs")
+def latest_recommendation(project: ProjectDep, db: DB) -> dict | None:
+    snap = db.scalars(select(AnalysisSnapshot).where(AnalysisSnapshot.project_id == project.id, AnalysisSnapshot.kind == "ue_recommendation")
+                      .order_by(AnalysisSnapshot.created_at.desc())).first()
+    return {"id": str(snap.id), "created_at": snap.created_at, "content": snap.content} if snap else None
+
+
+@router.post("/projects/{project_id}/analytics/recommended-inputs", status_code=201)
+def create_recommendation(project: ProjectDep, db: DB, user: CurrentUser) -> dict:
+    """One AI call: a value for every calculator input from this product's saved research, with reasons and sources."""
+    snap = recommend(db, project, user)
+    db.flush()
+    audit.record(db, "unit_economics.recommended", user_id=user.id, project_id=project.id, actor="agent:analytics",
+                 entity_type="analysis_snapshot", entity_id=snap.id)
+    db.commit()
+    return {"id": str(snap.id), "created_at": snap.created_at, "content": snap.content}
 
 
 @router.post("/analytics/price-for-margin")

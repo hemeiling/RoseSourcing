@@ -308,3 +308,24 @@ def test_split_supplier_listings_and_delete_finding(authed, project):
         fid = f.id
     assert authed.delete(f"/api/findings/{fid}").status_code == 204
     assert authed.delete(f"/api/findings/{fid}").status_code == 404
+
+
+def test_recommended_inputs_cite_evidence(authed, project, fake_llm):
+    pid = project["id"]
+    assert authed.get(f"/api/projects/{pid}/analytics/recommended-inputs").json() is None
+    sup = authed.post(f"/api/projects/{pid}/suppliers", json={"name": "Yiwu Knots"}).json()
+    authed.post(f"/api/suppliers/{sup['id']}/quotes", json={"product_name": "Knot band", "unit_price": 1.2, "moq": 100})
+    from app.db import session_scope
+    from app.models import SupplierQuote
+    with session_scope() as db:
+        db.query(SupplierQuote).update({"source": "research_listing"})
+    r = authed.post(f"/api/projects/{pid}/analytics/recommended-inputs")
+    assert r.status_code == 201, r.text
+    c = r.json()["content"]
+    items = {i["field"]: i for i in c["inputs"]}
+    assert "return_rate_pct" not in items  # 140% is out of range and dropped
+    assert items["factory_cost"]["basis"] == "sourced_research" and items["factory_cost"]["exact_in_source"]
+    assert items["factory_cost"]["sources"][0]["label"] == "Yiwu Knots"
+    assert items["duty_rate_pct"]["basis"] == "assumption" and items["duty_rate_pct"]["sources"] == []  # E999 does not exist
+    assert items["moq"]["value"] == 300 and c["results"]["retail_price"] == 28
+    assert authed.get(f"/api/projects/{pid}/analytics/recommended-inputs").json()["id"] == r.json()["id"]
