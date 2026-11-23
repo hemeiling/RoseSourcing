@@ -46,14 +46,23 @@ const median = (xs: number[]) => {
 function TrendCard({ trend }: { trend: NonNullable<Tracker["trend"]> }) {
   const data = trend.series.map(([d, v]) => ({ d, v }));
   const ch = trend.change_pct;
-  const [tone, Icon, word]: [Tone, typeof TrendingUp, string] =
-    ch === null || Math.abs(ch) <= 15 ? ["slate", Minus, "Steady"] : ch > 0 ? ["green", TrendingUp, "Rising"] : ["amber", TrendingDown, "Falling"];
+  // Many zero weeks = too few searches for Trends to show a direction; the swings are noise.
+  const zeros = trend.series.filter(([, v]) => v === 0).length;
+  const sparse = zeros / Math.max(1, trend.series.length) >= 0.2;
+  const [tone, Icon, word]: [Tone, typeof TrendingUp, string] = sparse ? ["slate", Minus, "Low search volume"]
+    : ch === null || Math.abs(ch) <= 15 ? ["slate", Minus, "Steady"] : ch > 0 ? ["green", TrendingUp, "Rising"] : ["amber", TrendingDown, "Falling"];
   return (
     <Card>
       <CardHeader title={`Google search interest: "${trend.keyword}"`}
         subtitle={<>Weekly, past 12 months, {trend.series.length} points. 100 = the busiest week; values are relative, not search volumes. <ExternalLink href={trend.url}>Open in Google Trends</ExternalLink></>}
-        actions={<Badge tone={tone}><Icon className="h-3 w-3" aria-hidden /> {word}{ch !== null ? ` ${ch > 0 ? "+" : ""}${ch.toFixed(0)}%` : ""}</Badge>} />
+        actions={<Badge tone={tone}><Icon className="h-3 w-3" aria-hidden /> {word}{ch !== null && !sparse ? ` ${ch > 0 ? "+" : ""}${ch.toFixed(0)}%` : ""}</Badge>} />
       <CardBody>
+        {sparse && (
+          <p className="mb-2 text-sm text-slate-600">
+            {zeros} of {trend.series.length} weeks are 0: too few people search this exact phrase for Trends to show a real direction.
+            Track a broader phrase too (e.g. the plain product name) to judge demand.
+          </p>
+        )}
         <p className="mb-2 text-sm text-slate-600">
           Last 13 weeks average <b className="text-ink">{trend.recent_average.toFixed(0)}</b> vs <b className="text-ink">{trend.prior_average.toFixed(0)}</b> before ·
           12-month average {trend.average.toFixed(0)} · peak {trend.peak.toFixed(0)}

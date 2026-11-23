@@ -212,7 +212,7 @@ class FakeLLM:
                 {"source_ref": ref, "product": "Knot headband", "stars": 2, "quote": "The knot came undone after two wears",
                  "tags": ["durability"], "problem": "knot comes undone"},
                 {"source_ref": ref, "product": "Knot headband", "stars": 1, "quote": "gives me a headache within an hour",
-                 "tags": ["comfort"], "problem": "headache"},
+                 "tags": ["comfort", "durability"], "problem": "headache"},  # two durability quotes from one source page
                 {"source_ref": ref, "product": "Knot headband", "stars": 1, "quote": "An invented complaint nobody wrote",
                  "tags": ["fit"], "problem": "invented"},
             ]), usage

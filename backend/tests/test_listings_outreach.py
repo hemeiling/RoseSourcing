@@ -106,7 +106,7 @@ def test_review_insights_tags_only_verifiable_quotes(authed, project, fake_llm, 
     snap = authed.get(f"/api/projects/{pid}/snapshots/review_insights").json()["content"]
     assert [r["quote"] for r in snap["reviews"]] == ["The knot came undone after two wears", "gives me a headache within an hour"]
     assert snap["unverified_dropped"] == 1
-    assert {t["tag"]: t["count"] for t in snap["themes"]} == {"durability": 1, "comfort": 1}
+    assert {t["tag"]: t["count"] for t in snap["themes"]} == {"durability": 2, "comfort": 1}
     etsy = next(p for p in snap["products"] if p["star_unit"] == "reviews" and p["star_counts"])
     assert etsy["low_star_share_pct"] == 20.0 and etsy["low_star_reviews_read"] == 1
     amazon = next(p for p in snap["products"] if p["star_unit"] == "percent")

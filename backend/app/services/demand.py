@@ -58,6 +58,10 @@ def _median(xs: list[float]) -> float | None:
     return statistics.median(xs) if xs else None
 
 
+# Above this share of zero weeks, a phrase has too little search volume for Trends to show a real direction.
+SPARSE_TRENDS_SHARE = 0.2
+
+
 def trends(http: httpx2.Client, kw: str, geo: str) -> DemandObservation | None:
     data = _get(http, {"engine": "google_trends", "q": kw, "geo": geo, "date": "today 12-m", "data_type": "TIMESERIES"})
     points: list[float] = []
@@ -75,18 +79,22 @@ def trends(http: httpx2.Client, kw: str, geo: str) -> DemandObservation | None:
     r_avg, p_avg = sum(recent) / len(recent), sum(prior) / len(prior)
     change = ((r_avg - p_avg) / p_avg * 100) if p_avg else None
     url = f"https://trends.google.com/trends/explore?date=today%2012-m&geo={geo}&q={quote_plus(kw)}"
+    zeros = sum(1 for p in points if p == 0)
+    sparse = zeros / len(points) >= SPARSE_TRENDS_SHARE
     excerpt = (f"Google Trends ({geo}, past 12 months, {len(points)} weekly points) for '{kw}': average {avg:.0f}/100, "
                f"peak {max(points):.0f}/100, last 13 weeks average {r_avg:.0f}/100 vs prior average {p_avg:.0f}/100"
-               + (f" ({change:+.0f}%)." if change is not None else "."))
-    trend_word = "rising" if change is not None and change > 15 else "falling" if change is not None and change < -15 else "steady"
+               + (f" ({change:+.0f}%)." if change is not None else ".") + (f" {zeros} of {len(points)} weeks are 0." if zeros else ""))
+    trend_word = ("too sparse to call a direction (many weeks at 0, i.e. low search volume)" if sparse
+                  else "rising" if change is not None and change > 15 else "falling" if change is not None and change < -15 else "steady")
     return DemandObservation(
         title=f"Google Trends: {kw} ({geo})", url=url, excerpts=[excerpt], series=series,
         findings=[DemandFinding(
             claim=f"Google search interest for '{kw}' in {geo} is {trend_word}: last 13 weeks average {r_avg:.0f}/100 vs {p_avg:.0f}/100 before"
                   + (f" ({change:+.0f}%)." if change is not None else "."),
             detail=f"12-month average {avg:.0f}/100, peak {max(points):.0f}/100. Trends values are relative (100 = peak "
-                   "popularity in the period), not absolute search volumes.",
-            confidence="medium",
+                   "popularity in the period), not absolute search volumes."
+                   + (f" {zeros} of {len(points)} weeks are 0, so week-to-week swings are noise." if sparse else ""),
+            confidence="low" if sparse else "medium",
             metric={"name": f"Google Trends interest ({kw})", "value_low": round(r_avg, 1), "value_high": None,
                     "unit": "index 0-100 (last 13 weeks)", "year": "past 12 months"},
         )],

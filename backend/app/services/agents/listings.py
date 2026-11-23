@@ -383,6 +383,29 @@ def run_review_tags(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
         _update_step(run_id, "review_tags", status="failed", error=str(e)[:1000], finished_at=datetime.now(timezone.utc).isoformat())
         return
     _add_run_usage(run_id, usage)
+    try:
+        findings = _save_review_tags(run_id, project_id, user_id, ex_id, out, usage, llm.model, products, smap)
+    except Exception as e:  # noqa: BLE001 - the AI work is paid for; record the failure on the step so the run can be resumed
+        log.exception("Saving review tags failed")
+        with session_scope() as db:
+            ex = db.get(AgentExecution, ex_id)
+            apply_usage(ex, usage)
+            finish_execution(ex, error=str(e)[:2000])
+        _update_step(run_id, "review_tags", status="failed", error=f"{type(e).__name__}: {e}"[:1000], finished_at=datetime.now(timezone.utc).isoformat())
+        return
+    with session_scope() as db:
+        run = db.get(ResearchRun, run_id)
+        steps = [dict(s) for s in run.steps]
+        for s in steps:
+            if s["key"] == "review_tags":
+                s["findings_count"] = findings
+        run.steps = steps
+    _update_step(run_id, "review_tags", status="completed", finished_at=datetime.now(timezone.utc).isoformat())
+
+
+def _save_review_tags(run_id: uuid.UUID, project_id: uuid.UUID, user_id: uuid.UUID | None, ex_id: uuid.UUID, out: ReviewTagging,
+                      usage: LLMUsage, model: str, products: list[dict[str, Any]], smap: dict[str, EvidenceSource]) -> int:
+    """Keep the quotes found word for word in their source; save themes as findings, recommendations and a snapshot."""
     with session_scope() as db:
         smap = {ref: db.get(EvidenceSource, s.id) for ref, s in smap.items()}
         kept, dropped = [], 0
@@ -406,8 +429,11 @@ def run_review_tags(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
                                       + "; ".join(list(dict.fromkeys(k["problem"] for k in mine))[:4]) + ".",
                                 detail=t.summary, evidence_type="sourced", confidence="medium", verification_status="source_linked",
                                 flags=["Quotes checked word for word against the cited review source."], created_by="review_insights")
-            for k in mine[:5]:
-                f.evidence_links.append(FindingEvidence(evidence_source_id=uuid.UUID(k["source_id"]), quote=k["quote"][:500]))
+            linked: set[str] = set()
+            for k in mine:  # one link per source page (several quotes often come from the same page)
+                if k["source_id"] not in linked and len(linked) < 5:
+                    linked.add(k["source_id"])
+                    f.evidence_links.append(FindingEvidence(evidence_source_id=uuid.UUID(k["source_id"]), quote=k["quote"][:500]))
             db.add(f)
             findings += 1
             if len(mine) >= 2 and t.tag in ("comfort", "fit", "durability", "quality"):
@@ -416,7 +442,7 @@ def run_review_tags(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
         themes.sort(key=lambda t: -t["count"])
         content = {"summary": out.summary, "themes": themes, "reviews": kept, "products": products, "unverified_dropped": dropped,
                    "research_run_id": str(run_id),
-                   "generated_by": {"model": usage.model or llm.model, "generated_at": datetime.now(timezone.utc).isoformat()}}
+                   "generated_by": {"model": usage.model or model, "generated_at": datetime.now(timezone.utc).isoformat()}}
         snap = AnalysisSnapshot(project_id=project_id, kind="review_insights", content=content, agent_execution_id=ex_id)
         db.add(snap)
         ex = db.get(AgentExecution, ex_id)
@@ -424,10 +450,4 @@ def run_review_tags(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
         finish_execution(ex, output={"reviews_tagged": len(kept), "unverified_dropped": dropped, "themes": len(themes)})
         audit.record(db, "review_insights.created", user_id=user_id, project_id=project_id, actor="agent:review_insights",
                      entity_type="analysis_snapshot", entity_id=snap.id, details={"reviews": len(kept)})
-        run = db.get(ResearchRun, run_id)
-        steps = [dict(s) for s in run.steps]
-        for s in steps:
-            if s["key"] == "review_tags":
-                s["findings_count"] = findings
-        run.steps = steps
-    _update_step(run_id, "review_tags", status="completed", finished_at=datetime.now(timezone.utc).isoformat())
+    return findings
