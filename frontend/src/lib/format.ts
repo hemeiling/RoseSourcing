@@ -50,3 +50,9 @@ export function domainOf(url: string | null | undefined): string {
     return url;
   }
 }
+
+/** Google Trends week labels ("Nov 21 – 27, 2021", "Dec 28, 2025 – Jan 3, 2026") as "Nov 2021" for chart axes. */
+export function monthYear(label: string): string {
+  const m = label.match(/^([A-Z][a-z]{2})\b.*?(\d{4})/);
+  return m ? `${m[1]} ${m[2]}` : label;
+}

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Alert, Button, Card, CardBody, CardHeader, ExternalLink, Field, Input, Select, Spinner } from "@/components/ui";
 import { errorText, post } from "@/lib/api";
-import { date as fmtDate } from "@/lib/format";
+import { date as fmtDate, monthYear } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 
 // Categorical slots 1-5 (validated for colour-vision deficiency on white). Each line is also named in the legend and table.
@@ -133,7 +133,7 @@ export function TrendsExplorer({ projectId }: { projectId: string }) {
                   <LineChart data={chart} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
                     <CartesianGrid stroke="#e2e8f0" vertical={false} />
                     <XAxis dataKey="d" tick={{ fontSize: 11, fill: "#64748b" }} interval="preserveStartEnd" minTickGap={56}
-                      tickFormatter={(s: string) => s.replace(/\s*[–-].*$/, "")} />
+                      tickFormatter={monthYear} />
                     <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tick={{ fontSize: 11, fill: "#64748b" }} />
                     <Tooltip cursor={{ stroke: "#94a3b8" }}
                       content={({ active, payload, label }) => active && payload?.length ? (

@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ResearchRunStarter } from "@/components/research-run-starter";
 import { Badge, Card, CardBody, CardHeader, ExternalLink, ProductThumb, Spinner, type Tone } from "@/components/ui";
-import { date, domainOf, money, num, titleCase } from "@/lib/format";
+import { date, domainOf, money, num, titleCase, monthYear } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 
 type Snapshot<T> = { id: string; content: T; created_at: string } | null;
@@ -73,7 +73,7 @@ function TrendCard({ trend }: { trend: NonNullable<Tracker["trend"]> }) {
             <LineChart data={data} margin={{ top: 6, right: 8, left: -18, bottom: 0 }}>
               <CartesianGrid stroke="#e2e8f0" vertical={false} />
               <XAxis dataKey="d" tick={{ fontSize: 11, fill: "#64748b" }} interval="preserveStartEnd" minTickGap={48}
-                tickFormatter={(s: string) => s.replace(/\s*[–-].*$/, "")} />
+                tickFormatter={monthYear} />
               <YAxis domain={[0, 100]} ticks={[0, 50, 100]} tick={{ fontSize: 11, fill: "#64748b" }} />
               <Tooltip cursor={{ stroke: "#94a3b8" }}
                 content={({ active, payload }) => active && payload?.length ? (
