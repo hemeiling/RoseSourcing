@@ -11,6 +11,8 @@ type AuthCtx = { user: User | null; loading: boolean; refresh: () => Promise<voi
 const AuthContext = createContext<AuthCtx>({ user: null, loading: true, refresh: async () => {}, logout: async () => {} });
 
 const PUBLIC = ["/login", "/signup"];
+/** Pages anyone can open, signed in or not (the customer-facing size guide). */
+const OPEN = ["/fit"];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -35,14 +37,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onUnauthorized = () => {
       setUser(null);
-      router.replace("/login");
+      if (!OPEN.some((p) => window.location.pathname.startsWith(p))) router.replace("/login");
     };
     window.addEventListener("aicos:unauthorized", onUnauthorized);
     return () => window.removeEventListener("aicos:unauthorized", onUnauthorized);
   }, [router]);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || OPEN.some((p) => pathname?.startsWith(p))) return;
     const isPublic = PUBLIC.some((p) => pathname?.startsWith(p));
     if (!user && !isPublic) router.replace("/login");
     if (user && isPublic) router.replace("/dashboard");

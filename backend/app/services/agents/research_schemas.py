@@ -20,6 +20,7 @@ SectionLit = Literal[
     "risks",
     "regulatory",
     "logistics",
+    "fit",
     "other",
 ]
 EvidenceLit = Literal["sourced", "ai_inference", "assumption", "unavailable"]
@@ -109,12 +110,41 @@ class ExtractedShipping(BaseModel):
     notes: str | None
 
 
+class ExtractedMeasure(BaseModel):
+    dimension: str = Field(description="One of: height, bust, underbust, chest, waist, hip, torso_girth, neck, sleeve, inseam, "
+                                       "foot_length, foot_width - or a short snake_case name for anything else")
+    min: float | None = Field(description="Lower bound as printed (or the single value)")
+    max: float | None = Field(description="Upper bound as printed, or null if a single value")
+
+
+class ExtractedSizeLabel(BaseModel):
+    system: str = Field(description="Size system name as printed, e.g. US, EU, UK, CN, AU, Mondo")
+    value: str
+
+
+class ExtractedSizeRow(BaseModel):
+    size: str = Field(description="The main size label exactly as printed, e.g. 'S', '36', 'XL', '7.5'")
+    other_labels: list[ExtractedSizeLabel] = Field(description="Equivalent sizes in other systems shown on the same row")
+    measurements: list[ExtractedMeasure] = Field(description="Body measurements for this size; never garment flat-lay widths")
+
+
+class ExtractedSizeChart(BaseModel):
+    brand_or_seller: str | None = Field(description="Whose chart this is, as stated; null if unknown")
+    product_type: str = Field(description="What the chart is for, e.g. 'women's Latin dress', 'men's ballroom shoes'")
+    garment_type: Literal["dress", "top", "bottom", "bodysuit", "shoes", "other"]
+    unit: Literal["cm", "in"] = Field(description="Unit the measurements are printed in")
+    rows: list[ExtractedSizeRow] = Field(description="Sizes from smallest to largest")
+    fit_notes: str | None = Field(description="Sizing advice the chart or page states (e.g. 'runs small, order one size up'), else null")
+    source_ref: str | None = Field(description="Dossier ref whose excerpt contains this chart (research only); null for images")
+
+
 class StepExtraction(BaseModel):
     findings: list[ExtractedFinding]
     segments: list[ExtractedSegment]
     competitors: list[ExtractedCompetitor]
     channels: list[ExtractedChannel]
     shipping_benchmarks: list[ExtractedShipping]
+    size_charts: list[ExtractedSizeChart]
     evidence_gaps: list[str] = Field(description="Important questions the evidence did not answer")
 
 

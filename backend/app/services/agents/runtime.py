@@ -26,6 +26,7 @@ AGENTS = {
     "sourcing": "Sourcing Agent",
     "commerce": "Commerce Agent",
     "analytics": "Analytics Agent",
+    "fit": "Fit & Sizing Agent",
     "supervisor": "Supervisor / Orchestration Agent",
     "copilot": "AI Business Copilot",
 }

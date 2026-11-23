@@ -56,7 +56,7 @@ export interface RunStep {
 export interface ResearchRun {
   id: string;
   project_id: string;
-  kind: "market_opportunity" | "competitor_discovery" | "channels_logistics";
+  kind: "market_opportunity" | "competitor_discovery" | "channels_logistics" | "fit_sizing";
   status: "queued" | "running" | "completed" | "completed_with_errors" | "failed" | "interrupted" | "cancelled";
   provider: string;
   model: string;
@@ -668,4 +668,50 @@ export interface DecisionHistoryItem {
   note: string | null;
   snapshot: Record<string, unknown>;
   created_at: string;
+}
+
+// ----------------------------------------------------------------------------- sizing & fit
+
+export type SizeRow = { size: string; labels: Record<string, string>; measurements: Record<string, [number, number]> };
+
+export interface SizeChart {
+  id: string;
+  project_id: string;
+  name: string;
+  role: "reference" | "supplier" | "published";
+  garment_type: "dress" | "top" | "bottom" | "bodysuit" | "shoes" | "other";
+  brand: string | null;
+  supplier_id: string | null;
+  dimensions: string[];
+  dimension_labels: Record<string, string>;
+  size_systems: string[];
+  rows: SizeRow[];
+  stretch_allowance_cm: number;
+  fit_notes: string | null;
+  source_type: "manual" | "photo_extracted" | "research";
+  source_url: string | null;
+  retrieved_at: string | null;
+  verification_status: "unverified" | "source_linked" | "human_verified";
+  research_run_id: string | null;
+  has_source_image: boolean;
+  published: boolean;
+  public_path: string | null;
+  fit_stats: Record<string, number>;
+  created_at: string;
+  updated_at: string;
+}
+
+export type PublicSizeGuide = Pick<SizeChart, "name" | "garment_type" | "brand" | "dimensions" | "dimension_labels" | "size_systems" | "rows" | "stretch_allowance_cm" | "fit_notes">;
+
+export interface FitCheck { dimension: string; label: string; customer: number; min: number; max: number; result: "fits" | "snug" | "loose" | "too_small"; by_cm: number }
+
+export interface FitResult {
+  status: "fits" | "between_sizes" | "outside_chart" | "insufficient";
+  recommended: string | null;
+  recommended_labels?: Record<string, string>;
+  used_dimensions: string[];
+  missing_dimensions: string[];
+  per_size: { size: string; labels: Record<string, string>; checks: FitCheck[]; fits: boolean }[];
+  per_dimension: Record<string, string | null>;
+  notes: string[];
 }

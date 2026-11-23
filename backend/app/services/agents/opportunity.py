@@ -39,6 +39,7 @@ from ...models import (
     Recommendation,
     ResearchFinding,
     ResearchRun,
+    SizeChart,
 )
 from .. import demand
 from ..llm.anthropic_provider import get_llm
@@ -47,6 +48,7 @@ from ..llm.base import LLMError, LLMNotConfigured, LLMRefusal, LLMUsage
 from ..research.providers import EvidenceBundle, get_research_provider
 from ..unit_economics import UnitEconomicsInputs, calculate
 from .research_schemas import ChannelLogisticsPlan, ExtractedFinding, OpportunitySynthesis, StepExtraction
+from .size_chart import chart_fields, rows_from_extraction
 from .runtime import apply_usage, finish_execution, start_execution, with_retries
 
 log = logging.getLogger(__name__)
@@ -202,10 +204,47 @@ STEP_DEFS["logistics"] = {
     ],
 }
 
+STEP_DEFS["fit_charts"] = {
+    "label": "Size charts & size systems",
+    "sections": ["fit", "competitors", "unmet_needs"],
+    "question": (
+        "Find published size charts for {category} sold to customers in {country}, from brands and retailers (and from {sourcing} "
+        "manufacturers selling abroad). For each chart, record the size labels, the size systems shown (US, EU, UK, CN, etc.) and the "
+        "BODY measurements per size (e.g. bust, waist, hip, height or torso girth for clothing; foot length and width for shoes), plus "
+        "the size range offered (petite, plus, children) and any sizing advice the brand gives (e.g. 'runs small', 'size up for "
+        "stretch-free styles'). Prefer official size-guide pages. {focus}"
+    ),
+    "hints": [
+        "{category} size chart",
+        "{category} size guide cm inches",
+        "{category} size chart bust waist hip",
+        "{category} size conversion US EU {sourcing}",
+        "how to choose size {category}",
+    ],
+}
+STEP_DEFS["fit_experience"] = {
+    "label": "Fit problems, returns & fit services",
+    "sections": ["fit", "unmet_needs", "risks", "differentiation"],
+    "question": (
+        "What fit and sizing problems do customers report when buying {category} online in {country} (including products made in "
+        "{sourcing})? How do sellers handle size exchanges and returns (policies, fees, time limits), and which offer made-to-measure, "
+        "custom sizing, alterations, size-finder tools or fit consultations? What how-to-measure guidance do they give? "
+        "Use reviews, forums and official policy pages as evidence. {focus}"
+    ),
+    "hints": [
+        "{category} runs small sizing reviews",
+        "{category} return policy size exchange",
+        "{category} made to measure custom sizing",
+        "how to measure for {category}",
+        "{category} fit problems reddit",
+    ],
+}
+
 RUN_STEPS = {
     "market_opportunity": ["demand_signals", "market_size", "customers", "competitors", "sourcing", "risks", "synthesis"],
     "channels_logistics": ["channels", "logistics", "plan"],
     "competitor_discovery": ["competitors"],
+    "fit_sizing": ["fit_charts", "fit_experience"],
 }
 
 STEP_LABELS = {k: v["label"] for k, v in STEP_DEFS.items()} | {
@@ -213,7 +252,8 @@ STEP_LABELS = {k: v["label"] for k, v in STEP_DEFS.items()} | {
     "plan": "Channel & logistics plan",
 }
 SYNTHESIS_STEP = {"market_opportunity": "synthesis", "channels_logistics": "plan"}
-STEP_AGENT = {"competitors": "competitor_intelligence", "channels": "commerce", "logistics": "sourcing", "demand_signals": "analytics"}
+STEP_AGENT = {"competitors": "competitor_intelligence", "channels": "commerce", "logistics": "sourcing", "demand_signals": "analytics",
+              "fit_charts": "fit", "fit_experience": "fit"}
 
 
 def initial_steps(kind: str) -> list[dict[str, Any]]:
@@ -436,8 +476,9 @@ def _persist_extraction(db, run: ResearchRun, step_key: str, bundle: EvidenceBun
             )
 
     dropped_fees, dropped_rates = _persist_channels_and_shipping(db, run, bundle, ext, ref_to_id)
+    dropped_sizes = _persist_size_charts(db, run, bundle, ext, ref_to_id)
 
-    if ext.evidence_gaps or dropped_prices or dropped_fees or dropped_rates:
+    if ext.evidence_gaps or dropped_prices or dropped_fees or dropped_rates or dropped_sizes:
         gaps = list(ext.evidence_gaps)
         if dropped_prices:
             gaps.append(f"{dropped_prices} price(s) were discarded because they could not be tied to a retrieved source.")
@@ -445,6 +486,8 @@ def _persist_extraction(db, run: ResearchRun, step_key: str, bundle: EvidenceBun
             gaps.append(f"{dropped_fees} channel fee value(s) were left blank because they did not appear in the cited source excerpt.")
         if dropped_rates:
             gaps.append(f"{dropped_rates} shipping rate benchmark(s) were discarded because the rate did not appear in a retrieved source.")
+        if dropped_sizes:
+            gaps.append(f"{dropped_sizes} size-chart measurement(s) were discarded because they did not appear in the cited source excerpt.")
         for g in gaps:
             db.add(
                 ResearchFinding(
@@ -525,6 +568,33 @@ def _persist_channels_and_shipping(db, run: ResearchRun, bundle: EvidenceBundle,
     return dropped_fees, dropped_rates
 
 
+def _persist_size_charts(db, run: ResearchRun, bundle: EvidenceBundle, ext: StepExtraction, ref_to_id: dict[str, uuid.UUID]) -> int:
+    """Store competitor size charts as reference charts. A measurement is kept only if it appears in the cited excerpt."""
+    refs = bundle.by_ref()
+    dropped = 0
+    for chart in ext.size_charts:
+        src = refs.get(chart.source_ref or "")
+        if src is None:
+            dropped += sum(len(r.measurements) for r in chart.rows)
+            continue
+        rows, lost = rows_from_extraction(chart, keep=lambda v, ex=src.excerpts: _number_in(v, ex))
+        dropped += lost
+        if not rows:
+            continue
+        try:
+            fields = chart_fields(chart, rows)
+        except ValueError:
+            dropped += sum(len(r["measurements"]) for r in rows)
+            continue
+        who = chart.brand_or_seller or src.domain or "source"
+        db.add(SizeChart(
+            project_id=run.project_id, created_by_id=run.created_by_id, name=f"{who} - {chart.product_type}"[:200], role="reference",
+            source_type="research", source_url=src.url, retrieved_at=datetime.now(timezone.utc).date(),
+            verification_status="source_linked", evidence_source_id=ref_to_id[chart.source_ref], research_run_id=run.id, **fields,
+        ))
+    return dropped
+
+
 def _persist_demand(db, run: ResearchRun, keywords: list[str], geo: str) -> tuple[int, dict[str, Any]]:
     """Collect SerpApi popularity data (Google Trends, Amazon, Google Shopping) and store it as sourced findings."""
     if not demand.configured():
@@ -591,6 +661,7 @@ def _extraction_prompt(step_key: str, ctx: dict[str, str], bundle: EvidenceBundl
     want_competitors = step_key == "competitors"
     want_channels = step_key == "channels"
     want_shipping = step_key == "logistics"
+    want_charts = step_key == "fit_charts"
     return (
         f"Business context:\n{context_block(ctx)}\n\n"
         f"Research question:\n{bundle.question}\n\n"
@@ -598,7 +669,8 @@ def _extraction_prompt(step_key: str, ctx: dict[str, str], bundle: EvidenceBundl
         f"{'Populate segments with distinct customer segments.' if want_segments else 'Return an empty segments list.'}\n"
         f"{'Populate competitors with each brand/retailer found, including only prices visible in excerpts.' if want_competitors else 'Return an empty competitors list.'}\n"
         f"{'Populate channels with each selling channel; fill fee fields only with numbers stated in the fee_source_ref excerpt, otherwise null.' if want_channels else 'Return an empty channels list.'}\n"
-        f"{'Populate shipping_benchmarks only with rates stated in an excerpt, with that excerpt as source_ref.' if want_shipping else 'Return an empty shipping_benchmarks list.'}\n\n"
+        f"{'Populate shipping_benchmarks only with rates stated in an excerpt, with that excerpt as source_ref.' if want_shipping else 'Return an empty shipping_benchmarks list.'}\n"
+        f"{'Populate size_charts with each size chart visible in an excerpt, copying every measurement exactly as printed, with that excerpt as source_ref.' if want_charts else 'Return an empty size_charts list.'}\n\n"
         f"=== RESEARCH NOTES (analyst summary, citations in brackets) ===\n{bundle.notes or '(none - search API results only)'}\n\n"
         f"=== EVIDENCE DOSSIER (verbatim provider data) ===\n{bundle.dossier() or '(no sources were retrieved)'}\n"
     )
@@ -715,7 +787,7 @@ def execute_run(run_id: uuid.UUID) -> None:
                 usage = LLMUsage()
                 usage.add(bundle.usage)
                 if not bundle.sources:
-                    ext = StepExtraction(findings=[], segments=[], competitors=[],
+                    ext = StepExtraction(findings=[], segments=[], competitors=[], channels=[], shipping_benchmarks=[], size_charts=[],
                                          evidence_gaps=[f"No sources were retrieved for: {question}"])
                 else:
                     ext, u2 = llm.structured(system=EXTRACT_SYSTEM, prompt=_extraction_prompt(key, ctx, bundle), output_model=StepExtraction)

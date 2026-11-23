@@ -22,11 +22,12 @@ FindingSection = Literal[
     "risks",
     "regulatory",
     "logistics",
+    "fit",
     "other",
 ]
 
 RunStatus = Literal["queued", "running", "completed", "completed_with_errors", "failed", "interrupted", "cancelled"]
-RunKind = Literal["market_opportunity", "competitor_discovery", "channels_logistics"]
+RunKind = Literal["market_opportunity", "competitor_discovery", "channels_logistics", "fit_sizing"]
 
 SupplierVerification = Literal["unverified", "documents_received", "sample_approved", "audited"]
 SUPPLIER_VERIFICATION_LABELS = {

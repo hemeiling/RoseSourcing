@@ -41,7 +41,7 @@ function Markdown({ text }: { text: string }) {
 }
 
 function AssistantMessage({ m }: { m: CopilotMessage }) {
-  const writes = m.tool_calls.filter((c) => ["create_recommendation", "save_cost_scenario"].includes(c.tool));
+  const writes = m.tool_calls.filter((c) => ["create_recommendation", "save_cost_scenario", "save_size_chart"].includes(c.tool));
   const reads = m.tool_calls.filter((c) => !writes.includes(c));
   const links = m.references.filter((r) => r.url);
   return (

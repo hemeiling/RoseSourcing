@@ -26,6 +26,7 @@ export const KIND_LABEL: Record<string, string> = {
   market_opportunity: "Market opportunity",
   competitor_discovery: "Competitor discovery",
   channels_logistics: "Channels & shipping",
+  fit_sizing: "Fit & sizing",
 };
 
 export const ATTRACTIVENESS_META: Record<string, { label: string; tone: Tone; help: string }> = {
@@ -61,6 +62,7 @@ export const SECTIONS = [
   "risks",
   "regulatory",
   "logistics",
+  "fit",
   "other",
 ];
 

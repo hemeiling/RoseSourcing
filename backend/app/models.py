@@ -303,6 +303,45 @@ class BrandConcept(IdMixin, TimestampMixin, Base):
     agent_execution_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("agent_executions.id", ondelete="SET NULL"))
 
 
+# --------------------------------------------------------------------------- sizing & fit
+
+
+class SizeChart(IdMixin, TimestampMixin, Base):
+    """A size scale: size labels with body-measurement ranges (always stored in cm).
+
+    role: reference (a competitor's chart found by research) | supplier (a factory's chart) | published (your own size guide).
+    rows: [{"size": "S", "labels": {"US": "4"}, "measurements": {"bust": [82, 86]}}]
+    """
+
+    __tablename__ = "size_charts"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("business_projects.id", ondelete="CASCADE"), index=True)
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    name: Mapped[str] = mapped_column(String(200))
+    role: Mapped[str] = mapped_column(String(16), default="supplier")
+    garment_type: Mapped[str] = mapped_column(String(16), default="dress")  # dress | top | bottom | bodysuit | shoes | other
+    brand: Mapped[str | None] = mapped_column(String(200))
+    supplier_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("suppliers.id", ondelete="SET NULL"))
+    dimensions: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    size_systems: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    rows: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
+    stretch_allowance_cm: Mapped[Decimal] = mapped_column(Numeric(6, 2), default=Decimal("0"))
+    fit_notes: Mapped[str | None] = mapped_column(Text)
+    source_type: Mapped[str] = mapped_column(String(24), default="manual")  # manual | photo_extracted | research
+    source_url: Mapped[str | None] = mapped_column(Text)
+    retrieved_at: Mapped[date | None] = mapped_column(Date)
+    # unverified | source_linked (numbers matched the retrieved page) | human_verified (set only by the user)
+    verification_status: Mapped[str] = mapped_column(String(24), default="unverified")
+    evidence_source_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("evidence_sources.id", ondelete="SET NULL"))
+    research_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("research_runs.id", ondelete="SET NULL"))
+    source_image: Mapped[bytes | None] = mapped_column(LargeBinary, deferred=True)
+    source_media_type: Mapped[str | None] = mapped_column(String(32))
+    public_slug: Mapped[str | None] = mapped_column(String(32), unique=True)
+    published: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Anonymous fit-finder tallies: {"_total": n, "_none": n, "<size>": n}. Raw measurements are never stored.
+    fit_stats: Mapped[dict[str, int]] = mapped_column(JSONB, default=dict)
+
+
 # --------------------------------------------------------------------------- sourcing
 
 

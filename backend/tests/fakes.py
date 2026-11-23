@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from app.services.agents.research_schemas import (
@@ -11,7 +12,11 @@ from app.services.agents.research_schemas import (
     ExtractedMetric,
     ExtractedPrice,
     ExtractedSegment,
+    ExtractedMeasure,
     ExtractedShipping,
+    ExtractedSizeChart,
+    ExtractedSizeLabel,
+    ExtractedSizeRow,
     GapItem,
     NextStep,
     OpportunitySynthesis,
@@ -22,6 +27,12 @@ from app.services.agents.research_schemas import (
     UEProposal,
 )
 from app.services.llm.base import ChatResult, LLMUsage, ToolCallRecord, WebCitation, WebResearchResult, WebSearchHit
+
+
+def _ext(**kw: Any) -> StepExtraction:
+    for k in ("findings", "segments", "competitors", "channels", "shipping_benchmarks", "size_charts", "evidence_gaps"):
+        kw.setdefault(k, [])
+    return StepExtraction(**kw)
 
 
 class FakeLLM:
@@ -51,6 +62,12 @@ class FakeLLM:
              [WebCitation(url="https://freight.example.com/rates", title="Freight index",
                           cited_text="Air freight China to US: $5.50-$7.00 per kg, 5-8 days")]),
         ]
+        if "size chart" in prompt.lower():
+            r.text_segments.append((
+                " Brand A publishes a size guide.",
+                [WebCitation(url="https://branda.example.com/size-guide", title="Brand A size guide",
+                             cited_text="Size S: bust 80-84 cm, waist 62-66 cm. Size M: bust 85-89 cm, waist 67-71 cm. Runs small.")],
+            ))
         r.hits = [WebSearchHit(url="https://uncited.example.net", title="Uncited result", page_age="2 months ago")]
         r.usage = LLMUsage(input_tokens=1000, output_tokens=200, search_requests=2, cost_usd=0.03, model=self.model)
         return r
@@ -59,7 +76,7 @@ class FakeLLM:
         self.calls.append(f"structured:{output_model.__name__}")
         usage = LLMUsage(input_tokens=500, output_tokens=300, cost_usd=0.01, model=self.model)
         if output_model is StepExtraction and "Populate channels" in prompt:
-            return StepExtraction(
+            return _ext(
                 findings=[ExtractedFinding(section="channels", claim="The marketplace charges a 17% referral fee on clothing.", detail=None,
                                            evidence_type="sourced", confidence="high", source_refs=["S3"],
                                            supporting_quote="17% referral fee", metric=None)],
@@ -74,8 +91,25 @@ class FakeLLM:
                 ],
                 evidence_gaps=[],
             ), usage
+        if output_model is StepExtraction and "Populate size_charts" in prompt:
+            m = re.search(r"\[(S\d+)\] Brand A size guide", prompt)
+            row = lambda size, bust, waist: ExtractedSizeRow(  # noqa: E731
+                size=size, other_labels=[ExtractedSizeLabel(system="US", value={"S": "4", "M": "8"}[size])],
+                measurements=[ExtractedMeasure(dimension="bust", min=bust[0], max=bust[1]),
+                              ExtractedMeasure(dimension="waist", min=waist[0], max=waist[1])])
+            return _ext(size_charts=[ExtractedSizeChart(
+                brand_or_seller="Brand A", product_type="Latin dress", garment_type="dress", unit="cm",
+                rows=[row("S", (80, 84), (62, 66)), row("M", (85, 89), (67, 99))],  # 99 is not in the source and must be dropped
+                fit_notes="Runs small.", source_ref=m.group(1) if m else None)]), usage
+        if output_model is ExtractedSizeChart:
+            self.images = images
+            return ExtractedSizeChart(
+                brand_or_seller="Factory X", product_type="Latin dress", garment_type="dress", unit="in",
+                rows=[ExtractedSizeRow(size="S", other_labels=[], measurements=[ExtractedMeasure(dimension="bust", min=32, max=33)]),
+                      ExtractedSizeRow(size="M", other_labels=[], measurements=[ExtractedMeasure(dimension="bust", min=34, max=35)])],
+                fit_notes=None, source_ref=None), usage
         if output_model is StepExtraction and "Populate shipping_benchmarks" in prompt:
-            return StepExtraction(
+            return _ext(
                 findings=[], segments=[], competitors=[], channels=[],
                 shipping_benchmarks=[
                     ExtractedShipping(mode="air_freight", leg="international", origin="China", destination="US", rate_low=5.5, rate_high=7.0,
@@ -88,7 +122,7 @@ class FakeLLM:
                 evidence_gaps=[],
             ), usage
         if output_model is StepExtraction:
-            return StepExtraction(
+            return _ext(
                 findings=[
                     ExtractedFinding(section="market_size", claim="About 1.2 million adults took part in social dance in 2025.",
                                      detail=None, evidence_type="sourced", confidence="high", source_refs=["S1"],

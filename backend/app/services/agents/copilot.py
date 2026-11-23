@@ -31,7 +31,9 @@ from ...models import (
     ShippingOption,
     Supplier,
     User,
+    SizeChart,
 )
+from .. import fit as fit_engine
 from ..logistics import PackagingSpec, Shipment, channel_economics, compare_shipping
 from ..llm.anthropic_provider import get_llm
 from ..llm.base import ToolSpec
@@ -47,8 +49,9 @@ How to work:
 - Separate clearly: what the stored evidence shows, what you infer, and what is unknown. If the data needed is missing, say so and suggest how to get it (e.g. run market research, add supplier quotes).
 - Never invent market sizes, prices, supplier quotes, reviews or growth rates. For profit or margin questions, call calculate_unit_economics - do not do the math yourself - and state which inputs are assumptions.
 - For "where should I sell" or "how should I ship" questions, use compare_sales_channels and compare_shipping_options; say whether each fee or rate is verified, sourced, or an assumption.
+- For sizing and fit, use list_size_charts and recommend_size (a deterministic calculator) - never guess a size. Say whose chart it is and whether it is verified, source-linked or unverified. start_research with kind fit_sizing collects competitor size charts and fit/returns evidence.
 - Supplier verification status is set by the founder. Never describe an unverified supplier as vetted, certified or reliable.
-- Action tools run the app's steps for this product/category: start_research (market opportunity, competitor discovery, channels & shipping), add_competitor / record_competitor_price, add_supplier / add_supplier_quote, draft_supplier_rfq, generate_brand_concept, save_cost_scenario, create_recommendation, generate_decision_brief, record_decision.
+- Action tools run the app's steps for this product/category: start_research (market opportunity, competitor discovery, channels & shipping, fit & sizing), save_size_chart, add_competitor / record_competitor_price, add_supplier / add_supplier_quote, draft_supplier_rfq, generate_brand_concept, save_cost_scenario, create_recommendation, generate_decision_brief, record_decision.
 - Use an action tool only when the founder asks for that work. Research runs and AI generations cost money (research runs are capped per run); mention this when you start one.
 - record_decision is the founder's call: use it only when they explicitly state their go / no-go / on-hold decision, and quote their reason.
 - Only say something was done if the tool result returns "ok": true. Research runs execute in the background: report the run id and status, not results you have not seen. You cannot publish listings, buy inventory, launch campaigns, or send messages to suppliers - drafts must be sent by the founder.
@@ -91,7 +94,7 @@ class ListRecsIn(BaseModel):
 
 
 class StartResearchIn(BaseModel):
-    kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics"] = "market_opportunity"
+    kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics", "fit_sizing"] = "market_opportunity"
     focus: str | None = Field(None, description="What to pay special attention to")
     keywords: list[str] = Field(default_factory=list, description="Shopper search phrases for demand signals (max 3)")
 
@@ -142,6 +145,31 @@ class RfqIn(BaseModel):
     notes: str | None = None
 
 
+class SizeRowSpec(BaseModel):
+    size: str
+    labels: dict[str, str] = Field(default_factory=dict, description="Equivalent sizes, e.g. {\"US\": \"6\", \"EU\": \"38\"}")
+    measurements: dict[str, list[float]] = Field(description="Body measurement ranges, e.g. {\"bust\": [84, 88], \"foot_length\": [23.5, 23.5]}")
+
+
+class SaveSizeChartIn(BaseModel):
+    name: str
+    role: Literal["reference", "supplier", "published"] = Field("supplier", description="reference = a competitor's chart, "
+                                                                "supplier = a factory's chart, published = the founder's own size guide")
+    garment_type: Literal["dress", "top", "bottom", "bodysuit", "shoes", "other"] = "dress"
+    unit: Literal["cm", "in"] = "cm"
+    rows: list[SizeRowSpec] = Field(description="Sizes from smallest to largest, exactly as the founder or source gave them")
+    stretch_allowance: float = Field(0, ge=0, description="How far above a size's maximum the fabric still fits, in the same unit")
+    fit_notes: str | None = None
+    source_url: str | None = None
+
+
+class RecommendSizeIn(BaseModel):
+    chart: str | None = Field(None, description="Size chart name or id; defaults to the founder's own size guide, else the first chart")
+    measurements: dict[str, float] = Field(description="Body measurements by dimension: height, bust, chest, waist, hip, torso_girth, "
+                                                       "inseam, foot_length, foot_width")
+    unit: Literal["cm", "in"] = "cm"
+
+
 class DecisionIn(BaseModel):
     decision: Literal["go", "no_go", "on_hold", "undecided"]
     note: str
@@ -172,10 +200,17 @@ TOOLS: list[ToolSpec] = [
     ToolSpec("compare_shipping_options", "Freight and fulfillment options on file (quotes, assumptions, sourced benchmarks) with computed "
              "cost per unit and transit time for a shipment size, using a product's carton specs.", ShippingIn.model_json_schema()),
     ToolSpec("start_research", "Start a background research run for this product/category: market_opportunity (demand signals, "
-             "market, customers, competitors, sourcing, risks, report), competitor_discovery, or channels_logistics. Costs money; capped per run.",
+             "market, customers, competitors, sourcing, risks, report), competitor_discovery, channels_logistics, or fit_sizing (competitor size "
+             "charts, fit complaints, returns policies). Costs money; capped per run.",
              StartResearchIn.model_json_schema()),
     ToolSpec("research_status", "Status and step progress of the latest research run.",
              {"type": "object", "properties": {}, "additionalProperties": False}),
+    ToolSpec("list_size_charts", "Size charts on file (your size guide, supplier charts, competitor charts from research) with sizes and "
+             "body-measurement ranges in cm, source and verification status.", {"type": "object", "properties": {}, "additionalProperties": False}),
+    ToolSpec("recommend_size", "Deterministic size recommendation for a customer's body measurements against a size chart, with per-measurement fit.",
+             RecommendSizeIn.model_json_schema()),
+    ToolSpec("save_size_chart", "Save a size chart the founder provides (e.g. a supplier's chart pasted in chat). Saved as unverified until they check it.",
+             SaveSizeChartIn.model_json_schema()),
     ToolSpec("add_competitor", "Add a competitor record.", AddCompetitorIn.model_json_schema()),
     ToolSpec("record_competitor_price", "Record an observed competitor price (creates the competitor/product if needed). Include the source URL.",
              PriceIn.model_json_schema()),
@@ -388,6 +423,51 @@ class CopilotTools:
         self._ref("run", run.id, f"{args.kind} research run")
         return {"ok": True, "run_id": str(run.id), "status": "queued", "steps": [s["label"] for s in run.steps],
                 "cost_cap_usd": get_settings().max_research_cost_usd}, f"Started {args.kind.replace('_', ' ')} research"
+
+    # ---- sizing & fit
+    def _charts(self) -> list[SizeChart]:
+        return self.db.scalars(select(SizeChart).where(SizeChart.project_id == self.project.id).order_by(SizeChart.role, SizeChart.created_at)).all()
+
+    def t_list_size_charts(self, _: dict) -> tuple[dict, str]:
+        out = []
+        for c in self._charts():
+            self._ref("size_chart", c.id, c.name, c.source_url)
+            out.append({"id": str(c.id), "name": c.name, "role": c.role, "garment_type": c.garment_type, "unit": "cm",
+                        "dimensions": c.dimensions, "rows": c.rows, "stretch_allowance_cm": float(c.stretch_allowance_cm or 0),
+                        "fit_notes": c.fit_notes, "source_type": c.source_type, "source_url": c.source_url,
+                        "verification_status": c.verification_status, "published": c.published, "fit_finder_lookups": c.fit_stats or {}})
+        return {"ok": True, "size_charts": out}, f"Listed {len(out)} size charts"
+
+    def t_recommend_size(self, raw: dict) -> tuple[dict, str]:
+        args = RecommendSizeIn(**raw)
+        charts = self._charts()
+        if not charts:
+            return {"ok": False, "error": "No size charts on file. Add one on the Sizing & Fit page or ask me to save a chart."}, "No size charts"
+        want = (args.chart or "").strip().lower()
+        chart = next((c for c in charts if want and (str(c.id) == want or want in c.name.lower())), None) if want else None
+        chart = chart or next((c for c in charts if c.role == "published"), None) or charts[0]
+        self._ref("size_chart", chart.id, chart.name, chart.source_url)
+        result = fit_engine.recommend(chart.rows, args.measurements, stretch_allowance_cm=float(chart.stretch_allowance_cm or 0),
+                                      unit=args.unit, fit_notes=chart.fit_notes)
+        return {"ok": True, "chart": chart.name, "chart_verification": chart.verification_status, **result}, \
+            f"Recommended {result['recommended'] or 'no size'} from {chart.name}"
+
+    def t_save_size_chart(self, raw: dict) -> tuple[dict, str]:
+        args = SaveSizeChartIn(**raw)
+        rows = fit_engine.normalise_rows([r.model_dump() for r in args.rows], args.unit)
+        present = list(dict.fromkeys(d for r in rows for d in r["measurements"]))
+        systems = list(dict.fromkeys(s for r in rows for s in r["labels"]))
+        c = SizeChart(project_id=self.project.id, created_by_id=self.user.id, name=args.name[:200], role=args.role,
+                      garment_type=args.garment_type, dimensions=present or fit_engine.GARMENT_DIMENSIONS[args.garment_type],
+                      size_systems=systems, rows=rows, stretch_allowance_cm=round(fit_engine.to_cm(args.stretch_allowance, args.unit), 1),
+                      fit_notes=args.fit_notes, source_type="manual", source_url=args.source_url, verification_status="unverified", fit_stats={})
+        self.db.add(c)
+        self.db.flush()
+        audit.record(self.db, "size_chart.created", user_id=self.user.id, project_id=self.project.id, actor="agent:copilot",
+                     entity_type="size_chart", entity_id=c.id, details={"name": c.name, "sizes": len(rows)})
+        self.db.commit()
+        self._ref("size_chart", c.id, c.name, c.source_url)
+        return {"ok": True, "size_chart_id": str(c.id), "sizes": len(rows), "verification_status": "unverified"}, f"Saved size chart {c.name}"
 
     def t_research_status(self, _: dict) -> tuple[dict, str]:
         run = self.db.scalars(select(ResearchRun).where(ResearchRun.project_id == self.project.id).order_by(ResearchRun.created_at.desc())).first()

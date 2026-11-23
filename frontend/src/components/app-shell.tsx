@@ -1,23 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import {
-  BarChart3,
-  Bot,
-  Factory,
-  FolderKanban,
-  LayoutDashboard,
-  LayoutGrid,
-  LogOut,
-  Menu,
-  Palette,
-  Settings,
-  ShoppingBag,
-  Swords,
-  TrendingUp,
-  Truck,
-  X,
-} from "lucide-react";
+import { BarChart3, Bot, Factory, FolderKanban, LayoutDashboard, LayoutGrid, LogOut, Menu, Palette, Ruler, Settings, ShoppingBag, Swords, TrendingUp, Truck, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
@@ -49,6 +33,7 @@ const NAV = [
   { href: "/competitors", label: "Competitor Intelligence", icon: Swords },
   { href: "/brand", label: "Brand Studio", icon: Palette },
   { href: "/suppliers", label: "Supplier Intelligence", icon: Factory },
+  { href: "/sizing", label: "Sizing & Fit", icon: Ruler },
   { href: "/channels", label: "Shipping & Channels", icon: Truck },
   { href: "/commerce", label: "Commerce", icon: ShoppingBag },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
