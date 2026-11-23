@@ -6,6 +6,7 @@ import { ConfirmModal, RunStatusBadge, fmtCost, isActive } from "@/components/ma
 import { useStatus } from "@/components/providers";
 import { Alert, Button, ConfigNotice, Field, Textarea } from "@/components/ui";
 import { ApiError, errorText, post } from "@/lib/api";
+import { parseUrls } from "@/lib/agents";
 import { useApi } from "@/lib/hooks";
 import type { ResearchRun } from "@/lib/types";
 
@@ -21,6 +22,7 @@ export function ResearchRunStarter({ projectId, kind, label, approval, focusPlac
   const { status } = useStatus();
   const runs = useApi<ResearchRun[]>(`/api/projects/${projectId}/research-runs`);
   const [focus, setFocus] = useState("");
+  const [pages, setPages] = useState("");
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,7 +46,8 @@ export function ResearchRunStarter({ projectId, kind, label, approval, focusPlac
     setBusy(true);
     setError(null);
     try {
-      await post(`/api/projects/${projectId}/research-runs`, { kind, focus: focus.trim() || undefined });
+      await post(`/api/projects/${projectId}/research-runs`, { kind, focus: focus.trim() || undefined, source_urls: parseUrls(pages) });
+      setPages("");
       runs.reload();
     } catch (e) {
       setError(e instanceof ApiError && e.isConfigError ? e.message : errorText(e));
@@ -58,9 +61,14 @@ export function ResearchRunStarter({ projectId, kind, label, approval, focusPlac
     <div className="space-y-3 rounded-lg border border-line bg-white p-4">
       {status && !status.ai.configured && <ConfigNotice message={status.ai.requirement} />}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <Field label="Focus (optional)" className="flex-1">
-          <Textarea rows={1} value={focus} onChange={(e) => setFocus(e.target.value)} placeholder={focusPlaceholder} />
-        </Field>
+        <div className="grid flex-1 gap-3 md:grid-cols-2">
+          <Field label="Focus (optional)">
+            <Textarea rows={1} value={focus} onChange={(e) => setFocus(e.target.value)} placeholder={focusPlaceholder} />
+          </Field>
+          <Field label="Pages to read (optional)">
+            <Textarea rows={1} value={pages} onChange={(e) => setPages(e.target.value)} placeholder="Paste links, one per line (up to 8)" />
+          </Field>
+        </div>
         <Button onClick={() => setConfirm(true)} disabled={!!anyActive || (status ? !status.ai.configured : false)}
           title={anyActive ? "A research run is already in progress for this product" : undefined}>
           <Play className="h-4 w-4" /> {latest ? `Run again` : label}

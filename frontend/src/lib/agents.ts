@@ -13,3 +13,6 @@ export const AGENTS: { kind: ResearchRun["kind"]; name: string; does: string; se
   { kind: "compliance", name: "Compliance & IP Agent", does: "Design patents and trademarks, labelling rules and UFLPA - plus questions drafted for each supplier.", section: "compliance" },
   { kind: "channels_logistics", name: "Channels & Shipping Agent", does: "Seller fees on Amazon, Etsy, Walmart, Costco, Faire and your own site, plus freight benchmarks and a launch plan.", section: "channels" },
 ];
+
+/** One URL per line (or separated by spaces/commas/quotes) -> list; the server strips tracking parameters. */
+export const parseUrls = (text: string) => text.split(/[\s,"']+/).map((u) => u.trim()).filter((u) => /^(https?:\/\/|www\.)/i.test(u)).slice(0, 8);

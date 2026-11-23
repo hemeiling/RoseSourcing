@@ -9,6 +9,7 @@ import { Alert, Badge, Button, Card, CardBody, CardHeader, ConfigNotice, EmptySt
 import { ApiError, errorText, post } from "@/lib/api";
 import { date, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { parseUrls } from "@/lib/agents";
 import type { ChannelPlan, Finding, ProviderStatus, ResearchRun } from "@/lib/types";
 
 type Providers = { default: string; providers: ProviderStatus[]; guardrails: { max_searches_per_step: number; max_research_cost_usd: number } };
@@ -110,6 +111,7 @@ export function PlanTab({ projectId, onDataChanged }: { projectId: string; onDat
   const findings = useApi<Finding[]>(findingsRunId ? `/api/projects/${projectId}/findings?run_id=${findingsRunId}` : null);
   const byId = useMemo(() => Object.fromEntries((findings.data ?? []).map((f) => [f.id, f])), [findings.data]);
   const [focus, setFocus] = useState("");
+  const [pages, setPages] = useState("");
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,9 +125,10 @@ export function PlanTab({ projectId, onDataChanged }: { projectId: string; onDat
     setBusy(true);
     setError(null);
     try {
-      await post<ResearchRun>(`/api/projects/${projectId}/research-runs`, { kind: "channels_logistics", focus: focus.trim() || undefined });
+      await post<ResearchRun>(`/api/projects/${projectId}/research-runs`, { kind: "channels_logistics", focus: focus.trim() || undefined, source_urls: parseUrls(pages) });
       setConfirm(false);
       setFocus("");
+      setPages("");
       runs.reload();
     } catch (e) {
       setConfirm(false);
@@ -156,6 +159,9 @@ export function PlanTab({ projectId, onDataChanged }: { projectId: string; onDat
           {configMsg && <ConfigNotice message={configMsg} />}
           <Field label="Focus (optional)" hint="e.g. 'compare Etsy vs own store for practice wear', 'small first order of 100 units'">
             <Textarea rows={2} value={focus} onChange={(e) => setFocus(e.target.value)} />
+          </Field>
+          <Field label="Pages to read (optional)" hint="Paste up to 8 links - carriers, forwarders, fee pages. The agent opens each one and uses only what it says.">
+            <Textarea rows={2} value={pages} onChange={(e) => setPages(e.target.value)} placeholder="https://www.dhl.com/... (one per line)" />
           </Field>
           <ul className="space-y-1 text-xs text-slate-600">
             <li>• A fee or freight rate is stored only if the number appears in the retrieved source text; anything else is left blank and listed as a gap.</li>

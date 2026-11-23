@@ -6,9 +6,12 @@ import uuid
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import field_validator, BaseModel, ConfigDict, EmailStr, Field
 
 from .enums import BrandKind, ChannelStatus, ChannelType, RateBasis, ShippingMode, SupplierVerification, VerificationStatus
+
+
+from .services.urls import clean_urls
 
 
 class ORM(BaseModel):
@@ -103,7 +106,13 @@ class ResearchStartIn(BaseModel):
     geography: str | None = None
     budget_usd: float | None = Field(None, ge=0)
     focus: str | None = Field(None, max_length=1000)
+    source_urls: list[str] = Field(default_factory=list, max_length=8, description="Pages the agent should read in full")
     provider: str | None = None
+
+    @field_validator("source_urls")
+    @classmethod
+    def _clean_urls(cls, urls: list[str]) -> list[str]:
+        return clean_urls(urls)
 
 
 class ResearchRunOut(ORM):

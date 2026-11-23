@@ -34,6 +34,7 @@ from ...models import (
     SizeChart,
 )
 from .. import fit as fit_engine
+from ..urls import clean_urls
 from ..logistics import PackagingSpec, Shipment, channel_economics, compare_shipping
 from ..llm.anthropic_provider import get_llm
 from ..llm.base import ToolSpec
@@ -97,6 +98,7 @@ class StartResearchIn(BaseModel):
     kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics", "fit_sizing", "price_tiers", "compliance", "supplier_listings"] = "market_opportunity"
     focus: str | None = Field(None, description="What to pay special attention to")
     keywords: list[str] = Field(default_factory=list, description="Shopper search phrases for demand signals (max 3)")
+    source_urls: list[str] = Field(default_factory=list, description="Pages the founder wants the agent to read in full (max 8)")
 
 
 class BrandIn(BaseModel):
@@ -413,7 +415,8 @@ class CopilotTools:
         if self.db.scalars(select(ResearchRun).where(ResearchRun.project_id == self.project.id,
                                                      ResearchRun.status.in_(["queued", "running"]))).first():
             return {"ok": False, "error": "A research run is already in progress for this project."}, "Run already in progress"
-        params = {k: v for k, v in {"focus": args.focus, "keywords": args.keywords[:3] or None}.items() if v}
+        params = {k: v for k, v in {"focus": args.focus, "keywords": args.keywords[:3] or None,
+                                    "source_urls": clean_urls(args.source_urls) or None}.items() if v}
         if args.kind == "compliance":
             names = self.db.scalars(select(Supplier.name).where(Supplier.project_id == self.project.id)).all()
             params["suppliers"] = ", ".join(names)[:1000] or "none on file yet"

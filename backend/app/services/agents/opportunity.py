@@ -986,6 +986,7 @@ def execute_run(run_id: uuid.UUID) -> None:
         run.error = None
         ctx = project_context(project, run.params or {})
         keywords = [k for k in (run.params or {}).get("keywords") or [] if isinstance(k, str)]
+        read_urls = [u for u in (run.params or {}).get("source_urls") or [] if isinstance(u, str)][:8]
         kind = run.kind
         provider_name = run.provider
         user_id = run.created_by_id
@@ -1035,7 +1036,8 @@ def execute_run(run_id: uuid.UUID) -> None:
                             api_findings, api_meta = _persist_demand(db, run, kws, cc or "US")
                             run.params = {**(run.params or {}), "demand_collected_for": kws}
                     hints = [f"{k} best sellers" for k in kws[:2]] + hints
-                bundle = provider.gather(question=question, context=context_block(ctx), query_hints=hints, country_code=cc)
+                bundle = provider.gather(question=question, context=context_block(ctx), query_hints=hints, country_code=cc,
+                                         read_urls=read_urls)
                 usage.add(bundle.usage)
                 _add_run_usage(run_id, bundle.usage)  # searches are paid for even if extraction fails below
                 if key == "price_tiers" and demand.configured():

@@ -252,3 +252,22 @@ def test_competitor_tiers_from_price_tier_listings(authed, project, fake_llm, mo
     assert comps["Lele Sadoughi"]["price_tier"] == "luxury" and comps["Nobody Brand"]["price_tier"] in (None, "unknown")
     obs = comps["Lele Sadoughi"]["products"][0]["price_observations"][0]
     assert float(obs["price"]) == 49 and obs["verification_status"] == "source_linked"
+
+
+def test_pages_to_read_are_cleaned_and_passed_to_research(authed, project, fake_llm, monkeypatch):
+    from app.services.research import providers
+
+    seen = {}
+    real = providers.AnthropicWebSearchProvider.gather
+
+    def spy(self, **kw):
+        seen.setdefault("read_urls", kw.get("read_urls"))
+        return real(self, **kw)
+
+    monkeypatch.setattr(providers.AnthropicWebSearchProvider, "gather", spy)
+    monkeypatch.setattr("app.api.research.submit_run", opportunity.execute_run)
+    r = authed.post(f"/api/projects/{project['id']}/research-runs", json={
+        "kind": "price_tiers", "source_urls": ["https://chinausfreight.com/?gad_source=1&gclid=abc&page=2", "not a url"]})
+    assert r.status_code == 201, r.text
+    assert r.json()["params"]["source_urls"] == ["https://chinausfreight.com/?page=2"]
+    assert seen["read_urls"] == ["https://chinausfreight.com/?page=2"]

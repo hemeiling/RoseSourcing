@@ -77,7 +77,8 @@ class ResearchProvider(Protocol):
 
     def config_requirement(self) -> str | None: ...
 
-    def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None) -> EvidenceBundle: ...
+    def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None,
+               read_urls: list[str] | None = None) -> EvidenceBundle: ...
 
 
 class _SourceCollector:
@@ -142,17 +143,22 @@ class AnthropicWebSearchProvider:
             return None
         return "Set ANTHROPIC_API_KEY. Web search must also be enabled for your organization in the Anthropic Console."
 
-    def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None) -> EvidenceBundle:
+    def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None,
+               read_urls: list[str] | None = None) -> EvidenceBundle:
         settings = get_settings()
         hints = "\n".join(f"- {h}" for h in query_hints)
+        must_read = "\n".join(f"- {u}" for u in (read_urls or []))
         prompt = (
             f"Business context:\n{context}\n\nResearch question:\n{question}\n\n"
             f"Useful search angles (adapt as needed):\n{hints}\n\n"
-            "Report what you find, citing sources for every statement. List anything you could not find."
+            + (f"The founder asked you to read these pages. Open each one that is relevant to this question with web_fetch "
+               f"and use what it says (note any you could not open):\n{must_read}\n\n" if must_read else "")
+            + "Report what you find, citing sources for every statement. List anything you could not find."
         )
+        reads = settings.max_page_reads_per_step + (len(read_urls or []) if settings.max_page_reads_per_step else 0)
         raw = get_llm().web_research(
             system=RESEARCH_SYSTEM, prompt=prompt, max_searches=settings.max_searches_per_step, country_code=country_code,
-            max_fetches=settings.max_page_reads_per_step,
+            max_fetches=min(reads, 11),
         )
         collector = _SourceCollector()
         notes_parts: list[str] = []
@@ -199,7 +205,8 @@ class TavilyProvider:
             missing.append("ANTHROPIC_API_KEY (used to structure findings)")
         return f"Set {', '.join(missing)}." if missing else None
 
-    def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None) -> EvidenceBundle:
+    def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None,
+               read_urls: list[str] | None = None) -> EvidenceBundle:
         key = connectors.get_value("tavily", "api_key")
         if not key:
             raise LLMNotConfigured("TAVILY_API_KEY is not set.")
@@ -244,7 +251,8 @@ class BraveSearchProvider:
             missing.append("ANTHROPIC_API_KEY (used to structure findings)")
         return f"Set {', '.join(missing)}." if missing else None
 
-    def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None) -> EvidenceBundle:
+    def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None,
+               read_urls: list[str] | None = None) -> EvidenceBundle:
         key = connectors.get_value("brave", "api_key")
         if not key:
             raise LLMNotConfigured("BRAVE_SEARCH_API_KEY is not set.")
