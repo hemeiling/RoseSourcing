@@ -151,6 +151,21 @@ class ExtractedPriceTier(BaseModel):
     source_refs: list[str] = Field(description="Dossier refs that support this tier's description")
 
 
+class ExtractedSupplierListing(BaseModel):
+    supplier_name: str = Field(description="Store or company name as shown on the listing")
+    platform: Literal["alibaba", "1688", "made_in_china", "global_sources", "dhgate", "other"]
+    product_title: str
+    listing_url: str | None = Field(description="URL of the listing or store page, from the dossier")
+    price_low: float | None = Field(description="Lowest listed unit price, only if visible in the cited excerpt")
+    price_high: float | None = Field(description="Highest listed unit price, only if visible in the cited excerpt")
+    currency: str = Field(description="ISO currency code, e.g. USD or CNY")
+    moq: int | None = Field(description="Minimum order quantity in units, only if visible in the cited excerpt")
+    customization: list[str] = Field(description="OEM/customisation options stated (custom fabric, logo, packaging...)")
+    lead_time_days: int | None = Field(description="Stated lead time in days, only if visible in the cited excerpt")
+    seller_signals: list[str] = Field(description="Stated signals such as years on platform, verified supplier, trade assurance, rating")
+    source_ref: str = Field(description="Dossier ref whose excerpt shows this listing")
+
+
 class StepExtraction(BaseModel):
     findings: list[ExtractedFinding]
     segments: list[ExtractedSegment]
@@ -159,6 +174,7 @@ class StepExtraction(BaseModel):
     shipping_benchmarks: list[ExtractedShipping]
     size_charts: list[ExtractedSizeChart]
     price_tiers: list[ExtractedPriceTier]
+    supplier_listings: list[ExtractedSupplierListing]
     evidence_gaps: list[str] = Field(description="Important questions the evidence did not answer")
 
 

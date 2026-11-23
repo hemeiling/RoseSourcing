@@ -193,3 +193,16 @@ def test_price_tier_evidence_from_marketplace_listings(monkeypatch):
     assert "Luxury tier (highest 25% of prices): 3 listings priced $60.00 to $80.00" in " ".join(summary.excerpts)
     assert "Ad" not in " ".join(obs[1].excerpts)  # sponsored results excluded
     assert obs[1].excerpts[0] == "Knot headband 1 - $9.00 - 4.05 stars (100 ratings) - Amazon"
+
+
+def test_supplier_listing_run_creates_unverified_suppliers(authed, project, fake_llm, monkeypatch):
+    monkeypatch.setattr("app.api.research.submit_run", opportunity.execute_run)
+    r = authed.post(f"/api/projects/{project['id']}/research-runs", json={"kind": "supplier_listings"})
+    assert authed.get(f"/api/research-runs/{r.json()['id']}").json()["status"] == "completed"
+    sups = authed.get(f"/api/projects/{project['id']}/suppliers").json()
+    assert [s["name"] for s in sups] == ["Yiwu Knot Co"]  # the listing with no verifiable number was not saved
+    s = sups[0]
+    assert s["verification_status"] == "unverified" and s["platform"] == "alibaba"
+    q = s["quotes"][0]
+    assert float(q["unit_price"]) == 79 and q["moq"] is None and q["source"] == "research_listing"  # 500 is not in the excerpt
+    assert "not a quote" in q["notes"]

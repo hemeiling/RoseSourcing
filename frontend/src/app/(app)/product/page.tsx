@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { DecisionBadge } from "@/components/decision";
 import { ComplianceSection, PriceTiersSection } from "@/components/product-insights";
+import { ResearchRunStarter } from "@/components/research-run-starter";
 import { useProjects } from "@/components/providers";
 import { Button, Card, CardBody, CardHeader, EmbedContext, EmptyState, Spinner } from "@/components/ui";
 import { money } from "@/lib/format";
@@ -52,7 +53,7 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
   if (!c.research_runs) todos.push({ text: "Run market research", detail: "Nothing has been researched for this product yet.", section: "market", tone: "amber" });
   if (cm !== null && cm !== undefined && cm < 0)
     todos.push({ text: `Unit contribution is negative (${money(cm)})`, detail: `At ${money(dash.data.latest_scenario?.retail_price)} retail you lose money on each sale - revisit price or costs.`, section: "economics", tone: "red" });
-  if (!c.suppliers) todos.push({ text: "No supplier quotes yet", detail: "Factory cost, MOQ and lead time are still assumptions.", section: "suppliers", tone: "amber" });
+  if (!c.suppliers) todos.push({ text: "No suppliers yet", detail: "Factory cost, MOQ and lead time are still assumptions - search B2B listings to start.", section: "suppliers", tone: "amber" });
   if (!c.competitors) todos.push({ text: "No competitors tracked", detail: "Add the brands you compete with and their prices.", section: "competitors", tone: "amber" });
   if (!c.size_charts) todos.push({ text: "No size chart yet", detail: "Add your size guide or a supplier's chart so customers can find their size.", section: "sizing", tone: "slate" });
   if (!c.channels) todos.push({ text: "Selling channels not compared", detail: "Compare marketplace and store fees for this product.", section: "channels", tone: "slate" });
@@ -120,6 +121,7 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
 function ProductReport({ id }: { id: string }) {
   const { projects, project, select, loading } = useProjects();
   const router = useRouter();
+  const [suppliersVersion, setSuppliersVersion] = useState(0);
   const [active, setActive] = useState("review");
   const userScrolled = useRef(false);
   const exists = projects.some((p) => p.id === id);
@@ -229,7 +231,16 @@ function ProductReport({ id }: { id: string }) {
               </>
             ) : Page ? (
               <EmbedContext.Provider value={{ id: s.id, title: s.title, description: s.description }}>
-                <Page />
+                {s.id === "suppliers" && (
+                  <div className="mb-4">
+                    <h3 className="mb-2 text-sm font-semibold text-ink">Find suppliers on B2B marketplaces</h3>
+                    <ResearchRunStarter projectId={id} kind="supplier_listings" label="Search supplier listings"
+                      onFinished={() => setSuppliersVersion((v) => v + 1)}
+                      approval="This searches Alibaba.com, 1688, Made-in-China, Global Sources and DHgate listings through web search. Each supplier found is saved as unverified, with its listed price and MOQ as a 'listing price' quote - only numbers shown on the source are kept. Nothing is ordered or sent."
+                      focusPlaceholder="e.g. knotted headbands, custom tweed fabric, MOQ under 500" />
+                  </div>
+                )}
+                <Page key={s.id === "suppliers" ? suppliersVersion : undefined} />
               </EmbedContext.Provider>
             ) : (
               <>

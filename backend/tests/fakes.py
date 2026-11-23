@@ -14,6 +14,7 @@ from app.services.agents.research_schemas import (
     ExtractedSegment,
     ExtractedMeasure,
     ExtractedPriceTier,
+    ExtractedSupplierListing,
     ExtractedShipping,
     ExtractedSizeChart,
     ExtractedSizeLabel,
@@ -31,7 +32,7 @@ from app.services.llm.base import ChatResult, LLMUsage, ToolCallRecord, WebCitat
 
 
 def _ext(**kw: Any) -> StepExtraction:
-    for k in ("findings", "segments", "competitors", "channels", "shipping_benchmarks", "size_charts", "price_tiers", "evidence_gaps"):
+    for k in ("findings", "segments", "competitors", "channels", "shipping_benchmarks", "size_charts", "price_tiers", "supplier_listings", "evidence_gaps"):
         kw.setdefault(k, [])
     return StepExtraction(**kw)
 
@@ -103,6 +104,17 @@ class FakeLLM:
                                    source_refs=[ref]),
                 ExtractedPriceTier(tier="budget", price_low=None, price_high=None, currency="USD", materials_and_quality=[], buyer_profile=None,
                                    customer_needs=["Cheap"], complaints=[], examples=[], source_refs=[]),
+            ]), usage
+        if output_model.__name__.startswith("Extraction_") and "Populate supplier_listings" in prompt:
+            m = re.search(r"\[(S\d+)\] Brand A Dress", prompt)
+            ref = m.group(1) if m else "S1"
+            return _ext(supplier_listings=[
+                ExtractedSupplierListing(supplier_name="Yiwu Knot Co", platform="alibaba", product_title="Knotted headband", listing_url=None,
+                                         price_low=79, price_high=None, currency="USD", moq=500, customization=["Custom logo"],
+                                         lead_time_days=None, seller_signals=["5 years"], source_ref=ref),
+                ExtractedSupplierListing(supplier_name="Ghost Factory", platform="dhgate", product_title="Invented", listing_url=None,
+                                         price_low=1.23, price_high=None, currency="USD", moq=None, customization=[], lead_time_days=None,
+                                         seller_signals=[], source_ref=ref),
             ]), usage
         if output_model.__name__ == "CompliancePlan":
             return output_model(summary="Check labels and traceability.", caveat="Not legal advice.",

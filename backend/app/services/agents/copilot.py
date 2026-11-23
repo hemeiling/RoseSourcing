@@ -94,7 +94,7 @@ class ListRecsIn(BaseModel):
 
 
 class StartResearchIn(BaseModel):
-    kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics", "fit_sizing", "price_tiers", "compliance"] = "market_opportunity"
+    kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics", "fit_sizing", "price_tiers", "compliance", "supplier_listings"] = "market_opportunity"
     focus: str | None = Field(None, description="What to pay special attention to")
     keywords: list[str] = Field(default_factory=list, description="Shopper search phrases for demand signals (max 3)")
 
@@ -202,7 +202,8 @@ TOOLS: list[ToolSpec] = [
     ToolSpec("start_research", "Start a background research run for this product/category: market_opportunity (demand signals, "
              "market, customers, competitors, sourcing, risks, report), competitor_discovery, channels_logistics, fit_sizing (competitor size "
              "charts, fit complaints, returns policies), price_tiers (budget-to-luxury tiers with quality and customer needs per tier) or "
-             "compliance (design patents/IP, labelling, UFLPA; drafts supplier questions). Costs money; capped per run.",
+             "compliance (design patents/IP, labelling, UFLPA; drafts supplier questions) or supplier_listings (B2B listings on Alibaba, 1688, "
+             "Made-in-China etc. saved as unverified suppliers with listing prices). Costs money; capped per run.",
              StartResearchIn.model_json_schema()),
     ToolSpec("research_status", "Status and step progress of the latest research run.",
              {"type": "object", "properties": {}, "additionalProperties": False}),

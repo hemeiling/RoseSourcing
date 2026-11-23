@@ -43,6 +43,7 @@ from ...models import (
     SizeChart,
     Supplier,
     SupplierCommunication,
+    SupplierQuote,
 )
 from .. import demand
 from ..llm.anthropic_provider import get_llm
@@ -174,8 +175,9 @@ STEP_DEFS["channels"] = {
     "sections": ["channels", "pricing", "other"],
     "question": (
         "Which sales channels are realistic for selling {category} to customers in {country}, and what does each cost a seller today? "
-        "Cover the seller's own e-commerce store (e.g. Shopify), major marketplaces (e.g. Amazon, Etsy, eBay), social commerce "
-        "(e.g. TikTok Shop, Instagram), wholesale to studios/instructors/retailers, and events. For each, find the current official "
+        "Cover the seller's own website (e.g. Shopify), major marketplaces (Amazon, Etsy, eBay, Walmart Marketplace, Target Plus), "
+        "warehouse clubs and big-box retail (e.g. Costco, Sam's Club - vendor requirements, minimum volumes, margins), wholesale to "
+        "boutiques and department stores (e.g. Faire, direct), social commerce (TikTok Shop, Instagram), and events. For each, find the current official "
         "seller fee schedule for this category (referral/commission %, per-order fees, payment processing, monthly plan fees), "
         "category restrictions or approval requirements, and evidence of how this category's customers buy there. Cite official fee pages "
         "and note the date fees were published or updated."
@@ -184,6 +186,9 @@ STEP_DEFS["channels"] = {
         "Amazon seller fees clothing referral fee {year}",
         "Etsy seller fees transaction fee payment processing",
         "Shopify pricing plans payment processing fees {country}",
+        "Walmart Marketplace seller fees referral",
+        "how to become a Costco vendor small brand requirements",
+        "Faire wholesale fees brands commission",
         "TikTok Shop seller fees {country} {year}",
         "where do dancers buy {category}",
         "{category} wholesale to dance studios",
@@ -262,6 +267,24 @@ STEP_DEFS["price_tiers"] = {
         "premium {category} materials quality",
     ],
 }
+STEP_DEFS["supplier_listings"] = {
+    "label": "Supplier listings & factory prices",
+    "sections": ["sourcing_costs", "risks"],
+    "question": (
+        "What do manufacturers and wholesalers in {sourcing} list for {category} on B2B marketplaces - Alibaba.com, 1688.com, "
+        "Made-in-China.com, Global Sources and DHgate? Find 6-10 specific supplier listings for products like this, each with the "
+        "supplier or store name, listing URL, unit price range, minimum order quantity (MOQ), price breaks by quantity, customisation "
+        "options (custom fabric, logo, packaging), sample availability, lead time, and seller signals (years on platform, verified "
+        "supplier, trade assurance, ratings). {focus}"
+    ),
+    "hints": [
+        "site:alibaba.com {category} wholesale",
+        "{category} manufacturer alibaba price MOQ",
+        "site:made-in-china.com {category}",
+        "{category} 1688 wholesale price",
+        "{category} OEM custom logo factory {sourcing}",
+    ],
+}
 STEP_DEFS["design_ip"] = {
     "label": "Design patents, trademarks & IP",
     "sections": ["regulatory", "risks"],
@@ -318,6 +341,7 @@ RUN_STEPS = {
     "competitor_discovery": ["competitors"],
     "fit_sizing": ["fit_charts", "fit_experience"],
     "price_tiers": ["price_tiers"],
+    "supplier_listings": ["supplier_listings"],
     "compliance": ["design_ip", "labeling", "uflpa", "compliance_plan"],
 }
 
@@ -329,14 +353,15 @@ STEP_LABELS = {k: v["label"] for k, v in STEP_DEFS.items()} | {
 SYNTHESIS_STEP = {"market_opportunity": "synthesis", "channels_logistics": "plan", "compliance": "compliance_plan"}
 STEP_AGENT = {"competitors": "competitor_intelligence", "channels": "commerce", "logistics": "sourcing", "demand_signals": "analytics",
               "fit_charts": "fit", "fit_experience": "fit", "price_tiers": "competitor_intelligence",
-              "design_ip": "sourcing", "labeling": "sourcing", "uflpa": "sourcing"}
+              "design_ip": "sourcing", "labeling": "sourcing", "uflpa": "sourcing", "supplier_listings": "sourcing"}
 
 
 # Each step asks for findings, gaps and only the record list it fills, with its own section choices. One schema with
 # every list is too large for the API to compile into a constrained grammar.
 STEP_RECORDS = {"customers": "segments", "competitors": "competitors", "channels": "channels", "logistics": "shipping_benchmarks",
-                "fit_charts": "size_charts", "price_tiers": "price_tiers"}
-_RECORD_LISTS = ("findings", "segments", "competitors", "channels", "shipping_benchmarks", "size_charts", "price_tiers", "evidence_gaps")
+                "fit_charts": "size_charts", "price_tiers": "price_tiers", "supplier_listings": "supplier_listings"}
+_RECORD_LISTS = ("findings", "segments", "competitors", "channels", "shipping_benchmarks", "size_charts", "price_tiers",
+                 "supplier_listings", "evidence_gaps")
 _step_models: dict[str, type[BaseModel]] = {}
 
 
@@ -579,6 +604,7 @@ def _persist_extraction(db, run: ResearchRun, step_key: str, bundle: EvidenceBun
     dropped_fees, dropped_rates = _persist_channels_and_shipping(db, run, bundle, ext, ref_to_id)
     dropped_sizes = _persist_size_charts(db, run, bundle, ext, ref_to_id)
     dropped_prices += _persist_price_tiers(db, run, bundle, ext)
+    dropped_prices += _persist_supplier_listings(db, run, bundle, ext)
 
     if ext.evidence_gaps or dropped_prices or dropped_fees or dropped_rates or dropped_sizes:
         gaps = list(ext.evidence_gaps)
@@ -758,6 +784,49 @@ def _persist_price_tiers(db, run: ResearchRun, bundle: EvidenceBundle, ext: Step
     return dropped
 
 
+PLATFORM = {"alibaba": "alibaba", "1688": "1688"}
+PLATFORM_LABEL = {"alibaba": "Alibaba.com", "1688": "1688.com", "made_in_china": "Made-in-China.com", "global_sources": "Global Sources",
+                  "dhgate": "DHgate", "other": "a B2B marketplace"}
+
+
+def _persist_supplier_listings(db, run: ResearchRun, bundle: EvidenceBundle, ext: StepExtraction) -> int:
+    """Save B2B listings as unverified suppliers with a listing-price quote. Numbers are kept only if they appear in the excerpt."""
+    refs = bundle.by_ref()
+    today = datetime.now(timezone.utc).date()
+    dropped = 0
+    for li in ext.supplier_listings:
+        src = refs.get(li.source_ref)
+        if src is None:
+            dropped += 1
+            continue
+        low = li.price_low if li.price_low is not None and _price_in_excerpts(li.price_low, src.excerpts) else None
+        high = li.price_high if li.price_high is not None and _price_in_excerpts(li.price_high, src.excerpts) else None
+        moq = li.moq if li.moq is not None and _number_in(li.moq, src.excerpts) else None
+        lead = li.lead_time_days if li.lead_time_days is not None and _number_in(li.lead_time_days, src.excerpts) else None
+        dropped += sum(v is not None for v in (li.price_low, li.price_high, li.moq, li.lead_time_days)) - sum(v is not None for v in (low, high, moq, lead))
+        if low is None and high is None and moq is None:
+            continue
+        name = li.supplier_name.strip()[:300]
+        sup = db.scalars(select(Supplier).where(Supplier.project_id == run.project_id, Supplier.name.ilike(name))).first()
+        where = PLATFORM_LABEL[li.platform]
+        if sup is None:
+            sup = Supplier(project_id=run.project_id, name=name, country=None, platform=PLATFORM.get(li.platform, "other"),
+                           website=li.listing_url or src.url, source="research", verification_status="unverified",
+                           capabilities=li.customization[:10],
+                           notes=(f"Found by research on {where}. " + (f"Seller signals as listed: {'; '.join(li.seller_signals)}. " if li.seller_signals else "")
+                                  + "Not verified - check the store, ask for samples and documents.")[:2000])
+            db.add(sup)
+            db.flush()
+        price = low if low is not None else high
+        rng = f"{li.currency.upper()} {low:g}-{high:g}" if low is not None and high is not None and low != high else (f"{li.currency.upper()} {price:g}" if price is not None else "not shown")
+        db.add(SupplierQuote(
+            supplier_id=sup.id, product_name=li.product_title[:300], moq=moq, unit_price=Decimal(str(price)) if price is not None else None,
+            currency=li.currency.upper()[:8], lead_time_days=lead, quote_date=today, source="research_listing",
+            notes=f"Listed price {rng} per unit on {where} (a listing price, not a quote). Source: {li.listing_url or src.url}"[:2000],
+        ))
+    return dropped
+
+
 def _persist_demand(db, run: ResearchRun, keywords: list[str], geo: str) -> tuple[int, dict[str, Any]]:
     """Collect SerpApi popularity data (Google Trends, Amazon, Google Shopping) and store it as sourced findings."""
     if not demand.configured():
@@ -830,6 +899,8 @@ def _extraction_prompt(step_key: str, ctx: dict[str, str], bundle: EvidenceBundl
                         "source is present, copy each tier's price range from it and pick examples from the marketplace listing sources; "
                         "describe quality and buyer needs from listing titles, reviews and the other sources. Give example prices only when "
                         "visible in the cited excerpt."),
+        "supplier_listings": ("Populate supplier_listings with each specific supplier listing in an excerpt. Fill price, MOQ and lead time "
+                              "only with numbers visible in that listing's excerpt; otherwise null. Never invent a supplier."),
     }
     rec = STEP_RECORDS.get(step_key)
     return (
