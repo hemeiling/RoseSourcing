@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* Editorial look: serif display headlines, clean sans body, square corners, flat surfaces. */
+  /* Editorial look: serif display headlines, clean sans body, softly rounded flat surfaces. */
   --font-sans: var(--font-roboto), "Roboto", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
   --font-serif: var(--font-petrona), "Petrona", Georgia, "Times New Roman", serif;
   --font-script: var(--font-caveat), "Caveat", cursive;
@@ -30,12 +30,12 @@
   --color-canvas: #f1f1f6;
   --color-line: #d7d7d7;
 
-  --radius-xs: 0px;
-  --radius-sm: 0px;
-  --radius-md: 2px;
-  --radius-lg: 2px;
-  --radius-xl: 0px;
-  --radius-2xl: 0px;
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 22px;
 }
 
 html,

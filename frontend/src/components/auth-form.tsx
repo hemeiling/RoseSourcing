@@ -43,7 +43,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       <aside className="relative hidden overflow-hidden bg-brand-600 px-12 py-12 text-white lg:flex lg:flex-col">
         <BrandMark light />
         <div className="my-auto max-w-lg">
-          <div className="mb-5 h-1 w-14 bg-accent-500" aria-hidden />
+          <div className="mb-5 h-1 w-14 rounded-full bg-accent-500" aria-hidden />
           <h2 className="text-[2.6rem] font-semibold leading-[1.1]">Launch product businesses on evidence, not guesswork.</h2>
           <p className="mt-4 font-script text-3xl text-mist">sourced, checked, decided</p>
           <ul className="mt-8 space-y-3 text-[15px] text-white/85">
@@ -59,19 +59,19 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             ))}
           </ul>
         </div>
-        <div aria-hidden className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rotate-12 border-[28px] border-white/5" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rotate-12 rounded-[48px] border-[28px] border-white/5" />
       </aside>
       <div className="flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-6">
           <div className="mb-6 lg:hidden"><BrandMark /></div>
-          <div className="mb-3 h-1 w-12 bg-accent-600" aria-hidden />
+          <div className="mb-3 h-1 w-12 rounded-full bg-accent-600" aria-hidden />
           <h1 className="text-3xl font-semibold text-brand-700">{mode === "login" ? "Welcome back" : "Create your account"}</h1>
           <p className="mt-1.5 text-[15px] text-slate-600">
             {mode === "login" ? "Sign in to your workspace" : signup?.first_user ? "This first account becomes the workspace owner" : "Join this workspace"}
           </p>
         </div>
-        <form onSubmit={submit} className="space-y-4 border border-line border-t-4 border-t-brand-600 bg-white p-6">
+        <form onSubmit={submit} className="space-y-4 rounded-2xl border border-line border-t-4 border-t-brand-600 bg-white p-6 shadow-sm">
           {mode === "signup" && signup && !signup.signup_open && (
             <Alert>Sign-ups are closed on this workspace. Ask the owner to add your email to the invite list.</Alert>
           )}
@@ -79,7 +79,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             <>
               <a
                 href="/api/auth/google/login?next=/dashboard"
-                className="flex min-h-10 w-full items-center justify-center gap-2.5 border-2 border-brand-600 bg-white px-3.5 py-2 text-[13px] font-bold uppercase tracking-[0.05em] text-brand-700 hover:bg-brand-50"
+                className="flex min-h-10 w-full items-center justify-center gap-2.5 rounded-lg border-2 border-brand-600 bg-white px-3.5 py-2 text-[13px] font-bold uppercase tracking-[0.05em] text-brand-700 hover:bg-brand-50"
               >
                 <svg viewBox="0 0 48 48" className="h-4 w-4" aria-hidden>
                   <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />

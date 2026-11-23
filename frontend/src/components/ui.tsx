@@ -22,7 +22,7 @@ export function Button({
       {...rest}
       disabled={disabled || loading}
       className={clsx(
-        "inline-flex items-center justify-center gap-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex items-center justify-center gap-1.5 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50",
         variant !== "ghost" && "font-bold uppercase tracking-[0.05em]",
         variant === "ghost" && "font-medium",
         size === "sm" ? "min-h-8 px-3 py-1.5 text-[11px]" : "min-h-10 px-4 py-2 text-[13px]",
@@ -40,7 +40,7 @@ export function Button({
 }
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={clsx("border border-line bg-white", className)}>{children}</div>;
+  return <div className={clsx("overflow-hidden rounded-xl border border-line bg-white", className)}>{children}</div>;
 }
 
 export function CardHeader({ title, subtitle, actions, icon }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; icon?: ReactNode }) {
@@ -123,7 +123,7 @@ export function PageHeader({ title, description, actions, badge }: { title: stri
   return (
     <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        <div className="mb-3 h-1 w-12 bg-accent-600" aria-hidden />
+        <div className="mb-3 h-1 w-12 rounded-full bg-accent-600" aria-hidden />
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-3xl font-semibold leading-tight text-brand-700 sm:text-[2.15rem]">{title}</h1>
           {badge}
@@ -176,7 +176,7 @@ export function ErrorText({ error }: { error: string | null | undefined }) {
 /** Shown wherever an AI feature is unavailable because the server lacks credentials. */
 export function ConfigNotice({ message }: { message?: string | null }) {
   return (
-    <div className="flex gap-2.5 border border-l-4 border-line border-l-accent-600 bg-white px-3.5 py-3 text-sm text-slate-700">
+    <div className="flex gap-2.5 rounded-lg border border-l-4 border-line border-l-accent-600 bg-white px-3.5 py-3 text-sm text-slate-700">
       <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
       <div>
         <div className="font-medium text-slate-900">Configuration required</div>
@@ -205,7 +205,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={clsx("w-full border-t-4 border-brand-600 bg-white shadow-2xl", wide ? "max-w-3xl" : "max-w-lg")}
+        className={clsx("w-full overflow-hidden rounded-2xl border-t-4 border-brand-600 bg-white shadow-2xl", wide ? "max-w-3xl" : "max-w-lg")}
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-line px-5 py-3.5">

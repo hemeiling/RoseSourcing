@@ -28,9 +28,9 @@ export function BrandMark({ light }: { light?: boolean }) {
   return (
     <div className="flex items-center gap-3">
       <svg viewBox="0 0 36 36" className="h-9 w-9 shrink-0" aria-hidden>
-        <rect width="36" height="36" fill={light ? "#ffffff" : "#4e2a84"} />
-        <path d="M9 27 L18 8 L27 27" fill="none" stroke={light ? "#4e2a84" : "#ffffff"} strokeWidth="3.2" strokeLinejoin="miter" />
-        <rect x="12.5" y="20" width="11" height="3" fill="#e05329" />
+        <rect width="36" height="36" rx="8" fill={light ? "#ffffff" : "#4e2a84"} />
+        <path d="M9 27 L18 8 L27 27" fill="none" stroke={light ? "#4e2a84" : "#ffffff"} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
+        <rect x="12.5" y="20" width="11" height="3" rx="1.5" fill="#e05329" />
       </svg>
       <div className="leading-tight">
         <div className={clsx("font-serif text-[19px] font-semibold", light ? "text-white" : "text-brand-700")}>AI Commerce OS</div>
@@ -62,7 +62,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       <div className="border-b border-white/15 px-5 pb-4 pt-5">
         <BrandMark light />
       </div>
-      <ul className="flex-1 space-y-0.5 py-3">
+      <ul className="flex-1 space-y-0.5 px-2.5 py-3">
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname?.startsWith(href + "/");
           return (
@@ -71,7 +71,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 href={href}
                 onClick={onNavigate}
                 className={clsx(
-                  "flex items-center gap-2.5 border-l-4 px-4 py-2 text-[13.5px] transition-colors",
+                  "flex items-center gap-2.5 rounded-lg border-l-4 px-3 py-2 text-[13.5px] transition-colors",
                   active ? "border-accent-500 bg-white/10 font-semibold text-white" : "border-transparent text-white/80 hover:bg-white/5 hover:text-white",
                 )}
                 aria-current={active ? "page" : undefined}
