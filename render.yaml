@@ -32,7 +32,7 @@ services:
       - key: MAX_SEARCHES_PER_STEP
         value: "5"
       - key: MAX_RESEARCH_COST_USD
-        value: "5"
+        value: "15"  # agents read full pages, so a full market research run costs about $12-14
       # Google sign-in ("Continue with Google"). Create an OAuth client in Google Cloud Console with redirect URI
       # <your service URL>/api/auth/google/callback, then set both values in the Render dashboard.
       - key: GOOGLE_CLIENT_ID

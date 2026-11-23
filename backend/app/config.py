@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # Guardrails
     max_searches_per_step: int = 5
     max_page_reads_per_step: int = 3  # pages Claude may open in full per research step (0 = search snippets only)
-    max_research_cost_usd: float = 5.0
+    max_research_cost_usd: float = 15.0
     max_step_attempts: int = 2
     copilot_max_tool_rounds: int = 8
 
