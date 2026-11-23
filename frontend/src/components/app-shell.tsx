@@ -15,7 +15,7 @@ export function BrandMark({ light }: { light?: boolean }) {
       <svg viewBox="0 0 36 36" className="h-9 w-9 shrink-0" aria-hidden>
         <rect width="36" height="36" rx="5" fill={light ? "#ffffff" : "#4e2a84"} />
         <path d="M9 27 L18 8 L27 27" fill="none" stroke={light ? "#4e2a84" : "#ffffff"} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
-        <rect x="12.5" y="20" width="11" height="3" rx="1.5" fill="#e05329" />
+        <rect x="12.5" y="20" width="11" height="3" rx="1.5" fill={light ? "#cbd5e1" : "#ffffff"} fillOpacity={light ? 1 : 0.55} />
       </svg>
       <div className="leading-tight">
         <div className={clsx("font-serif text-[19px] font-semibold", light ? "text-white" : "text-brand-700")}>AI Commerce OS</div>
@@ -59,7 +59,7 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 onClick={onNavigate}
                 className={clsx(
                   "flex items-center gap-2.5 rounded-lg border-l-4 px-3 py-2 text-[13.5px] transition-colors",
-                  active ? "border-accent-500 bg-white/10 font-semibold text-white" : "border-transparent text-white/80 hover:bg-white/5 hover:text-white",
+                  active ? "border-white bg-white/10 font-semibold text-white" : "border-transparent text-white/80 hover:bg-white/5 hover:text-white",
                 )}
                 aria-current={active ? "page" : undefined}
               >
@@ -130,13 +130,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 bg-brand-600 lg:block">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 bg-primary-600 lg:block">
         <Sidebar />
       </aside>
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-brand-900/50" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-64 bg-brand-600">
+          <div className="absolute inset-0 bg-primary-900/50" onClick={() => setOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 w-64 bg-primary-600">
             <button className="absolute right-2 top-3 rounded p-1.5 text-slate-300 hover:bg-white/10" onClick={() => setOpen(false)} aria-label="Close menu">
               <X className="h-4 w-4" />
             </button>

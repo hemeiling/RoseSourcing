@@ -44,7 +44,7 @@ type PriceComparison = {
   price_hypothesis: { min: number; max: number } | null;
 };
 
-const VERIFY_COLOR: Record<string, string> = { source_linked: "#0d9488", human_verified: "#059669", unverified: "#94a3b8", disputed: "#dc2626" };
+const VERIFY_COLOR: Record<string, string> = { source_linked: "#475569", human_verified: "#1e293b", unverified: "#94a3b8", disputed: "#cbd5e1" };
 
 export function PriceComparisonCard({ projectId, version }: { projectId: string; version: number }) {
   const { data, error, loading, reload } = useApi<PriceComparison>(`/api/projects/${projectId}/competitors/price-comparison`);
@@ -99,7 +99,7 @@ export function PriceComparisonCard({ projectId, version }: { projectId: string;
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                     <XAxis type="number" tickFormatter={(v: number) => `$${v}`} tick={{ fontSize: 11 }} domain={[0, "auto"]} />
                     <YAxis type="category" dataKey="label" width={210} tick={{ fontSize: 11 }} interval={0} />
-                    {hyp && <ReferenceArea x1={hyp.min} x2={hyp.max} fill="#4e2a84" fillOpacity={0.08} stroke="#4e2a84" strokeOpacity={0.3} />}
+                    {hyp && <ReferenceArea x1={hyp.min} x2={hyp.max} fill="#334155" fillOpacity={0.08} stroke="#334155" strokeOpacity={0.3} />}
                     <Tooltip
                       cursor={{ fill: "#f1f5f9" }}
                       content={({ active, payload }) => {
@@ -190,9 +190,9 @@ type PositioningContent = { summary: string; positions: Position[]; white_space:
 type Snapshot = { id: string; created_at: string; content: PositioningContent };
 
 const BASIS: Record<Position["basis"], { label: string; color: string }> = {
-  observed_prices: { label: "Observed prices", color: "#059669" },
-  stated_positioning: { label: "Stated positioning", color: "#4e2a84" },
-  inference: { label: "AI inference", color: "#6a48a3" },
+  observed_prices: { label: "Observed prices", color: "#1e293b" },
+  stated_positioning: { label: "Stated positioning", color: "#64748b" },
+  inference: { label: "AI inference", color: "#a8b3c4" },
 };
 
 export function PositioningCard({ projectId, hasCompetitors }: { projectId: string; hasCompetitors: boolean }) {

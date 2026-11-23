@@ -49,7 +49,7 @@ export default function PipelinePage() {
       <div className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button key={f.value} onClick={() => setFilter(f.value)}
-            className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${filter === f.value ? "border-brand-600 bg-brand-600 text-white" : "border-line bg-white text-slate-600 hover:border-brand-300"}`}>
+            className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${filter === f.value ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-600 hover:border-brand-300"}`}>
             {f.label} <span className="ml-1 opacity-70">{counts[f.value] ?? 0}</span>
           </button>
         ))}

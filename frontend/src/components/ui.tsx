@@ -22,13 +22,13 @@ export function Button({
       {...rest}
       disabled={disabled || loading}
       className={clsx(
-        "inline-flex items-center justify-center gap-1.5 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex items-center justify-center gap-1.5 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50",
         variant !== "ghost" && "font-bold uppercase tracking-[0.05em]",
         variant === "ghost" && "font-medium",
         size === "sm" ? "min-h-8 px-3 py-1.5 text-[11px]" : "min-h-10 px-4 py-2 text-[13px]",
-        variant === "primary" && "bg-accent-600 text-white hover:bg-accent-700",
-        variant === "secondary" && "border-2 border-brand-600 bg-white text-brand-700 hover:bg-brand-600 hover:text-white",
-        variant === "ghost" && "text-slate-600 hover:bg-brand-50 hover:text-brand-700",
+        variant === "primary" && "bg-primary-600 text-white hover:bg-primary-700",
+        variant === "secondary" && "border-2 border-primary-600 bg-white text-primary-700 hover:bg-primary-600 hover:text-white",
+        variant === "ghost" && "text-slate-600 hover:bg-slate-100 hover:text-ink",
         variant === "danger" && "border-2 border-red-700 bg-white text-red-700 hover:bg-red-700 hover:text-white",
         className,
       )}

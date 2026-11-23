@@ -40,7 +40,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.05fr_1fr]">
-      <aside className="relative hidden overflow-hidden bg-brand-600 px-12 py-12 text-white lg:flex lg:flex-col">
+      <aside className="relative hidden overflow-hidden bg-primary-600 px-12 py-12 text-white lg:flex lg:flex-col">
         <BrandMark light />
         <div className="my-auto max-w-lg">
           <div className="mb-5 h-1 w-14 rounded-full bg-accent-500" aria-hidden />
@@ -79,7 +79,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             <>
               <a
                 href="/api/auth/google/login?next=/dashboard"
-                className="flex min-h-10 w-full items-center justify-center gap-2.5 rounded-lg border-2 border-brand-600 bg-white px-3.5 py-2 text-[13px] font-bold uppercase tracking-[0.05em] text-brand-700 hover:bg-brand-50"
+                className="flex min-h-10 w-full items-center justify-center gap-2.5 rounded-lg border-2 border-primary-600 bg-white px-3.5 py-2 text-[13px] font-bold uppercase tracking-[0.05em] text-primary-700 hover:bg-primary-50"
               >
                 <svg viewBox="0 0 48 48" className="h-4 w-4" aria-hidden>
                   <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />

@@ -118,7 +118,7 @@ export function ProductSnap({ compact }: { compact?: boolean }) {
               <div className="text-sm text-slate-600">Drop an image here, paste a screenshot, or</div>
               <div className="flex flex-wrap justify-center gap-2">
                 <Button size="sm" onClick={() => input.current?.click()} disabled={!!aiOff}>Choose photo</Button>
-                <label className={clsx("inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-lg border-2 border-brand-600 bg-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-brand-700 hover:bg-brand-50 sm:hidden", aiOff && "pointer-events-none opacity-50")}>
+                <label className={clsx("inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-lg border-2 border-primary-600 bg-white px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.05em] text-primary-700 hover:bg-primary-50 sm:hidden", aiOff && "pointer-events-none opacity-50")}>
                   <Camera className="h-3.5 w-3.5" /> Camera
                   <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) send(f); e.target.value = ""; }} />
                 </label>

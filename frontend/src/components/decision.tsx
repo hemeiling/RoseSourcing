@@ -58,7 +58,7 @@ export function DecisionModal({ projectId, open, onClose, onSaved, initial }: {
             const Icon = m.icon;
             return (
               <button key={d} type="button" onClick={() => setDecision(d)}
-                className={`flex flex-col items-center gap-1 rounded-lg border-2 px-3 py-3 text-sm font-semibold ${decision === d ? "border-brand-600 bg-brand-50 text-brand-700" : "border-line text-slate-600 hover:border-brand-300"}`}>
+                className={`flex flex-col items-center gap-1 rounded-lg border-2 px-3 py-3 text-sm font-semibold ${decision === d ? "border-primary-600 bg-primary-50 text-primary-700" : "border-line text-slate-600 hover:border-brand-300"}`}>
                 <Icon className="h-5 w-5" /> {m.label}
               </button>
             );

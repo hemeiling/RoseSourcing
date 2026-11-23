@@ -146,7 +146,7 @@ function DashboardView({ projectId }: { projectId: string }) {
                   <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
                     {(["sourced", "ai_inference", "assumption", "unavailable"] as EvidenceType[]).map((t) => {
                       const n = data.findings_by_type[t] ?? 0;
-                      const color = { sourced: "bg-emerald-500", ai_inference: "bg-violet-500", assumption: "bg-amber-400", unavailable: "bg-slate-400" }[t];
+                      const color = { sourced: "bg-slate-800", ai_inference: "bg-slate-500", assumption: "bg-slate-400", unavailable: "bg-slate-200" }[t];
                       return n ? <div key={t} className={color} style={{ width: `${(100 * n) / totalFindings}%` }} title={`${EVIDENCE_META[t].label}: ${n}`} /> : null;
                     })}
                   </div>

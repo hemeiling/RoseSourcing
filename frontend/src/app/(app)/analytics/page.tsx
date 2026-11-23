@@ -30,16 +30,16 @@ function ResultsPanel({ r }: { r: UEResults | null }) {
   const pu = r.per_unit;
   const lc = r.landed_cost_breakdown;
   const waterfall = [
-    { name: "Factory", value: lc.factory_cost, color: "#4e2a84" },
-    { name: "Freight", value: lc.freight, color: "#8a6bbd" },
-    { name: "Duty", value: lc.duty, color: "#ae97d4" },
-    { name: "Clearance+pkg", value: (lc.clearance ?? 0) + (lc.packaging ?? 0), color: "#cfc1e6" },
-    { name: "Fulfillment", value: pu.fulfillment, color: "#83ccd1" },
-    { name: "Payment fees", value: pu.payment_fees, color: "#6cb2e2" },
-    { name: "Channel fees", value: pu.channel_fees ?? 0, color: "#b9e3e6" },
-    { name: "Returns", value: (pu.return_handling ?? 0) + (pu.unsellable_loss ?? 0), color: "#fcd34d" },
-    { name: "Marketing", value: pu.marketing, color: "#e05329" },
-    { name: "Contribution", value: r.contribution_margin, color: r.contribution_margin >= 0 ? "#2e7d5b" : "#ef4444" },
+    { name: "Factory", value: lc.factory_cost, color: "#1e293b" },
+    { name: "Freight", value: lc.freight, color: "#334155" },
+    { name: "Duty", value: lc.duty, color: "#475569" },
+    { name: "Clearance+pkg", value: (lc.clearance ?? 0) + (lc.packaging ?? 0), color: "#64748b" },
+    { name: "Fulfillment", value: pu.fulfillment, color: "#94a3b8" },
+    { name: "Payment fees", value: pu.payment_fees, color: "#a8b3c4" },
+    { name: "Channel fees", value: pu.channel_fees ?? 0, color: "#cbd5e1" },
+    { name: "Returns", value: (pu.return_handling ?? 0) + (pu.unsellable_loss ?? 0), color: "#d9dee6" },
+    { name: "Marketing", value: pu.marketing, color: "#e2e8f0" },
+    { name: "Contribution", value: r.contribution_margin, color: r.contribution_margin >= 0 ? "#0f172a" : "#94a3b8" },
   ];
   return (
     <div className="space-y-4">
@@ -93,9 +93,9 @@ function ResultsPanel({ r }: { r: UEResults | null }) {
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="price" tickFormatter={(v) => `$${v}`} fontSize={11} />
               <YAxis tickFormatter={(v) => `$${v}`} fontSize={11} />
-              <ReferenceLine y={0} stroke="#ef4444" strokeDasharray="4 4" />
+              <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="4 4" />
               <Tooltip formatter={(v, n) => (n === "margin_pct" ? pct(Number(v)) : money(Number(v)))} labelFormatter={(l) => `Price ${money(Number(l))}`} />
-              <Line type="monotone" dataKey="contribution_margin" name="Contribution" stroke="#4e2a84" strokeWidth={2} dot />
+              <Line type="monotone" dataKey="contribution_margin" name="Contribution" stroke="#334155" strokeWidth={2} dot />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -317,8 +317,8 @@ function CompareTab({ scenarios, spec, onLoad, reload }: { scenarios: Scenario[]
                   <Tooltip formatter={(v) => money(Number(v))} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <ReferenceLine y={0} stroke="#94a3b8" />
-                  <Bar dataKey="landed" name="Landed cost / unit" fill="#8a6bbd" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="contribution" name="Contribution / unit" fill="#2e7d5b" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="landed" name="Landed cost / unit" fill="#94a3b8" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="contribution" name="Contribution / unit" fill="#1e293b" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

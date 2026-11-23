@@ -15,7 +15,7 @@ export function UnitToggle({ unit, onChange }: { unit: Unit; onChange: (u: Unit)
     <div className="inline-flex rounded-md border border-line bg-white p-0.5 text-xs font-semibold" role="group" aria-label="Units">
       {(["in", "cm"] as Unit[]).map((u) => (
         <button key={u} type="button" onClick={() => onChange(u)} aria-pressed={unit === u}
-          className={clsx("rounded px-2.5 py-1", unit === u ? "bg-brand-600 text-white" : "text-slate-600 hover:bg-canvas")}>
+          className={clsx("rounded px-2.5 py-1", unit === u ? "bg-primary-600 text-white" : "text-slate-600 hover:bg-canvas")}>
           {u === "in" ? "Inches" : "Centimetres"}
         </button>
       ))}
