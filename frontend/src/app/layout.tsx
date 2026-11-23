@@ -1,22 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Caveat, Petrona, Roboto } from "next/font/google";
+import { Barlow } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: "AI Commerce OS",
-  description: "Evidence-linked market research, competitor intelligence, sourcing and unit economics for product businesses.",
+  title: "RoseSourcing",
+  description: "Evidence-led product launches: market research, price tiers, suppliers, compliance and unit economics for every product you consider.",
 };
 
-const petrona = Petrona({ subsets: ["latin"], weight: ["400", "500", "600", "700"], style: ["normal", "italic"], variable: "--font-petrona", display: "swap" });
-const roboto = Roboto({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-roboto", display: "swap" });
-const caveat = Caveat({ subsets: ["latin"], weight: ["500", "600"], variable: "--font-caveat", display: "swap" });
+const barlow = Barlow({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-barlow", display: "swap" });
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${petrona.variable} ${roboto.variable} ${caveat.variable}`}>
+    <html lang="en" className={barlow.variable}>
       <body className="font-sans antialiased">
         <Providers>{children}</Providers>
       </body>

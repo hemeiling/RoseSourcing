@@ -206,3 +206,20 @@ def test_supplier_listing_run_creates_unverified_suppliers(authed, project, fake
     q = s["quotes"][0]
     assert float(q["unit_price"]) == 79 and q["moq"] is None and q["source"] == "research_listing"  # 500 is not in the excerpt
     assert "not a quote" in q["notes"]
+
+
+def test_b2b_listing_evidence_uses_google_snippets(monkeypatch):
+    from app.services import demand
+
+    seen = []
+
+    def fake_get(http, params):
+        seen.append(params["q"])
+        return {"organic_results": [{"title": "Knotted Headband Wholesale", "link": "https://www.alibaba.com/product-detail/x.html",
+                                     "snippet": "US$0.39 - 0.59. Min. order: 50 pieces.", "rich_snippet": {"top": {"extensions": ["5 yrs CN Supplier"]}}},
+                                    {"title": "No link"}]}
+
+    monkeypatch.setattr(demand, "_get", fake_get)
+    obs, errors, calls = demand.b2b_listing_evidence(["knotted headband"])
+    assert calls == 3 and seen[0] == "site:alibaba.com knotted headband"
+    assert obs[0].url.startswith("https://www.alibaba.com/") and obs[0].excerpts == ["US$0.39 - 0.59. Min. order: 50 pieces. 5 yrs CN Supplier"]

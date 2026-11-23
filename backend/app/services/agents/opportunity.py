@@ -1038,6 +1038,15 @@ def execute_run(run_id: uuid.UUID) -> None:
                                                         excerpts=o.excerpts, provider="serpapi"))
                     bundle.errors += errs
                     api_meta = {**api_meta, "serpapi_calls": calls}
+                if key == "supplier_listings" and demand.configured():
+                    # Google's result snippets for B2B product pages carry the listed price and MOQ; web search excerpts often don't.
+                    obs, errs, calls = demand.b2b_listing_evidence(keywords or _shopper_keywords(run_id, ctx, llm, usage))
+                    nxt = max([int(s.ref[1:]) for s in bundle.sources if s.ref[1:].isdigit()] or [0])
+                    for i, o in enumerate(obs, 1):
+                        bundle.sources.append(SourceDoc(ref=f"S{nxt + i}", url=o.url, title=o.title, page_age="Google result via SerpApi",
+                                                        excerpts=o.excerpts, provider="serpapi"))
+                    bundle.errors += errs
+                    api_meta = {**api_meta, "serpapi_calls": calls}
                 if not bundle.sources:
                     ext = to_step_extraction(step_output_model(key)(findings=[], evidence_gaps=[f"No sources were retrieved for: {question}"],
                                                                     **({STEP_RECORDS[key]: []} if key in STEP_RECORDS else {})))

@@ -1,10 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  /* Editorial look: serif display headlines, clean sans body, softly rounded flat surfaces. */
-  --font-sans: var(--font-roboto), "Roboto", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
-  --font-serif: var(--font-petrona), "Petrona", Georgia, "Times New Roman", serif;
-  --font-script: var(--font-caveat), "Caveat", cursive;
+  /* One clean industrial sans (Barlow) for everything; headings are set by weight, not a second typeface. */
+  --font-sans: var(--font-barlow), "Barlow", Arial, "Helvetica Neue", Helvetica, sans-serif;
+  --font-serif: var(--font-sans);
 
   /* Primary: deep purple - buttons, links, selected controls and the sidebar frame */
   --color-primary-50: #f4f1fa;
@@ -165,7 +164,7 @@
   --color-pink-950: oklch(12.9% 0.042 264.695);
   /* Supporting */
   --color-mist: oklch(86.9% 0.022 252.894);
-  --color-ink: #1a1a1a;
+  --color-ink: #2d2d2d;
   --color-canvas: #f1f1f6;
   --color-line: #d7d7d7;
 
@@ -186,8 +185,9 @@ body {
 h1,
 h2,
 .font-display {
-  font-family: var(--font-serif);
-  letter-spacing: -0.005em;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 /* Readable markdown for AI answers and reports */

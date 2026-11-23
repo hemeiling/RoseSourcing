@@ -4,7 +4,7 @@ import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, errorText, get } from "@/lib/api";
-import { BrandMark } from "./app-shell";
+import { BrandMark } from "./brand-logo";
 import { useAuth } from "./providers";
 import { Alert, Button, Field, Input } from "./ui";
 
@@ -43,9 +43,9 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
       <aside className="relative hidden overflow-hidden bg-primary-600 px-12 py-12 text-white lg:flex lg:flex-col">
         <BrandMark light />
         <div className="my-auto max-w-lg">
-          <div className="mb-5 h-1 w-14 rounded-full bg-accent-500" aria-hidden />
+          <div className="mb-5 h-1 w-14 rounded-full bg-white/60" aria-hidden />
           <h2 className="text-[2.6rem] font-semibold leading-[1.1]">Launch product businesses on evidence, not guesswork.</h2>
-          <p className="mt-4 font-script text-3xl text-mist">sourced, checked, decided</p>
+          <p className="mt-4 text-xl font-medium text-white/80">Sourced, checked, decided.</p>
           <ul className="mt-8 space-y-3 text-[15px] text-white/85">
             {[
               "Market research where every finding links to its source",
@@ -53,7 +53,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
               "Unit economics, channels and shipping you can defend",
             ].map((t) => (
               <li key={t} className="flex gap-2.5">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-mist" aria-hidden />
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-white/70" aria-hidden />
                 {t}
               </li>
             ))}

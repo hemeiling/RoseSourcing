@@ -258,3 +258,38 @@ def price_tier_evidence(keywords: list[str], geo: str = "US", max_calls: int = 4
         obs.insert(0, DemandObservation(title=f"Price tiers from {len(unique)} marketplace listings",
                                         url=f"https://www.google.com/search?tbm=shop&q={quote_plus(kw0)}", excerpts=_tier_lines(unique)))
     return obs, errors, calls
+
+
+# ----------------------------------------------------------------------------- B2B supplier listings
+
+B2B_SITES = ("alibaba.com", "made-in-china.com", "1688.com")
+
+
+def b2b_listing_evidence(keywords: list[str], max_calls: int = 3) -> tuple[list[DemandObservation], list[str], int]:
+    """Google results restricted to B2B marketplaces. Each result is its own source: title, link and Google's snippet,
+    which for product pages usually shows the listed price range and minimum order."""
+    obs: list[DemandObservation] = []
+    errors: list[str] = []
+    calls = 0
+    kw = next(iter(dict.fromkeys(k.strip() for k in keywords if k.strip())), "")
+    if not kw:
+        return obs, errors, calls
+    with httpx2.Client(timeout=40) as http:
+        for site in B2B_SITES:
+            if calls >= max_calls:
+                break
+            calls += 1
+            try:
+                data = _get(http, {"engine": "google", "q": f"site:{site} {kw}", "gl": "us", "hl": "en", "num": 10})
+                for r in (data.get("organic_results") or [])[:10]:
+                    link, title = r.get("link"), r.get("title")
+                    if not link or not title:
+                        continue
+                    rich = ((r.get("rich_snippet") or {}).get("top") or {}).get("extensions") or []
+                    text = " ".join(str(x) for x in [r.get("snippet") or "", *rich] if x).strip()
+                    if text:
+                        obs.append(DemandObservation(title=str(title)[:300], url=str(link), excerpts=[text[:1000]]))
+            except Exception as e:  # noqa: BLE001
+                log.warning("B2B listing search failed: %s", e)
+                errors.append(str(e)[:300])
+    return obs, errors, calls

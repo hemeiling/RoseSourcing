@@ -23,7 +23,7 @@ export function Button({
       disabled={disabled || loading}
       className={clsx(
         "inline-flex items-center justify-center gap-1.5 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50",
-        variant !== "ghost" && "font-bold uppercase tracking-[0.05em]",
+        variant !== "ghost" && "font-semibold",
         variant === "ghost" && "font-medium",
         size === "sm" ? "min-h-8 px-3 py-1.5 text-[11px]" : "min-h-10 px-4 py-2 text-[13px]",
         variant === "primary" && "bg-primary-600 text-white hover:bg-primary-700",
