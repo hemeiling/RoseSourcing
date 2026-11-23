@@ -147,8 +147,12 @@ function ProductReport({ id }: { id: string }) {
     window.addEventListener("wheel", stop, { once: true });
     window.addEventListener("touchmove", stop, { once: true });
     window.addEventListener("keydown", stop, { once: true });
+    window.addEventListener("pointerdown", stop, { once: true });
     const timers = [50, 700, 1600, 3000].map((ms) => setTimeout(() => { if (!userScrolled.current) jump(hash, false); }, ms));
-    return () => { timers.forEach(clearTimeout); window.removeEventListener("wheel", stop); window.removeEventListener("touchmove", stop); window.removeEventListener("keydown", stop); };
+    return () => {
+      timers.forEach(clearTimeout);
+      ["wheel", "touchmove", "keydown", "pointerdown"].forEach((ev) => window.removeEventListener(ev, stop));
+    };
   }, [ready, jump]);
 
   // Highlight the section being read.

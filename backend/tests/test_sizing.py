@@ -200,8 +200,9 @@ def test_supplier_listing_run_creates_unverified_suppliers(authed, project, fake
     r = authed.post(f"/api/projects/{project['id']}/research-runs", json={"kind": "supplier_listings"})
     assert authed.get(f"/api/research-runs/{r.json()['id']}").json()["status"] == "completed"
     sups = authed.get(f"/api/projects/{project['id']}/suppliers").json()
-    assert [s["name"] for s in sups] == ["Yiwu Knot Co"]  # the listing with no verifiable number was not saved
-    s = sups[0]
+    # The listing with no verifiable number was not saved; an unnamed seller gets its own record named after the listing.
+    assert sorted(s["name"] for s in sups) == ["Alibaba.com listing: Velvet knot band", "Yiwu Knot Co"]
+    s = next(x for x in sups if x["name"] == "Yiwu Knot Co")
     assert s["verification_status"] == "unverified" and s["platform"] == "alibaba"
     q = s["quotes"][0]
     assert float(q["unit_price"]) == 79 and q["moq"] is None and q["source"] == "research_listing"  # 500 is not in the excerpt

@@ -806,9 +806,13 @@ def _persist_supplier_listings(db, run: ResearchRun, bundle: EvidenceBundle, ext
         dropped += sum(v is not None for v in (li.price_low, li.price_high, li.moq, li.lead_time_days)) - sum(v is not None for v in (low, high, moq, lead))
         if low is None and high is None and moq is None:
             continue
-        name = li.supplier_name.strip()[:300]
-        sup = db.scalars(select(Supplier).where(Supplier.project_id == run.project_id, Supplier.name.ilike(name))).first()
         where = PLATFORM_LABEL[li.platform]
+        name = li.supplier_name.strip()
+        if not name or re.search(r"unnamed|unknown|not shown|not stated|n/a", name, re.I):
+            # No seller name in the source: keep each listing separate rather than merging strangers into one supplier.
+            name = f"{where} listing: {li.product_title.strip()[:80]}"
+        name = name[:300]
+        sup = db.scalars(select(Supplier).where(Supplier.project_id == run.project_id, Supplier.name.ilike(name))).first()
         if sup is None:
             sup = Supplier(project_id=run.project_id, name=name, country=None, platform=PLATFORM.get(li.platform, "other"),
                            website=li.listing_url or src.url, source="research", verification_status="unverified",
@@ -900,7 +904,8 @@ def _extraction_prompt(step_key: str, ctx: dict[str, str], bundle: EvidenceBundl
                         "describe quality and buyer needs from listing titles, reviews and the other sources. Give example prices only when "
                         "visible in the cited excerpt."),
         "supplier_listings": ("Populate supplier_listings with each specific supplier listing in an excerpt. Fill price, MOQ and lead time "
-                              "only with numbers visible in that listing's excerpt; otherwise null. Never invent a supplier."),
+                              "only with numbers visible in that listing's excerpt; otherwise null. Use the seller name only if the excerpt "
+                              "shows it, otherwise write 'unknown'. Never invent a supplier."),
     }
     rec = STEP_RECORDS.get(step_key)
     return (
