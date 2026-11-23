@@ -33,6 +33,12 @@ services:
         value: "5"
       - key: MAX_RESEARCH_COST_USD
         value: "5"
+      # Google sign-in ("Continue with Google"). Create an OAuth client in Google Cloud Console with redirect URI
+      # <your service URL>/api/auth/google/callback, then set both values in the Render dashboard.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
       # Sign-ups: the first account becomes the owner; later sign-ups need one of these.
       - key: SIGNUP_ENABLED
         value: "false"

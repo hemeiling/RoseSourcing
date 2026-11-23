@@ -99,6 +99,8 @@ Later pushes to the default branch redeploy automatically. Migrations run on boo
 | `RESEARCH_PROVIDER` | `anthropic_web_search` | `anthropic_web_search`, `tavily` or `brave`. Web search must be enabled for your Anthropic org |
 | `MAX_SEARCHES_PER_STEP` / `MAX_RESEARCH_COST_USD` / `MAX_STEP_ATTEMPTS` | `5` / `5` / `2` | Research guardrails |
 | `SIGNUP_ENABLED` / `ALLOWED_SIGNUP_EMAILS` | `false` / empty | Who can register after the first user |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | empty | Enables "Continue with Google". Uses an OAuth client of type *Web application* with redirect URI `<service URL>/api/auth/google/callback`. Same sign-up policy as email; a Google login with the same verified email links to an existing account |
+| `PUBLIC_BASE_URL` | Render's `RENDER_EXTERNAL_URL` | Base URL for the Google redirect URI (set to `http://localhost:3000` for local dev) |
 
 ### Known limits of this MVP
 

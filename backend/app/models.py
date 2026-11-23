@@ -57,7 +57,9 @@ class User(IdMixin, TimestampMixin, Base):
     __tablename__ = "users"
 
     email: Mapped[str] = mapped_column(String(320), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(200))
+    # Null for accounts that only sign in with Google.
+    password_hash: Mapped[str | None] = mapped_column(String(200))
+    google_sub: Mapped[str | None] = mapped_column(String(255), unique=True)
     display_name: Mapped[str | None] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(32), default="member")  # owner | member
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

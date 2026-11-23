@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     signup_enabled: bool = False
     allowed_signup_emails: str = ""
 
+    # Google sign-in (OAuth 2.0 / OpenID Connect). Enabled when both are set.
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    # Public URL used to build the OAuth redirect URI. Render sets RENDER_EXTERNAL_URL automatically.
+    public_base_url: str | None = None
+    render_external_url: str | None = None
+
     # Anthropic / LLM
     anthropic_api_key: str | None = None
     llm_model: str = "claude-opus-5-5"
@@ -63,6 +70,10 @@ class Settings(BaseSettings):
     @property
     def allowed_signup_email_set(self) -> set[str]:
         return {e.strip().lower() for e in self.allowed_signup_emails.split(",") if e.strip()}
+
+    @property
+    def google_enabled(self) -> bool:
+        return bool(self.google_client_id and self.google_client_secret)
 
     @property
     def is_production(self) -> bool:
