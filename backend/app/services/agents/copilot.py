@@ -41,7 +41,7 @@ from ..unit_economics import UnitEconomicsInputs, calculate
 from .runtime import apply_usage, finish_execution, start_execution
 from .sourcing import supplier_comparison
 
-SYSTEM = """You are the AI Business Copilot inside RoseSourcing, helping a founder decide and act on a product business.
+SYSTEM = """You are the AI Business Copilot inside 136sourcing, helping a founder decide and act on a product business.
 
 How to work:
 - Use the tools to look up the founder's saved project data before answering anything about their business. Do not rely on memory for project facts.

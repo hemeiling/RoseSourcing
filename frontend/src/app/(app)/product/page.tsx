@@ -6,14 +6,18 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { DecisionBadge } from "@/components/decision";
+import { RunStatusBadge, fmtCost } from "@/components/market/shared";
 import { ComplianceSection, PriceTiersSection } from "@/components/product-insights";
 import { ResearchRunStarter } from "@/components/research-run-starter";
 import { useProjects } from "@/components/providers";
 import { Button, Card, CardBody, CardHeader, EmbedContext, EmptyState, Spinner } from "@/components/ui";
 import { money } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { AGENTS } from "@/lib/agents";
+import { errorText, post } from "@/lib/api";
+import { ago } from "@/lib/format";
 import { SECTIONS, SECTION_BY_ROUTE, type SectionId } from "@/lib/sections";
-import type { Opportunity } from "@/lib/types";
+import type { Opportunity, ResearchRun } from "@/lib/types";
 import AnalyticsPage from "../analytics/page";
 import BrandPage from "../brand/page";
 import ChannelsPage from "../channels/page";
@@ -40,6 +44,40 @@ type Dashboard = {
 
 type Todo = { text: string; detail?: string; section: string; tone: "red" | "amber" | "slate" };
 
+/** Every research agent, with its latest run for this product. "Run" jumps to the section where it is started. */
+function AgentsPanel({ projectId }: { projectId: string }) {
+  const runs = useApi<ResearchRun[]>(`/api/projects/${projectId}/research-runs`);
+  return (
+    <Card className="lg:col-span-2">
+      <CardHeader title="Research agents" icon={<Bot className="h-4 w-4" />}
+        subtitle="The same agents work on every product. Each run is saved with this product, with its sources and cost." />
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
+          <tbody className="divide-y divide-slate-100">
+            {AGENTS.map((a) => {
+              const last = runs.data?.find((r) => r.kind === a.kind);
+              return (
+                <tr key={a.kind}>
+                  <td className="px-5 py-2.5 align-top">
+                    <div className="font-semibold text-ink">{a.name}</div>
+                    <div className="text-xs text-slate-500">{a.does}</div>
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 align-top text-xs text-slate-600">
+                    {last ? <><RunStatusBadge status={last.status} /> <span className="ml-1">{ago(last.created_at)} · {fmtCost(last.cost_usd)}</span></> : <span className="text-slate-400">Not run yet</span>}
+                  </td>
+                  <td className="px-5 py-2.5 text-right align-top">
+                    <a href={`#${a.section}`} className="text-xs font-semibold text-primary-700 hover:underline">{last ? "Open" : "Run"} →</a>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
 /** A short, linked checklist of what is missing or weak for this product. */
 function Review({ projectId, decision }: { projectId: string; decision: string }) {
   const dash = useApi<Dashboard>(`/api/projects/${projectId}/dashboard`);
@@ -65,6 +103,7 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
+      <AgentsPanel projectId={projectId} />
       <Card>
         <CardHeader title="Checklist" icon={<ListChecks className="h-4 w-4" />} subtitle="What is missing or weak, based on everything saved for this product." />
         <CardBody>
@@ -122,6 +161,19 @@ function ProductReport({ id }: { id: string }) {
   const { projects, project, select, loading } = useProjects();
   const router = useRouter();
   const [suppliersVersion, setSuppliersVersion] = useState(0);
+  const [competitorsVersion, setCompetitorsVersion] = useState(0);
+  const [tierNote, setTierNote] = useState<string | null>(null);
+  const assignTiers = async () => {
+    try {
+      const r = await post<{ updated: number; prices_added: number }>(`/api/projects/${id}/competitors/assign-tiers`);
+      setTierNote(r.updated || r.prices_added
+        ? `Placed ${r.updated} competitor${r.updated === 1 ? "" : "s"} in a price tier; added ${r.prices_added} price${r.prices_added === 1 ? "" : "s"} from marketplace listings.`
+        : "No changes: competitors without prices did not match any listing found by the Price Tier Agent.");
+      setCompetitorsVersion((v) => v + 1);
+    } catch (e) {
+      setTierNote(errorText(e));
+    }
+  };
   const [active, setActive] = useState("review");
   const userScrolled = useRef(false);
   const exists = projects.some((p) => p.id === id);
@@ -244,7 +296,14 @@ function ProductReport({ id }: { id: string }) {
                       focusPlaceholder="e.g. knotted headbands, custom tweed fabric, MOQ under 500" />
                   </div>
                 )}
-                <Page key={s.id === "suppliers" ? suppliersVersion : undefined} />
+                {s.id === "competitors" && (
+                  <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm">
+                    <span className="text-slate-600">Place each competitor in the budget / mid / premium / luxury tiers found by the Price Tier Agent, using its prices or matching listings.</span>
+                    <Button size="sm" variant="secondary" onClick={assignTiers}>Assign price tiers</Button>
+                    {tierNote && <span className="w-full text-xs text-slate-500">{tierNote}</span>}
+                  </div>
+                )}
+                <Page key={s.id === "suppliers" ? suppliersVersion : s.id === "competitors" ? competitorsVersion : undefined} />
               </EmbedContext.Provider>
             ) : (
               <>

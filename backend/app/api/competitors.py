@@ -19,6 +19,7 @@ from ..schemas import (
     PriceObservationOut,
 )
 from ..services import csv_import
+from ..services.price_tiers import apply_to_competitors
 from ..services.agents.generators import analyze_positioning
 from .deps import DB, CurrentUser, ProjectDep, owned
 
@@ -133,6 +134,15 @@ def price_comparison(project: ProjectDep, db: DB) -> dict:
     if project.price_min is not None and project.price_max is not None:
         hyp = {"min": float(project.price_min), "max": float(project.price_max)}
     return {"rows": sorted(rows, key=lambda r: r["price"]), "usd_stats": stats, "price_hypothesis": hyp}
+
+
+@router.post("/projects/{project_id}/competitors/assign-tiers")
+def assign_tiers(project: ProjectDep, db: DB, user: CurrentUser, overwrite: bool = False) -> dict:
+    """Place competitors in the price tiers found by price-tier research, using their prices or matching listings."""
+    result = apply_to_competitors(db, project.id, overwrite=overwrite)
+    audit.record(db, "competitors.tiers_assigned", user_id=user.id, project_id=project.id, details=result)
+    db.commit()
+    return result
 
 
 @router.post("/projects/{project_id}/competitors/positioning")

@@ -224,3 +224,31 @@ def test_b2b_listing_evidence_uses_google_snippets(monkeypatch):
     obs, errors, calls = demand.b2b_listing_evidence(["knotted headband"])
     assert calls == 3 and seen[0] == "site:alibaba.com knotted headband"
     assert obs[0].url.startswith("https://www.alibaba.com/") and obs[0].excerpts == ["US$0.39 - 0.59. Min. order: 50 pieces. 5 yrs CN Supplier"]
+
+
+def test_competitor_tiers_from_price_tier_listings(authed, project, fake_llm, monkeypatch):
+    from app.db import SessionLocal
+    from app.models import AnalysisSnapshot, EvidenceSource, ResearchRun
+    from app.services.price_tiers import tier_for
+
+    tiers = [{"tier": "budget", "price_low": 5, "price_high": 9}, {"tier": "mid", "price_low": 10, "price_high": 12},
+             {"tier": "luxury", "price_low": 40, "price_high": 600}]
+    assert [tier_for(p, tiers) for p in (7, 9.5, 11, 25, 99, 2)] == ["budget", "budget", "mid", "mid", "luxury", "budget"]
+
+    pid = uuid.UUID(project["id"])
+    with SessionLocal() as db:
+        run = ResearchRun(project_id=pid, kind="price_tiers", status="completed", provider="anthropic_web_search", model="m", params={}, steps=[])
+        db.add(run)
+        db.flush()
+        db.add(EvidenceSource(project_id=pid, research_run_id=run.id, url="https://www.google.com/search?tbm=shop&q=x", provider="serpapi",
+                              source_type="api", excerpts=["Lele Sadoughi Woven Knotted Headband - $49.00 - Saks", "Generic band - $6.00 - Amazon"]))
+        db.add(AnalysisSnapshot(project_id=pid, kind="price_tiers", content={"research_run_id": str(run.id), "tiers": tiers}))
+        db.commit()
+    authed.post(f"/api/projects/{project['id']}/competitors", json={"name": "Lele Sadoughi"})
+    authed.post(f"/api/projects/{project['id']}/competitors", json={"name": "Nobody Brand"})
+    r = authed.post(f"/api/projects/{project['id']}/competitors/assign-tiers").json()
+    assert r == {"updated": 1, "prices_added": 1}
+    comps = {c["name"]: c for c in authed.get(f"/api/projects/{project['id']}/competitors").json()}
+    assert comps["Lele Sadoughi"]["price_tier"] == "luxury" and comps["Nobody Brand"]["price_tier"] in (None, "unknown")
+    obs = comps["Lele Sadoughi"]["products"][0]["price_observations"][0]
+    assert float(obs["price"]) == 49 and obs["verification_status"] == "source_linked"

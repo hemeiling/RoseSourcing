@@ -23,7 +23,7 @@ function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () 
   return (
     <nav className="flex h-full flex-col" aria-label="Main">
       <div className={clsx("flex items-center border-b border-line pb-4 pt-5", collapsed ? "flex-col gap-3 px-2" : "justify-between gap-2 px-4")}>
-        <Link href="/products" onClick={onNavigate} aria-label="RoseSourcing home"><BrandMark compact={collapsed} /></Link>
+        <Link href="/products" onClick={onNavigate} aria-label="136sourcing home"><BrandMark compact={collapsed} /></Link>
         {onToggle && (
           <button onClick={onToggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className="rounded-md p-1.5 text-primary-700 hover:bg-primary-50">
@@ -64,7 +64,7 @@ function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () 
                   title={p.name}
                   className={clsx(
                     "flex items-center gap-2 rounded-md text-[13.5px] transition-colors",
-                    collapsed ? "justify-center py-1.5" : "py-1.5 pl-9 pr-2",
+                    collapsed ? "justify-center py-1.5" : "px-3 py-1.5",
                     active ? "bg-primary-50 font-semibold text-primary-800" : "text-primary-700 hover:bg-primary-50",
                   )}
                   aria-current={active ? "page" : undefined}
@@ -74,6 +74,7 @@ function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () 
                       active ? "bg-primary-600 text-white" : "bg-primary-50 text-primary-700")}>{initials(p.name)}</span>
                   ) : (
                     <>
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary-300" aria-hidden />
                       <span className="min-w-0 flex-1 truncate">{p.name}</span>
                       {DECISION_LABEL[p.decision] && <span className="shrink-0 text-[10px] font-semibold text-primary-400">{DECISION_LABEL[p.decision]}</span>}
                     </>
@@ -109,7 +110,7 @@ function initials(name: string): string {
   return (words.slice(0, 2).map((w) => w[0]).join("") || name.slice(0, 2)).toUpperCase();
 }
 
-const COLLAPSE_KEY = "rosesourcing.sidebarCollapsed";
+const COLLAPSE_KEY = "136sourcing.sidebarCollapsed";
 
 function ProjectSwitcher() {
   const { projects, project, select } = useProjects();

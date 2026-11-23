@@ -49,6 +49,7 @@ from .. import demand
 from ..llm.anthropic_provider import get_llm
 from ..logistics import PackagingSpec, Shipment, channel_economics, compare_shipping
 from ..llm.base import LLMError, LLMNotConfigured, LLMRefusal, LLMUsage
+from ..price_tiers import apply_to_competitors as apply_tiers_to_competitors
 from ..research.providers import EvidenceBundle, SourceDoc, get_research_provider
 from ..unit_economics import UnitEconomicsInputs, calculate
 from .research_schemas import ChannelLogisticsPlan, CompliancePlan, ExtractedFinding, OpportunitySynthesis, StepExtraction
@@ -352,8 +353,8 @@ STEP_LABELS = {k: v["label"] for k, v in STEP_DEFS.items()} | {
 }
 SYNTHESIS_STEP = {"market_opportunity": "synthesis", "channels_logistics": "plan", "compliance": "compliance_plan"}
 STEP_AGENT = {"competitors": "competitor_intelligence", "channels": "commerce", "logistics": "sourcing", "demand_signals": "analytics",
-              "fit_charts": "fit", "fit_experience": "fit", "price_tiers": "competitor_intelligence",
-              "design_ip": "sourcing", "labeling": "sourcing", "uflpa": "sourcing", "supplier_listings": "sourcing"}
+              "fit_charts": "fit", "fit_experience": "fit", "price_tiers": "price_tier",
+              "design_ip": "compliance", "labeling": "compliance", "uflpa": "compliance", "supplier_listings": "supplier_sourcing"}
 
 
 # Each step asks for findings, gaps and only the record list it fills, with its own section choices. One schema with
@@ -605,6 +606,9 @@ def _persist_extraction(db, run: ResearchRun, step_key: str, bundle: EvidenceBun
     dropped_sizes = _persist_size_charts(db, run, bundle, ext, ref_to_id)
     dropped_prices += _persist_price_tiers(db, run, bundle, ext)
     dropped_prices += _persist_supplier_listings(db, run, bundle, ext)
+    if ext.price_tiers or ext.competitors:
+        db.flush()
+        apply_tiers_to_competitors(db, run.project_id)  # place competitors in the discovered tiers
 
     if ext.evidence_gaps or dropped_prices or dropped_fees or dropped_rates or dropped_sizes:
         gaps = list(ext.evidence_gaps)
@@ -1380,7 +1384,7 @@ def _run_compliance_plan(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
     prompt = (f"Business context:\n{context_block(ctx)}\nSuppliers on file: {ctx['suppliers']}\n\n=== FINDINGS ===\n" + ("\n".join(f_lines) or "(none)")
               + "\n\nWrite the compliance checklist (design/IP, labelling, forced labour/UFLPA, safety) and the supplier questions.")
     with session_scope() as db:
-        ex = start_execution(db, agent="sourcing", operation="compliance_checklist", project_id=project_id, user_id=user_id,
+        ex = start_execution(db, agent="compliance", operation="compliance_checklist", project_id=project_id, user_id=user_id,
                              model=llm.model, research_run_id=run_id, input_summary=f"{len(f_lines)} findings")
         ex_id = ex.id
     try:
@@ -1414,7 +1418,7 @@ def _run_compliance_plan(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
         ex = db.get(AgentExecution, ex_id)
         apply_usage(ex, usage)
         finish_execution(ex, output={"items": len(plan.items), "supplier_drafts": drafted})
-        audit.record(db, "compliance_checklist.created", user_id=user_id, project_id=project_id, actor="agent:sourcing",
+        audit.record(db, "compliance_checklist.created", user_id=user_id, project_id=project_id, actor="agent:compliance",
                      entity_type="analysis_snapshot", entity_id=snap.id, details={"supplier_drafts": drafted})
     _update_step(run_id, "compliance_plan", status="completed", finished_at=datetime.now(timezone.utc).isoformat())
 

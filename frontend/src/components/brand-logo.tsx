@@ -1,46 +1,41 @@
 import clsx from "clsx";
 
 /**
- * RoseSourcing mark: a compass rose. "Rose" from the name, and a compass for finding the right product to source.
- * Four long points (each split into a shaded and a lit half, like a drafted compass) over four short diagonal points.
+ * 136sourcing mark: a friendly parcel - the product you source - with a sparkle for the winning find.
+ * Humble flat shapes, a few cheerful colours, and a small smile.
  */
-export function RoseMark({ className, light }: { className?: string; light?: boolean }) {
-  const dark = light ? "#ffffff" : "#43246f";
-  const mid = light ? "rgba(255,255,255,0.72)" : "#6a48a3";
-  const soft = light ? "rgba(255,255,255,0.45)" : "#ae97d4";
-  const faint = light ? "rgba(255,255,255,0.28)" : "#cfc1e6";
+export function BoxMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 40 40" className={clsx("shrink-0", className)} aria-hidden>
-      <circle cx="20" cy="20" r="12.5" fill="none" stroke={faint} strokeWidth="1" />
-      {[45, 135, 225, 315].map((a) => (
-        <g key={a} transform={`rotate(${a} 20 20)`}>
-          <path d="M20 8.5 L18.3 18.3 L20 20 Z" fill={soft} />
-          <path d="M20 8.5 L21.7 18.3 L20 20 Z" fill={faint} />
-        </g>
-      ))}
-      {[0, 90, 180, 270].map((a) => (
-        <g key={a} transform={`rotate(${a} 20 20)`}>
-          <path d="M20 2 L16.7 16.7 L20 20 Z" fill={dark} />
-          <path d="M20 2 L23.3 16.7 L20 20 Z" fill={mid} />
-        </g>
-      ))}
-      <circle cx="20" cy="20" r="2.4" fill={light ? "#4e2a84" : "#ffffff"} stroke={dark} strokeWidth="1.4" />
+      <path d="M31 3.5 L32.1 6.9 L35.5 8 L32.1 9.1 L31 12.5 L29.9 9.1 L26.5 8 L29.9 6.9 Z" fill="#14a89b" />
+      <circle cx="8.5" cy="8" r="1.6" fill="#f25f8b" />
+      <circle cx="13" cy="4.5" r="1" fill="#ffc53d" />
+      <rect x="7" y="17" width="26" height="17.5" rx="4.5" fill="#ffd166" stroke="#4e2a84" strokeWidth="1.6" />
+      <rect x="5" y="12.2" width="30" height="7" rx="2.6" fill="#8b6cf0" stroke="#4e2a84" strokeWidth="1.6" />
+      <rect x="17.2" y="13" width="5.6" height="5.4" fill="#f25f8b" />
+      <circle cx="15.6" cy="24.6" r="1.45" fill="#2d2d2d" />
+      <circle cx="24.4" cy="24.6" r="1.45" fill="#2d2d2d" />
+      <path d="M17.4 27.6 Q20 30.4 22.6 27.6" fill="none" stroke="#2d2d2d" strokeWidth="1.5" strokeLinecap="round" />
+      <ellipse cx="12.6" cy="28" rx="1.7" ry="1.05" fill="#f25f8b" opacity="0.75" />
+      <ellipse cx="27.4" cy="28" rx="1.7" ry="1.05" fill="#f25f8b" opacity="0.75" />
     </svg>
   );
 }
 
-/** Mark plus wordmark: "Rose" set bold in purple, "Sourcing" in regular weight. */
+/** Mark plus wordmark: a colourful "136" and "sourcing" in plain lowercase. */
 export function BrandMark({ light, compact }: { light?: boolean; compact?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
-      <RoseMark className="h-9 w-9" light={light} />
+      <BoxMark className="h-10 w-10" />
       {!compact && (
         <div className="leading-none">
-          <div className={clsx("text-[21px] tracking-[-0.01em]", light ? "text-white" : "text-ink")}>
-            <span className={clsx("font-bold", light ? "text-white" : "text-primary-700")}>Rose</span>
-            <span className="font-normal">Sourcing</span>
+          <div className="text-[22px] font-bold tracking-[-0.015em]">
+            <span className={light ? "text-white" : "text-[#5b3bc9]"}>1</span>
+            <span className={light ? "text-[#ffc2d4]" : "text-[#e8467c]"}>3</span>
+            <span className={light ? "text-[#9ff0e6]" : "text-[#0f9e90]"}>6</span>
+            <span className={clsx("font-semibold", light ? "text-white" : "text-ink")}>sourcing</span>
           </div>
-          <div className={clsx("mt-1 text-[11px] font-medium", light ? "text-white/70" : "text-slate-500")}>Evidence-led launches</div>
+          <div className={clsx("mt-1 text-[11px] font-medium", light ? "text-white/75" : "text-slate-500")}>product research &amp; sourcing</div>
         </div>
       )}
     </div>
