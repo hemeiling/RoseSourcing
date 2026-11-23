@@ -72,7 +72,7 @@ function NumberInput({ id, value, onValue, pre, post }: { id: string; value: num
     setText((t) => (Number(t || 0) === value ? t : String(value)));
   }, [value]);
   return (
-    <div className="relative min-w-0 flex-1">
+    <div className="relative min-w-[5.5rem] flex-1">
       {pre && <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-slate-500" aria-hidden>{pre}</span>}
       <Input id={id} type="number" step="any" min={0} inputMode="decimal" className={clsx("h-9 w-full py-1.5", pre && "pl-7", post && "pr-8")} value={text}
         onFocus={(e) => e.target.select()}
@@ -463,16 +463,17 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
               <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2">
                 {g.fields.map((k) => (
                   <div key={k}>
-                    <label className="mb-0.5 block text-xs font-medium leading-snug text-slate-700" htmlFor={`in-${k}`} title={spec.descriptions[k]}>
-                      {FIELDS[k]?.label ?? spec.labels[k] ?? titleCase(k)}
-                      {FIELDS[k] && <span className="ml-1 font-normal text-slate-500">({FIELDS[k].unit})</span>}
+                    {/* Name on one line, unit on the next: every label is two lines, so the boxes in a row line up. */}
+                    <label className="mb-1 block leading-tight" htmlFor={`in-${k}`} title={spec.descriptions[k]}>
+                      <span className="block text-xs font-medium text-slate-700">{FIELDS[k]?.label ?? spec.labels[k] ?? titleCase(k)}</span>
+                      <span className="block text-[11px] text-slate-500">{FIELDS[k]?.unit ?? "\u00a0"}</span>
                     </label>
                     <div className="flex gap-1.5">
                       <NumberInput id={`in-${k}`} value={inputs[k]} pre={FIELDS[k]?.pre} post={FIELDS[k]?.post} onValue={(v) => setInputs((cur) => ({ ...cur, [k]: v }))} />
                       <select aria-label={`Source of ${spec.labels[k]}`} title="Where this number came from" value={basis[k] ?? "assumption"}
                         onChange={(e) => setBasis((b) => ({ ...b, [k]: e.target.value }))}
-                        className="h-9 w-[7rem] shrink-0 rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[11px] text-slate-600">
-                        {Object.entries(BASIS_META).map(([v, m]) => <option key={v} value={v}>{m.label}</option>)}
+                        className="h-9 w-[7.25rem] shrink-0 rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[11px] text-slate-600">
+                        {Object.entries(BASIS_META).map(([v, m]) => <option key={v} value={v} title={m.label}>{v === "sourced_research" ? "Research" : m.label}</option>)}
                       </select>
                     </div>
                     {recBy[k] && <Suggestion item={recBy[k]} current={inputs[k]} onUse={() => {
