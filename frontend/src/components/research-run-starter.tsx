@@ -4,7 +4,7 @@ import { Loader2, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ConfirmModal, RunStatusBadge, fmtCost, isActive } from "@/components/market/shared";
 import { useStatus } from "@/components/providers";
-import { Alert, Button, ConfigNotice, Field, Textarea } from "@/components/ui";
+import { Alert, Button, ConfigNotice, Field, Input } from "@/components/ui";
 import { ApiError, errorText, post } from "@/lib/api";
 import { parseUrls } from "@/lib/agents";
 import { useApi } from "@/lib/hooks";
@@ -64,23 +64,23 @@ export function ResearchRunStarter({ projectId, kind, label, approval, focusPlac
   }
 
   return (
-    <div className="space-y-3 rounded-lg border border-line bg-white p-4">
+    <div className="space-y-2.5 rounded-lg border border-line bg-white p-3">
       {status && !status.ai.configured && <ConfigNotice message={status.ai.requirement} />}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className={`grid flex-1 gap-3 ${keywordsPlaceholder ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
           {keywordsPlaceholder && (
             <Field label="Search phrases (optional)">
-              <Textarea rows={1} value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder={keywordsPlaceholder} />
+              <Input className="h-9 py-1.5" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder={keywordsPlaceholder} />
             </Field>
           )}
           <Field label="Focus (optional)">
-            <Textarea rows={1} value={focus} onChange={(e) => setFocus(e.target.value)} placeholder={focusPlaceholder} />
+            <Input className="h-9 py-1.5" value={focus} onChange={(e) => setFocus(e.target.value)} placeholder={focusPlaceholder} />
           </Field>
           <Field label="Pages to read (optional)">
-            <Textarea rows={1} value={pages} onChange={(e) => setPages(e.target.value)} placeholder="Paste links, one per line (up to 8)" />
+            <Input className="h-9 py-1.5" value={pages} onChange={(e) => setPages(e.target.value)} placeholder="Paste links, separated by spaces (up to 8)" />
           </Field>
         </div>
-        <Button onClick={() => setConfirm(true)} disabled={!!anyActive || (status ? !status.ai.configured : false)}
+        <Button className="h-9" onClick={() => setConfirm(true)} disabled={!!anyActive || (status ? !status.ai.configured : false)}
           title={anyActive ? "A research run is already in progress for this product" : undefined}>
           <Play className="h-4 w-4" /> {latest ? `Run again` : label}
         </Button>

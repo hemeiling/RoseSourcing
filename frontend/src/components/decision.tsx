@@ -4,9 +4,9 @@ import { CheckCircle2, CircleSlash, Gavel, PauseCircle, Sparkles, XCircle } from
 import { useState } from "react";
 import { Alert, Badge, Button, Card, CardBody, CardHeader, ConfigNotice, Field, Modal, Spinner, Textarea, type Tone } from "./ui";
 import { ApiError, errorText, post } from "@/lib/api";
-import { date, dateTime } from "@/lib/format";
+import { date, dateTime, money, pct } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import type { Decision, DecisionBriefContent, DecisionHistoryItem } from "@/lib/types";
+import type { Decision, DecisionBriefContent, DecisionHistoryItem, DecisionOffer } from "@/lib/types";
 
 export const DECISION_META: Record<Decision, { label: string; tone: Tone; icon: typeof CheckCircle2 }> = {
   go: { label: "Go", tone: "green", icon: CheckCircle2 },
@@ -77,16 +77,68 @@ export function DecisionModal({ projectId, open, onClose, onSaved, initial }: {
   );
 }
 
+const fmtPrice = (o: DecisionOffer) => o.price_low === null ? "Price not supported by the research yet"
+  : o.price_high && o.price_high !== o.price_low ? `${money(o.price_low)}–${money(o.price_high)}` : money(o.price_low);
+
+/** What the AI says to sell: price range and tier, materials, must-have features, first channel - with the margin the calculator gives. */
+function OfferView({ o }: { o: DecisionOffer }) {
+  return (
+    <div className="grid gap-3 rounded-lg border border-primary-200 bg-primary-50/60 p-3 text-sm sm:grid-cols-2">
+      <div>
+        <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Sell at</div>
+        <div className="font-semibold text-ink">{fmtPrice(o)}{o.price_tier !== "unknown" && <span className="font-normal text-slate-600"> · {o.price_tier} tier</span>}</div>
+        {o.economics?.map((e) => (
+          <div key={e.price} className="text-xs text-slate-600">
+            At {money(e.price)}: <b className={e.contribution_margin < 0 ? "text-red-700" : "text-green-700"}>{money(e.contribution_margin)}</b> per unit ({pct(e.contribution_margin_pct)})
+          </div>
+        ))}
+        {o.economics?.[0] && <div className="text-[11px] text-slate-500">Calculated with the costs in &apos;{o.economics[0].scenario}&apos;.</div>}
+        <p className="mt-1.5 text-slate-700">{o.positioning}</p>
+        <div className="mt-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Sell first on</div>
+        <div className="text-slate-800">{o.first_channel}</div>
+      </div>
+      <div>
+        <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Materials</div>
+        <ul className="list-disc space-y-0.5 pl-5 text-slate-700">{o.materials.map((m) => <li key={m}>{m}</li>)}</ul>
+        <div className="mt-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">Must-have features</div>
+        <ul className="list-disc space-y-0.5 pl-5 text-slate-700">{o.must_have_features.map((m) => <li key={m}>{m}</li>)}</ul>
+      </div>
+    </div>
+  );
+}
+
+/** One line for the top of a product report: the AI's call, its confidence and the offer, linking to the full brief. */
+export function AiRecommendationLine({ projectId }: { projectId: string }) {
+  const brief = useApi<{ id: string; created_at: string; content: DecisionBriefContent } | null>(`/api/projects/${projectId}/decision-brief`);
+  if (brief.loading && !brief.data) return null;
+  const c = brief.data?.content;
+  if (!c) return (
+    <p className="mt-2 text-sm text-slate-600">No AI recommendation yet. <a href="#decision" className="font-semibold text-primary-700 hover:underline">Get one in Overview</a> - it weighs all the research for this product.</p>
+  );
+  const rec = AI_REC_META[c.recommendation];
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-line bg-white px-3 py-2 text-sm">
+      <span className="font-semibold text-slate-500">AI recommendation</span>
+      <Badge tone={rec?.tone ?? "slate"}><Sparkles className="h-3 w-3" /> {rec?.label ?? c.recommendation}</Badge>
+      <span className="text-slate-700">{c.confidence_score !== undefined ? `${c.confidence_score}/100 confidence` : `${c.confidence} confidence`}</span>
+      {c.offer && <span className="text-slate-700">Sell at <b>{fmtPrice(c.offer)}</b>{c.offer.price_tier !== "unknown" ? ` (${c.offer.price_tier})` : ""}</span>}
+      {c.offer?.materials?.[0] && <span className="text-slate-700">in {c.offer.materials.slice(0, 2).join(", ")}</span>}
+      <a href="#decision" className="ml-auto font-semibold text-primary-700 hover:underline">See the brief</a>
+    </div>
+  );
+}
+
 function BriefView({ c }: { c: DecisionBriefContent }) {
   const rec = AI_REC_META[c.recommendation];
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={rec?.tone ?? "slate"}><Sparkles className="h-3 w-3" /> {rec?.label ?? c.recommendation}</Badge>
-        <Badge>{c.confidence} confidence</Badge>
+        <Badge>{c.confidence_score !== undefined ? `Confidence ${c.confidence_score}/100` : `${c.confidence} confidence`}</Badge>
         <span className="text-[11px] text-slate-400">AI recommendation · {c.generated_by?.model} · {dateTime(c.generated_by?.generated_at)}</span>
       </div>
-      <p className="font-serif text-lg font-semibold text-ink">{c.headline}</p>
+      <p className="text-base font-semibold text-ink">{c.headline}</p>
+      {c.offer && <OfferView o={c.offer} />}
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <h4 className="mb-1 text-xs font-bold uppercase tracking-wide text-emerald-700">For</h4>

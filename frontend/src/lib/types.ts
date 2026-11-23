@@ -662,6 +662,8 @@ export interface PipelineItem {
   image_url: string | null;
   attractiveness: string | null;
   ai_recommendation: "go" | "no_go" | "needs_more_evidence" | null;
+  ai_confidence?: "high" | "medium" | "low" | null;
+  ai_confidence_score?: number | null;
   ai_headline: string | null;
   contribution_margin: number | null;
   contribution_margin_pct: number | null;
@@ -672,9 +674,24 @@ export interface PipelineItem {
   updated_at: string;
 }
 
+export interface DecisionOffer {
+  price_low: number | null;
+  price_high: number | null;
+  price_tier: "budget" | "mid" | "premium" | "luxury" | "unknown";
+  positioning: string;
+  materials: string[];
+  must_have_features: string[];
+  first_channel: string;
+  finding_ids: string[];
+  economics?: { price: number; contribution_margin: number; contribution_margin_pct: number | null; scenario: string }[];
+}
+
 export interface DecisionBriefContent {
   recommendation: "go" | "no_go" | "needs_more_evidence";
   confidence: "high" | "medium" | "low";
+  /** 0-100; briefs written before the score existed have none. */
+  confidence_score?: number;
+  offer?: DecisionOffer;
   headline: string;
   reasons_for: { point: string; finding_ids: string[] }[];
   reasons_against: { point: string; finding_ids: string[] }[];

@@ -11,8 +11,8 @@ export type Tab = { id: TabId; title: string; route?: string; description?: stri
 
 export const SECTIONS: Tab[] = [
   { id: "overview", title: "Overview", parts: [
-    { id: "review", title: "What to improve", description: "What is missing or weak, and the research agents. Each item jumps to the part that fixes it." },
-    { id: "decision", title: "Decision & key numbers", route: "/dashboard", description: "Your go / no-go decision, key counts, open recommendations and recent activity." },
+    { id: "decision", title: "AI recommendation & decision", route: "/dashboard", description: "The AI's go / no-go call with a confidence score, the price range, materials and first channel it recommends, and your decision." },
+    { id: "review", title: "To-dos", description: "What is still missing or weak for this product, and the research agents that fill it. Each item jumps to the part that fixes it." },
   ] },
   { id: "market", title: "Market & demand", parts: [
     { id: "research", title: "Market research", route: "/market", description: "Demand, market size, customers, competitors, sourcing and risks - every finding linked to its source." },

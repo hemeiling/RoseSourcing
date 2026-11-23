@@ -85,7 +85,7 @@ export function ListingTrackerSection({ projectId, onLogged }: { projectId: stri
               <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by platform">
                 {[["all", t.listings.length] as const, ...Object.entries(t.by_platform).sort((a, b) => b[1] - a[1])].map(([p, n]) => (
                   <button key={p} onClick={() => setPlatform(p)} aria-pressed={platform === p}
-                    className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${platform === p ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-700 hover:border-primary-300"}`}>
+                    className={`rounded-md border px-2.5 py-0.5 text-xs font-semibold ${platform === p ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-700 hover:border-primary-300"}`}>
                     {p === "all" ? "All" : p} · {n}
                   </button>
                 ))}
@@ -172,7 +172,7 @@ export function ReviewInsightsSection({ projectId }: { projectId: string }) {
               <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by complaint">
                 {["all", ...c.themes.map((t) => t.tag)].map((x) => (
                   <button key={x} onClick={() => setTag(x)} aria-pressed={tag === x}
-                    className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${tag === x ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-700 hover:border-primary-300"}`}>
+                    className={`rounded-md border px-2.5 py-0.5 text-xs font-semibold ${tag === x ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-700 hover:border-primary-300"}`}>
                     {x === "all" ? "All" : titleCase(x)}
                   </button>
                 ))}

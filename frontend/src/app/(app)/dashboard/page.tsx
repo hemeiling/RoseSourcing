@@ -209,7 +209,7 @@ function DashboardView({ projectId }: { projectId: string }) {
                 <p className="px-5 py-4 text-sm text-slate-500">No activity yet.</p>
               ) : (
                 <ul className="divide-y divide-slate-100">
-                  {data.recent_activity.map((a, i) => (
+                  {data.recent_activity.slice(0, 6).map((a, i) => (
                     <li key={i} className="flex items-center justify-between gap-2 px-5 py-2 text-xs">
                       <span className="text-slate-700">{titleCase(a.action.replace(".", " "))}</span>
                       <span className="shrink-0 text-slate-400">{a.actor.startsWith("agent:") ? "AI · " : ""}{ago(a.created_at)}</span>

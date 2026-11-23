@@ -22,14 +22,16 @@ export function Button({
       {...rest}
       disabled={disabled || loading}
       className={clsx(
-        "inline-flex items-center justify-center gap-1.5 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50",
+        "inline-flex items-center justify-center gap-1.5 rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50",
         variant !== "ghost" && "font-semibold",
         variant === "ghost" && "font-medium",
         size === "sm" ? "min-h-8 px-3 py-1.5 text-[11px]" : "min-h-10 px-4 py-2 text-[13px]",
-        variant === "primary" && "bg-primary-600 text-white hover:bg-primary-700",
-        variant === "secondary" && "border-2 border-primary-600 bg-white text-primary-700 hover:bg-primary-600 hover:text-white",
-        variant === "ghost" && "text-slate-600 hover:bg-slate-100 hover:text-ink",
-        variant === "danger" && "border-2 border-red-700 bg-white text-red-700 hover:bg-red-700 hover:text-white",
+        // Every variant has the same 1px border so all buttons are the same thickness and height.
+        "border",
+        variant === "primary" && "border-primary-600 bg-primary-600 text-white hover:border-primary-700 hover:bg-primary-700",
+        variant === "secondary" && "border-primary-600 bg-white text-primary-700 hover:bg-primary-600 hover:text-white",
+        variant === "ghost" && "border-transparent text-slate-600 hover:bg-slate-100 hover:text-ink",
+        variant === "danger" && "border-red-700 bg-white text-red-700 hover:bg-red-700 hover:text-white",
         className,
       )}
     >
@@ -45,7 +47,7 @@ export function Card({ className, children }: { className?: string; children: Re
 
 export function CardHeader({ title, subtitle, actions, icon }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; icon?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-3">
       <div className="min-w-0">
         <h2 className="flex items-center gap-2 text-base font-semibold leading-snug text-ink">
           {icon && <span className="shrink-0 text-primary-600">{icon}</span>}
@@ -59,7 +61,7 @@ export function CardHeader({ title, subtitle, actions, icon }: { title: ReactNod
 }
 
 export function CardBody({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={clsx("px-5 py-4", className)}>{children}</div>;
+  return <div className={clsx("px-5 py-3", className)}>{children}</div>;
 }
 
 const tones = {
@@ -256,7 +258,7 @@ export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { valu
 
 export function StatCard({ label, value, hint, icon }: { label: string; value: ReactNode; hint?: ReactNode; icon?: ReactNode }) {
   return (
-    <Card className="min-w-0 border-t-4 border-t-brand-600 px-4 py-3.5">
+    <Card className="min-w-0 border-t-2 border-t-primary-300 px-4 py-2.5">
       <div className="flex items-start justify-between gap-2">
         <span className="min-w-0 text-[11px] font-bold uppercase tracking-[0.06em] text-slate-500">{label}</span>
         {icon && <span className="shrink-0 text-brand-400">{icon}</span>}

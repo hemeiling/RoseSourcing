@@ -1,13 +1,13 @@
 "use client";
 
-import { ImageIcon, Loader2 } from "lucide-react";
+import { ImageIcon, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { AI_REC_META, DecisionBadge, DecisionModal, DECISION_META } from "@/components/decision";
 import { ProductSnap } from "@/components/product-snap";
 import { useProjects } from "@/components/providers";
 import { Alert, Badge, Button, Card, CardBody, EmptyState, PageHeader, Spinner } from "@/components/ui";
-import { errorText } from "@/lib/api";
+import { del, errorText } from "@/lib/api";
 import { ago, money, pct, titleCase } from "@/lib/format";
 import { useApi, usePolling } from "@/lib/hooks";
 import { productHref, type SectionId } from "@/lib/sections";
@@ -29,6 +29,13 @@ export default function ProductsPage() {
   const [deciding, setDeciding] = useState<PipelineItem | null>(null);
   const running = (data ?? []).some((p) => p.latest_run && ["queued", "running"].includes(p.latest_run.status));
   usePolling(reload, 5000, running);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  async function remove(p: PipelineItem) {
+    if (!window.confirm(`Delete "${p.name}"?\n\nThis permanently removes its research, competitors, suppliers, scenarios and decisions. It cannot be undone.`)) return;
+    setDeleteError(null);
+    try { await del(`/api/projects/${p.id}`); reload(); reloadProjects(); }
+    catch (e) { setDeleteError(errorText(e)); }
+  }
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: data?.length ?? 0 };
@@ -50,12 +57,13 @@ export default function ProductsPage() {
       <div className="mb-4 flex flex-wrap gap-2">
         {FILTERS.map((f) => (
           <button key={f.value} onClick={() => setFilter(f.value)}
-            className={`rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-wide ${filter === f.value ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-600 hover:border-brand-300"}`}>
+            className={`rounded-md border px-3 py-1 text-xs font-bold uppercase tracking-wide ${filter === f.value ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-600 hover:border-brand-300"}`}>
             {f.label} <span className="ml-1 opacity-70">{counts[f.value] ?? 0}</span>
           </button>
         ))}
       </div>
       {error && <Alert tone="red">{errorText(error)}</Alert>}
+      {deleteError && <Alert tone="red">{deleteError}</Alert>}
       {loading && !data ? <Spinner /> : rows.length === 0 ? (
         <Card><EmptyState icon={<ImageIcon className="h-5 w-5" />} title={filter === "all" ? "No products yet" : `No ${DECISION_META[filter as Decision]?.label ?? ""} products`}>
           Snap a product photo above, or create a project for a category in Business Projects.
@@ -78,7 +86,14 @@ export default function ProductsPage() {
                     <p className="break-words text-xs text-slate-500">{p.category} · {p.target_country}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <DecisionBadge decision={p.decision} />
-                      {rec && <Badge tone={rec.tone}>{rec.label}</Badge>}
+                      {rec ? (
+                        <Badge tone={rec.tone} title={p.ai_headline ?? undefined}><Sparkles className="h-3 w-3" aria-hidden /> AI: {rec.label}
+                          {p.ai_confidence_score != null ? ` · ${p.ai_confidence_score}/100` : p.ai_confidence ? ` · ${p.ai_confidence} confidence` : ""}</Badge>
+                      ) : (
+                        <button onClick={() => open(p, "decision")} className="rounded-md border border-dashed border-line px-2 py-0.5 text-[11px] text-slate-500 hover:border-primary-300 hover:text-primary-700">
+                          AI: not assessed yet
+                        </button>
+                      )}
                       {p.attractiveness && <Badge tone="slate">Market: {titleCase(p.attractiveness)}</Badge>}
                     </div>
                   </div>
@@ -102,7 +117,9 @@ export default function ProductsPage() {
                   <div className="flex flex-wrap gap-2 pt-1">
                     <Button size="sm" onClick={() => setDeciding(p)}>Decide</Button>
                     <Button size="sm" variant="secondary" onClick={() => open(p, "market")}>Research</Button>
-                    <Button size="sm" variant="ghost" onClick={() => open(p, "review")}>What to improve</Button>
+                    <Button size="sm" variant="ghost" onClick={() => open(p, "review")} title="What is still missing or weak for this product">To-dos</Button>
+                    <Button size="sm" variant="ghost" className="ml-auto text-slate-500 hover:bg-red-50 hover:text-red-700" onClick={() => remove(p)}
+                      aria-label={`Delete ${p.name}`}><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
                   </div>
                 </CardBody>
               </Card>

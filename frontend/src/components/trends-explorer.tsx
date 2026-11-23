@@ -199,7 +199,7 @@ export function TrendsExplorer({ projectId }: { projectId: string }) {
               <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Phrase">
                 {data.terms.map((t, i) => (
                   <button key={t} role="tab" aria-selected={relTerm === t} onClick={() => setRelTerm(t)}
-                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${relTerm === t ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-700 hover:border-primary-300"}`}>
+                    className={`flex items-center gap-1.5 rounded-md border px-3 py-1 text-xs font-semibold ${relTerm === t ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-700 hover:border-primary-300"}`}>
                     <span className="h-2 w-2 rounded-full" style={{ background: COLORS[i] }} aria-hidden />{t}
                   </button>
                 ))}

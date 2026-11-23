@@ -55,6 +55,8 @@ def pipeline(db: DB, user: CurrentUser) -> list[dict]:
             "attractiveness": opp.attractiveness if opp else None,
             "ai_recommendation": (brief.content or {}).get("recommendation") if brief else None,
             "ai_headline": (brief.content or {}).get("headline") if brief else None,
+            "ai_confidence": (brief.content or {}).get("confidence") if brief else None,
+            "ai_confidence_score": (brief.content or {}).get("confidence_score") if brief else None,
             "contribution_margin": (sc.results or {}).get("contribution_margin") if sc else None,
             "contribution_margin_pct": (sc.results or {}).get("contribution_margin_pct") if sc else None,
             "scenario_type": sc.scenario_type if sc else None,

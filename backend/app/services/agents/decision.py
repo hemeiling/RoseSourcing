@@ -41,10 +41,25 @@ class KeyNumber(BaseModel):
     basis: Literal["sourced", "computed_from_assumptions", "supplier_quote", "ai_inference"]
 
 
+class Offer(BaseModel):
+    """What to sell: the product the research supports, at what price, made of what."""
+    price_low: float | None = Field(description="Lower end of the recommended retail price (USD); null if the research cannot support one")
+    price_high: float | None = Field(description="Upper end of the recommended retail price (USD)")
+    price_tier: Literal["budget", "mid", "premium", "luxury", "unknown"]
+    positioning: str = Field(description="One sentence: who it is for and how it differs from the competitors found")
+    materials: list[str] = Field(description="Materials and construction the research supports (from price tiers, listings, reviews, spec sheet)")
+    must_have_features: list[str] = Field(description="Features that answer the complaints and needs in the research")
+    first_channel: str = Field(description="Where to sell first, per the channel research")
+    finding_refs: list[str]
+
+
 class DecisionBrief(BaseModel):
     recommendation: Literal["go", "no_go", "needs_more_evidence"]
     confidence: Literal["high", "medium", "low"]
+    confidence_score: int = Field(ge=0, le=100, description="0-100: how sure the recommendation is, given how complete and well-sourced "
+                                                             "the evidence is (unverified duty, no supplier quotes or untested demand lower it)")
     headline: str
+    offer: Offer
     reasons_for: list[BriefPoint]
     reasons_against: list[BriefPoint]
     key_numbers: list[KeyNumber] = Field(description="Only numbers present in the inputs; label assumptions as such")
@@ -59,6 +74,8 @@ Weigh the stored evidence honestly. Rules:
 - Cite findings by F-ref. Distinguish sourced evidence from AI inference and assumptions.
 - Use only numbers that appear in the inputs; computed unit economics rest on assumptions unless marked as quotes/actuals.
 - If key evidence is missing (demand, margins, supplier quotes), recommend "needs_more_evidence" and name the cheapest test.
+- Always give the offer the research supports: a price range inside a price tier the evidence shows, the materials and features
+  that answer buyers' needs and complaints, and the first channel. The calculator checks the margin at your prices.
 - Be direct. The founder makes the final call; you give a recommendation with reasons for and against."""
 
 
@@ -83,6 +100,48 @@ def evidence_snapshot(db: Session, project: BusinessProject) -> dict[str, Any]:
         "suppliers": db.scalar(select(func.count(Supplier.id)).where(Supplier.project_id == pid)) or 0,
         "taken_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _latest(db: Session, pid, kind: str) -> AnalysisSnapshot | None:
+    return db.scalars(select(AnalysisSnapshot).where(AnalysisSnapshot.project_id == pid, AnalysisSnapshot.kind == kind)
+                      .order_by(AnalysisSnapshot.created_at.desc())).first()
+
+
+def _product_research(db: Session, project: BusinessProject) -> list[str]:
+    """Price tiers, tracked listings, review complaints, the spec sheet and recommended numbers - what the offer rests on."""
+    out: list[str] = []
+    if (t := _latest(db, project.id, "price_tiers")):
+        out.append("=== PRICE TIERS ===\n" + "\n".join(
+            f"- {x.get('tier')}: ${x.get('price_low')}-${x.get('price_high')}; quality: {'; '.join(x.get('materials_and_quality') or [])}; "
+            f"buyers want: {'; '.join(x.get('customer_needs') or [])}; complaints: {'; '.join(x.get('complaints') or [])}"
+            for x in t.content.get("tiers") or []))
+    if (lt := _latest(db, project.id, "listing_tracker")) and lt.content.get("listings"):
+        out.append("=== COMPARABLE LISTINGS ===\n" + "\n".join(
+            f"- {r['platform']} ${r['price']:.2f}, {r.get('rating') or '-'} stars ({r.get('reviews') or 0} reviews): {r['title'][:90]}"
+            for r in lt.content["listings"][:15]))
+    if (rv := _latest(db, project.id, "review_insights")):
+        out.append("=== LOW-STAR REVIEW COMPLAINTS ===\n" + "\n".join(
+            f"- {x['tag']} ({x['count']}): {x['summary']} Fix: {x['fix']}" for x in rv.content.get("themes") or []))
+    if (sp := _latest(db, project.id, "spec_sheet")):
+        out.append("=== SPEC SHEET DRAFT ===\nMaterials: " + "; ".join(sp.content.get("materials") or [])
+                   + "\nQuality requirements: " + "; ".join(sp.content.get("quality_requirements") or []))
+    if (ue := _latest(db, project.id, "ue_recommendation")):
+        out.append(f"=== RECOMMENDED NUMBERS ===\n{ue.content.get('summary')} {ue.content.get('price_note') or ''}")
+    return out
+
+
+def _economics_at(sc: CostScenario | None, prices: list[float | None]) -> list[dict[str, Any]]:
+    """Contribution per unit at the recommended prices, from the latest saved scenario's costs (the calculator, not the AI)."""
+    if sc is None:
+        return []
+    from ..unit_economics import UnitEconomicsInputs, calculate
+
+    rows = []
+    for p in dict.fromkeys(x for x in prices if x):
+        r = calculate(UnitEconomicsInputs(**{**(sc.inputs or {}), "retail_price": p}))
+        rows.append({"price": p, "contribution_margin": r["contribution_margin"], "contribution_margin_pct": r["contribution_margin_pct"],
+                     "scenario": sc.name})
+    return rows
 
 
 def generate(db: Session, project: BusinessProject, user: User) -> tuple[DecisionBrief, AnalysisSnapshot]:
@@ -120,6 +179,7 @@ def generate(db: Session, project: BusinessProject, user: User) -> tuple[Decisio
     if channels["rows"]:
         parts.append("=== CHANNEL ECONOMICS ===\n" + "\n".join(
             f"- {c['name']} (fees {c['fee_basis']}): contribution {c['contribution_margin']} per unit" for c in channels["rows"][:5]))
+    parts += _product_research(db, project)
     if history:
         parts.append("=== PREVIOUS DECISIONS ===\n" + "\n".join(f"- {h.created_at:%Y-%m-%d}: {h.decision} - {h.note or ''}" for h in history))
 
@@ -139,6 +199,8 @@ def generate(db: Session, project: BusinessProject, user: User) -> tuple[Decisio
     for key in ("reasons_for", "reasons_against"):
         for p in content[key]:
             p["finding_ids"] = [str(fmap[r].id) for r in p.pop("finding_refs") if r in fmap]
+    content["offer"]["finding_ids"] = [str(fmap[r].id) for r in content["offer"].pop("finding_refs") if r in fmap]
+    content["offer"]["economics"] = _economics_at(sc, [brief.offer.price_low, brief.offer.price_high])
     content["generated_by"] = {"model": usage.model or llm.model, "generated_at": datetime.now(timezone.utc).isoformat()}
     snap = AnalysisSnapshot(project_id=pid, kind="decision_brief", content=content, agent_execution_id=ex.id)
     db.add(snap)

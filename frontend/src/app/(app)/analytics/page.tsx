@@ -44,7 +44,7 @@ const FIELDS: Record<string, { label: string; unit: string; pre?: string; post?:
   factory_cost: { label: "Factory cost", unit: "USD per unit", pre: "$" },
   freight_per_unit: { label: "International freight", unit: "USD per unit", pre: "$" },
   shipment_fixed_costs: { label: "Fixed cost per shipment", unit: "USD per shipment", pre: "$" },
-  units_per_shipment: { label: "Units per shipment", unit: "units (0 = the MOQ)", post: "units" },
+  units_per_shipment: { label: "Units per shipment", unit: "units (0 = the MOQ)" },
   duty_rate_pct: { label: "Customs duty", unit: "% of factory cost", post: "%" },
   import_clearance_per_unit: { label: "Import clearance", unit: "USD per unit", pre: "$" },
   packaging_per_unit: { label: "Packaging", unit: "USD per unit", pre: "$" },
@@ -53,14 +53,14 @@ const FIELDS: Record<string, { label: string; unit: string; pre?: string; post?:
   payment_fee_fixed: { label: "Payment fee, fixed", unit: "USD per order", pre: "$" },
   channel_commission_pct: { label: "Channel commission", unit: "% of the sale price", post: "%" },
   channel_fee_per_order: { label: "Channel fee", unit: "USD per order", pre: "$" },
-  units_per_order: { label: "Units per order", unit: "units", post: "units" },
+  units_per_order: { label: "Units per order", unit: "units" },
   marketing_cac: { label: "Marketing cost (CAC)", unit: "USD per order", pre: "$" },
   return_rate_pct: { label: "Return rate", unit: "% of units sold", post: "%" },
   return_cost_per_unit: { label: "Return cost", unit: "USD per returned unit", pre: "$" },
   unsellable_return_pct: { label: "Unsellable returns", unit: "% of returned units", post: "%" },
   monthly_fixed_costs: { label: "Monthly fixed costs", unit: "USD per month", pre: "$" },
   initial_investment: { label: "Initial investment", unit: "USD in total", pre: "$" },
-  moq: { label: "Supplier MOQ", unit: "units", post: "units" },
+  moq: { label: "Supplier MOQ", unit: "units" },
   sample_costs: { label: "Sample costs", unit: "USD in total", pre: "$" },
 };
 
@@ -74,7 +74,7 @@ function NumberInput({ id, value, onValue, pre, post }: { id: string; value: num
   return (
     <div className="relative min-w-0 flex-1">
       {pre && <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-slate-500" aria-hidden>{pre}</span>}
-      <Input id={id} type="number" step="any" min={0} inputMode="decimal" className={clsx("w-full", pre && "pl-7", post && (post.length > 1 ? "pr-14" : "pr-8"))} value={text}
+      <Input id={id} type="number" step="any" min={0} inputMode="decimal" className={clsx("h-9 w-full py-1.5", pre && "pl-7", post && "pr-8")} value={text}
         onFocus={(e) => e.target.select()}
         onChange={(e) => { setText(e.target.value); const n = Number(e.target.value); onValue(e.target.value === "" || !Number.isFinite(n) ? 0 : n); }} />
       {post && <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-slate-500" aria-hidden>{post}</span>}
@@ -384,6 +384,27 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
     onLoaded();
   }, [loadId, scenarios, spec.defaults, onLoaded]);
 
+  // Open with this product's own numbers: its latest saved scenario (research-based when market research saved one),
+  // otherwise the numbers recommended from its research. Example values are used only when neither exists.
+  const [source, setSource] = useState<"scenario" | "recommended" | "example">("example");
+  const autoLoaded = useRef(false);
+  useEffect(() => {
+    if (autoLoaded.current || loadId || editing || rec.loading) return;
+    const s = scenarios[0];
+    if (s) {
+      autoLoaded.current = true;
+      setInputs({ ...spec.defaults, ...s.inputs });
+      setBasis({ ...Object.fromEntries(Object.keys(spec.defaults).map((k) => [k, "assumption"])), ...s.input_basis });
+      setEditing(s); setName(s.name); setStype(s.scenario_type); setNotes(s.notes ?? "");
+      setSource("scenario");
+    } else if (rec.data) {
+      autoLoaded.current = true;
+      applyAll();
+      setSource("recommended");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenarios, rec.data, rec.loading, loadId, editing]);
+
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
@@ -431,16 +452,18 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
             </>
           }
         />
-        <CardBody className="space-y-5">
-          {!editing && <Alert tone="blue">{spec.note}</Alert>}
+        <CardBody className="space-y-4">
+          {!editing && (source === "recommended"
+            ? <Alert tone="blue">Showing the numbers recommended from this product&apos;s research. Save them as a scenario to use them in the other tabs.</Alert>
+            : <Alert tone="blue">No saved numbers for this product yet, so these are example values. Click <b>Recommend numbers</b> to fill them from its research, or run market research first.</Alert>)}
           <RecommendPanel rec={rec.data} busy={recBusy} error={recError} onRun={runRecommend} onUseAll={applyAll} />
           {GROUPS.map((g) => (
             <fieldset key={g.title}>
-              <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{g.title}</legend>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <legend className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{g.title}</legend>
+              <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2">
                 {g.fields.map((k) => (
                   <div key={k}>
-                    <label className="mb-1 block text-xs font-medium text-slate-700" htmlFor={`in-${k}`} title={spec.descriptions[k]}>
+                    <label className="mb-0.5 block text-xs font-medium leading-snug text-slate-700" htmlFor={`in-${k}`} title={spec.descriptions[k]}>
                       {FIELDS[k]?.label ?? spec.labels[k] ?? titleCase(k)}
                       {FIELDS[k] && <span className="ml-1 font-normal text-slate-500">({FIELDS[k].unit})</span>}
                     </label>
@@ -448,7 +471,7 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
                       <NumberInput id={`in-${k}`} value={inputs[k]} pre={FIELDS[k]?.pre} post={FIELDS[k]?.post} onValue={(v) => setInputs((cur) => ({ ...cur, [k]: v }))} />
                       <select aria-label={`Source of ${spec.labels[k]}`} title="Where this number came from" value={basis[k] ?? "assumption"}
                         onChange={(e) => setBasis((b) => ({ ...b, [k]: e.target.value }))}
-                        className="w-[7.5rem] shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-1.5 text-[11px] text-slate-600">
+                        className="h-9 w-[7rem] shrink-0 rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[11px] text-slate-600">
                         {Object.entries(BASIS_META).map(([v, m]) => <option key={v} value={v}>{m.label}</option>)}
                       </select>
                     </div>

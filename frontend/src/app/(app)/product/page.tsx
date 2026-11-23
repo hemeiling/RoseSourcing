@@ -5,7 +5,7 @@ import { AlertTriangle, ArrowRight, Bot, ChevronDown, ChevronsDownUp, ChevronsUp
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { DecisionBadge } from "@/components/decision";
+import { AiRecommendationLine, DecisionBadge } from "@/components/decision";
 import { RunStatusBadge, fmtCost } from "@/components/market/shared";
 import { ListingTrackerSection, ReviewInsightsSection } from "@/components/listing-insights";
 import { OutreachSection } from "@/components/outreach";
@@ -279,42 +279,44 @@ function ProductReport({ id }: { id: string }) {
     <div onClickCapture={onClickCapture}>
       <div className="mb-4">
         <Link href="/products" className="text-xs font-semibold text-primary-700 hover:underline">← All products</Link>
-        <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-semibold leading-tight text-ink sm:text-[1.75rem]">{project.name}</h1>
-            <p className="mt-1 text-[15px] text-slate-600">
-              {project.product_category} · {project.target_country}{project.sourcing_country ? ` · sourcing from ${project.sourcing_country}` : ""}
-              {project.budget_usd !== null ? ` · budget ${money(project.budget_usd, { decimals: 0 })}` : ""}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2"><DecisionBadge decision={project.decision} /></div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link href="/copilot"><Button variant="secondary"><Bot className="h-4 w-4" /> Ask the copilot</Button></Link>
-            <Link href="/projects"><Button variant="ghost"><Pencil className="h-4 w-4" /> Edit details</Button></Link>
+        {/* Title row: name and actions share the top line; the facts and decision sit underneath, all on one left edge. */}
+        <div className="mt-2 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <h1 className="min-w-0 text-2xl font-semibold leading-tight text-ink sm:text-[1.75rem]">{project.name}</h1>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Link href="/copilot"><Button size="sm" variant="secondary"><Bot className="h-3.5 w-3.5" /> Ask the copilot</Button></Link>
+            <Link href="/projects"><Button size="sm" variant="ghost"><Pencil className="h-3.5 w-3.5" /> Edit details</Button></Link>
           </div>
         </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-slate-600">
+          <DecisionBadge decision={project.decision} />
+          <span>
+            {project.product_category} · {project.target_country}{project.sourcing_country ? ` · sourcing from ${project.sourcing_country}` : ""}
+            {project.budget_usd !== null ? ` · budget ${money(project.budget_usd, { decimals: 0 })}` : ""}
+          </span>
+        </div>
+        <AiRecommendationLine projectId={id} />
       </div>
 
       <nav aria-label="Report sections" className="z-10 -mx-4 mb-6 border-b border-line bg-canvas/95 px-4 py-2 backdrop-blur sm:sticky sm:top-14 sm:-mx-6 sm:px-6">
-        {/* Chips wrap onto more rows rather than scrolling out of view. */}
-        <ul className="flex flex-wrap gap-1.5">
-          {SECTIONS.map((s) => (
-            <li key={s.id}>
-              <a href={`#${s.id}`} onClick={(e) => { e.preventDefault(); jump(s.id); }} aria-current={active === s.id ? "true" : undefined}
-                className={clsx("block rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
-                  active === s.id ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-700 hover:border-primary-300 hover:text-primary-700")}>
-                {s.title}
-              </a>
-            </li>
-          ))}
-          <li className="ml-auto">
-            <button type="button" onClick={() => saveFolded(allFolded ? new Set() : new Set(SECTIONS.map((s) => s.id)))}
-              className="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-50">
-              {allFolded ? <ChevronsUpDown className="h-3.5 w-3.5" aria-hidden /> : <ChevronsDownUp className="h-3.5 w-3.5" aria-hidden />}
-              {allFolded ? "Unfold all" : "Fold all"}
-            </button>
-          </li>
-        </ul>
+        {/* Tabs wrap onto more rows rather than scrolling out of view; Fold all stays on the first row, top right. */}
+        <div className="flex items-start gap-3">
+          <ul className="flex flex-1 flex-wrap gap-1.5">
+            {SECTIONS.map((s) => (
+              <li key={s.id}>
+                <a href={`#${s.id}`} onClick={(e) => { e.preventDefault(); jump(s.id); }} aria-current={active === s.id ? "true" : undefined}
+                  className={clsx("block rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors",
+                    active === s.id ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-700 hover:border-primary-300 hover:text-primary-700")}>
+                  {s.title}
+                </a>
+              </li>
+            ))}
+          </ul>
+          <button type="button" onClick={() => saveFolded(allFolded ? new Set() : new Set(SECTIONS.map((s) => s.id)))}
+            className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-50">
+            {allFolded ? <ChevronsUpDown className="h-3.5 w-3.5" aria-hidden /> : <ChevronsDownUp className="h-3.5 w-3.5" aria-hidden />}
+            {allFolded ? "Unfold all" : "Fold all"}
+          </button>
+        </div>
       </nav>
 
       {/* A compact list of tabs: a folded tab is one row (title + what is inside); an open tab shows its parts. */}

@@ -142,6 +142,8 @@ def test_decisions_and_brief(authed, project, fake_llm):
     pid = project["id"]
     b = authed.post(f"/api/projects/{pid}/decision-brief")
     assert b.status_code == 200 and b.json()["content"]["recommendation"] == "go"  # first literal from the fake
+    c = b.json()["content"]
+    assert 0 <= c["confidence_score"] <= 100 and "materials" in c["offer"] and "economics" in c["offer"]
     authed.post(f"/api/projects/{pid}/decision", json={"decision": "on_hold", "note": "waiting for samples"})
     authed.post(f"/api/projects/{pid}/decision", json={"decision": "go", "note": "samples approved"})
     hist = authed.get(f"/api/projects/{pid}/decisions").json()
