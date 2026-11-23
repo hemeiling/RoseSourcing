@@ -26,7 +26,7 @@ export function Button({
         variant !== "ghost" && "font-semibold",
         variant === "ghost" && "font-medium",
         // One height and text size for every button; "sm" only trims the side padding.
-        "h-9 py-1.5 text-xs",
+        "h-8 py-1 text-xs",
         size === "sm" ? "px-3" : "px-4",
         // Every variant has the same 1px border so all buttons are the same thickness and height.
         "border",

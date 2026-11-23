@@ -70,14 +70,14 @@ export function ResearchRunStarter({ projectId, kind, label, approval, focusPlac
         <div className={`grid flex-1 gap-3 ${keywordsPlaceholder ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
           {keywordsPlaceholder && (
             <Field label="Search phrases (optional)">
-              <Input className="h-9 py-1.5" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder={keywordsPlaceholder} />
+              <Input className="h-8 py-1" value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder={keywordsPlaceholder} />
             </Field>
           )}
           <Field label="Focus (optional)">
-            <Input className="h-9 py-1.5" value={focus} onChange={(e) => setFocus(e.target.value)} placeholder={focusPlaceholder} />
+            <Input className="h-8 py-1" value={focus} onChange={(e) => setFocus(e.target.value)} placeholder={focusPlaceholder} />
           </Field>
           <Field label="Pages to read (optional)">
-            <Input className="h-9 py-1.5" value={pages} onChange={(e) => setPages(e.target.value)} placeholder="Paste links, separated by spaces (up to 8)" />
+            <Input className="h-8 py-1" value={pages} onChange={(e) => setPages(e.target.value)} placeholder="Paste links, separated by spaces (up to 8)" />
           </Field>
         </div>
         <Button onClick={() => setConfirm(true)} disabled={!!anyActive || (status ? !status.ai.configured : false)}

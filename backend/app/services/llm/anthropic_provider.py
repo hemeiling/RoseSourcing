@@ -95,7 +95,9 @@ class AnthropicProvider:
         try:
             return fn(**kwargs)
         except anthropic.AuthenticationError as e:
-            raise LLMNotConfigured(f"Anthropic rejected the API key: {e.message}") from e
+            log.warning("Anthropic rejected the API key: %s", e.message)
+            raise LLMNotConfigured("The AI key on the server is not valid any more (Anthropic rejected it). Create a new key in the "
+                                   "Anthropic Console and set it as ANTHROPIC_API_KEY in Render > Environment; nothing was charged.") from e
         except anthropic.BadRequestError as e:
             # A model or account that doesn't support the fallback beta: retry once without it.
             if "fallback" in str(e.message).lower() and "fallbacks" in kwargs:
