@@ -3,6 +3,7 @@
 import { ArrowRight, BarChart3, Bot, CheckCircle2, Circle, Factory, FileSearch, Lightbulb, Swords, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { RequireProject } from "@/components/app-shell";
+import { DecisionPanel } from "@/components/decision";
 import { EVIDENCE_META } from "@/components/evidence";
 import { useProjects, useStatus } from "@/components/providers";
 import { Alert, Badge, Button, Card, CardBody, CardHeader, ConfigNotice, EmptyState, PageHeader, Spinner, StatCard, type Tone } from "@/components/ui";
@@ -30,7 +31,7 @@ const ATTRACTIVENESS: Record<string, { label: string; tone: Tone }> = {
 };
 
 function DashboardView({ projectId }: { projectId: string }) {
-  const { project } = useProjects();
+  const { project, reload: reloadProjects } = useProjects();
   const { status } = useStatus();
   const { data, loading, error, reload } = useApi<Dashboard>(`/api/projects/${projectId}/dashboard`);
 
@@ -65,6 +66,9 @@ function DashboardView({ projectId }: { projectId: string }) {
         actions={<Link href="/copilot"><Button variant="secondary"><Bot className="h-4 w-4" /> Ask the copilot</Button></Link>}
       />
       {status && !status.ai.configured && <div className="mb-5"><ConfigNotice message={status.ai.requirement} /></div>}
+      <div className="mb-5">
+        <DecisionPanel projectId={projectId} decision={project.decision} note={project.decision_note} onChanged={() => { reloadProjects(); reload(); }} />
+      </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard label="Research findings" value={c.findings} icon={<FileSearch className="h-4 w-4" />}

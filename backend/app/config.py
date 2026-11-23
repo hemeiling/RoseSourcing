@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     research_provider: str = "anthropic_web_search"
     tavily_api_key: str | None = None
     brave_search_api_key: str | None = None
+    serpapi_api_key: str | None = None
+    max_demand_api_calls: int = 6
 
     # Guardrails
     max_searches_per_step: int = 5

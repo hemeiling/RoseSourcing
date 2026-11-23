@@ -73,8 +73,8 @@ def test_full_market_opportunity_run(authed, project, fake_llm, monkeypatch):
     assert r.status_code == 201, r.text
     run = authed.get(f"/api/research-runs/{r.json()['id']}").json()
     assert run["status"] == "completed", run
-    assert [s["status"] for s in run["steps"]] == ["completed"] * 6
-    assert run["search_requests"] == 10
+    assert [s["status"] for s in run["steps"]] == ["completed"] * 7
+    assert run["search_requests"] == 12
     assert run["cost_usd"] > 0
 
     findings = authed.get(f"/api/projects/{project['id']}/findings").json()
@@ -110,7 +110,9 @@ def test_full_market_opportunity_run(authed, project, fake_llm, monkeypatch):
     assert recs[0]["title"] == "Run a landing page test"
     execs = authed.get(f"/api/projects/{project['id']}/agent-executions").json()
     assert {e["status"] for e in execs} == {"succeeded"}
-    assert len(execs) == 6
+    assert len(execs) == 7
+    # Without a SerpApi key the demand step says so instead of inventing popularity data.
+    assert any(f["section"] == "demand" and "SerpApi" in f["claim"] and f["evidence_type"] == "unavailable" for f in findings)
 
 
 def test_resume_only_reruns_incomplete_steps(authed, project, fake_llm, monkeypatch):

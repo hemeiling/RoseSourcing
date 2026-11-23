@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 from typing import Any
@@ -117,13 +118,22 @@ class AnthropicProvider:
 
     # ------------------------------------------------------------------ structured output
 
-    def structured(self, *, system: str, prompt: str, output_model: type[T], max_tokens: int = 16000) -> tuple[T, LLMUsage]:
+    def structured(
+        self, *, system: str, prompt: str, output_model: type[T], max_tokens: int = 16000,
+        images: list[tuple[str, bytes]] | None = None,
+    ) -> tuple[T, LLMUsage]:
+        content: Any = prompt
+        if images:
+            content = [
+                {"type": "image", "source": {"type": "base64", "media_type": mt, "data": base64.standard_b64encode(data).decode()}}
+                for mt, data in images
+            ] + [{"type": "text", "text": prompt}]
         response = self._call(
             self.client.beta.messages.parse,
             model=self.model,
             max_tokens=max_tokens,
             system=system,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": content}],
             output_format=output_model,
             output_config={"effort": self.effort},
             **self._extra(),

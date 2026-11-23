@@ -48,6 +48,7 @@ export function AttractivenessBadge({ value }: { value: string | null | undefine
 export const SEVERITY_TONE: Record<string, Tone> = { high: "red", medium: "amber", low: "slate" };
 
 export const SECTIONS = [
+  "demand",
   "market_size",
   "growth",
   "customer_segments",

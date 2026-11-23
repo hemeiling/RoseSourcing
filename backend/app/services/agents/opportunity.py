@@ -40,6 +40,7 @@ from ...models import (
     ResearchFinding,
     ResearchRun,
 )
+from .. import demand
 from ..llm.anthropic_provider import get_llm
 from ..logistics import PackagingSpec, Shipment, channel_economics, compare_shipping
 from ..llm.base import LLMError, LLMNotConfigured, LLMRefusal, LLMUsage
@@ -146,6 +147,22 @@ STEP_DEFS: dict[str, dict[str, Any]] = {
     },
 }
 
+STEP_DEFS["demand_signals"] = {
+    "label": "Demand & popularity signals",
+    "sections": ["demand", "market_size", "growth", "other"],
+    "question": (
+        "How popular is {category} with shoppers in {country} right now, and is demand growing? Look for concrete signals: "
+        "Amazon best-seller ranks, review counts and 'bought in past month' indicators, Google search interest or trend reports, "
+        "social media trends (TikTok, Instagram, Pinterest, Xiaohongshu), and seasonality. {focus}"
+    ),
+    "hints": [
+        "{category} best sellers amazon",
+        "{category} trend {year}",
+        "{category} tiktok trend",
+        "{category} search interest seasonality",
+    ],
+}
+
 STEP_DEFS["channels"] = {
     "label": "Selling channels & current fees",
     "sections": ["channels", "pricing", "other"],
@@ -186,7 +203,7 @@ STEP_DEFS["logistics"] = {
 }
 
 RUN_STEPS = {
-    "market_opportunity": ["market_size", "customers", "competitors", "sourcing", "risks", "synthesis"],
+    "market_opportunity": ["demand_signals", "market_size", "customers", "competitors", "sourcing", "risks", "synthesis"],
     "channels_logistics": ["channels", "logistics", "plan"],
     "competitor_discovery": ["competitors"],
 }
@@ -196,7 +213,7 @@ STEP_LABELS = {k: v["label"] for k, v in STEP_DEFS.items()} | {
     "plan": "Channel & logistics plan",
 }
 SYNTHESIS_STEP = {"market_opportunity": "synthesis", "channels_logistics": "plan"}
-STEP_AGENT = {"competitors": "competitor_intelligence", "channels": "commerce", "logistics": "sourcing"}
+STEP_AGENT = {"competitors": "competitor_intelligence", "channels": "commerce", "logistics": "sourcing", "demand_signals": "analytics"}
 
 
 def initial_steps(kind: str) -> list[dict[str, Any]]:
@@ -508,6 +525,44 @@ def _persist_channels_and_shipping(db, run: ResearchRun, bundle: EvidenceBundle,
     return dropped_fees, dropped_rates
 
 
+def _persist_demand(db, run: ResearchRun, keywords: list[str], geo: str) -> tuple[int, dict[str, Any]]:
+    """Collect SerpApi popularity data (Google Trends, Amazon, Google Shopping) and store it as sourced findings."""
+    if not demand.configured():
+        db.add(ResearchFinding(
+            project_id=run.project_id, research_run_id=run.id, section="demand", evidence_type="unavailable", confidence="low",
+            verification_status="unverified", flags=[], created_by="analytics_agent",
+            claim="Google Trends and Amazon search data were not collected: no SerpApi key is connected (Settings > Data sources). "
+                  "Demand evidence below comes from web search only.",
+        ))
+        return 1, {"serpapi": "not_connected"}
+    obs, errors, calls = demand.collect(keywords, geo)
+    now = datetime.now(timezone.utc)
+    n = 0
+    for o in obs:
+        src = EvidenceSource(project_id=run.project_id, research_run_id=run.id, url=o.url, title=o.title,
+                             domain=o.url.split("/")[2] if "//" in o.url else None, source_type="api", provider="serpapi",
+                             retrieved_at=now, excerpts=o.excerpts)
+        db.add(src)
+        db.flush()
+        for f in o.findings:
+            finding = ResearchFinding(
+                project_id=run.project_id, research_run_id=run.id, section="demand", claim=f.claim, detail=f.detail,
+                evidence_type="sourced", confidence=f.confidence, verification_status="source_linked", metric=f.metric,
+                flags=["Computed directly from SerpApi data at retrieval time (not written by the AI)."], created_by="analytics_agent",
+            )
+            finding.evidence_links.append(FindingEvidence(evidence_source_id=src.id, quote=o.excerpts[0][:500]))
+            db.add(finding)
+            n += 1
+    if errors:
+        db.add(ResearchFinding(
+            project_id=run.project_id, research_run_id=run.id, section="demand", evidence_type="unavailable", confidence="low",
+            verification_status="unverified", flags=errors[:5], created_by="analytics_agent",
+            claim=f"{len(errors)} SerpApi request(s) failed; some popularity data is missing.",
+        ))
+        n += 1
+    return n, {"serpapi_calls": calls, "keywords": keywords, "errors": errors}
+
+
 # ----------------------------------------------------------------------------- prompts
 
 EXTRACT_SYSTEM = """You convert a research evidence dossier into structured findings for a business intelligence database.
@@ -612,6 +667,7 @@ def execute_run(run_id: uuid.UUID) -> None:
         run.started_at = run.started_at or datetime.now(timezone.utc)
         run.error = None
         ctx = project_context(project, run.params or {})
+        keywords = [k for k in (run.params or {}).get("keywords") or [] if isinstance(k, str)] or [ctx["category"]]
         kind = run.kind
         provider_name = run.provider
         user_id = run.created_by_id
@@ -650,6 +706,11 @@ def execute_run(run_id: uuid.UUID) -> None:
                 )
                 ex_id = ex.id
             try:
+                api_findings, api_meta = 0, {}
+                if key == "demand_signals" and attempts["n"] == 1:  # don't re-collect API data on a retry
+                    with session_scope() as db:
+                        api_findings, api_meta = _persist_demand(db, db.get(ResearchRun, run_id), keywords, cc or "US")
+                    hints = [f"{k} best sellers" for k in keywords[:2]] + hints
                 bundle = provider.gather(question=question, context=context_block(ctx), query_hints=hints, country_code=cc)
                 usage = LLMUsage()
                 usage.add(bundle.usage)
@@ -663,10 +724,11 @@ def execute_run(run_id: uuid.UUID) -> None:
                 with session_scope() as db:
                     run = db.get(ResearchRun, run_id)
                     counts = _persist_extraction(db, run, key, bundle, ext)
+                    counts["findings"] += api_findings
                     ex = db.get(AgentExecution, ex_id)
                     apply_usage(ex, usage)
                     finish_execution(ex, output={"queries": bundle.queries, "sources": len(bundle.sources),
-                                                 "findings": counts["findings"], "provider_errors": bundle.errors})
+                                                 "findings": counts["findings"], "provider_errors": bundle.errors, **api_meta})
                 return counts
             except Exception as e:
                 with session_scope() as db:

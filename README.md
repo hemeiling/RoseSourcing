@@ -18,6 +18,24 @@ The core rule is **no fabricated business data**. Every research finding records
 | Analytics | P1 | Unit-economics calculator with per-input source labels, saved and compared scenarios, price sensitivity, break-even, experiments, AI cost tracking |
 | Commerce | P2 | Product catalog, manual inventory, AI listing drafts, approval queue, integration contracts. Shopify, orders and campaigns are planned |
 
+### Product pipeline, photo snap and decisions
+
+- **Snap a product**: upload, drag in, paste or (on a phone) photograph a product. Claude's vision identifies it (labeled AI inference, with an IP-caution flag when a logo or branded design is visible), creates a project for that product and, if you choose, starts market research automatically within the per-run cost cap.
+- **Demand & popularity step**: every market research run starts with demand signals. With a SerpApi key it adds Google Trends interest over 12 months, Amazon page-1 ratings counts, "bought in past month" badges and prices, and the Google Shopping seller and price spread. All of these are computed directly from the API data. Web-search evidence is added either way.
+- **Product Pipeline**: one board for every product or category, showing research status, the AI's go / no-go brief and your own decision.
+- **Decisions**: you record **Go / On hold / No-go** with a reason. Each decision is logged with a snapshot of the evidence at that moment, and the AI decision brief is advice only.
+
+### Connectors and the Claude connector
+
+- **Settings → Data sources & connectors** is an encrypted credential vault, keyed from `SECRET_KEY`. Values are never shown again after saving.
+  - **Working now:** Claude web search, SerpApi (Google Trends, Google Shopping, Amazon), Tavily, Brave.
+  - **Gateways:** WeChat, Alibaba.com, 1688, Xiaohongshu, TikTok Shop, Amazon SP-API, Shopify and Keepa can store credentials, but their data adapters are planned and the UI says so.
+- **Claude connector (MCP)**: `/mcp` exposes the workflow tools so you can work from Claude alongside its other connectors. The tools cover projects, research, competitors, suppliers, RFQ drafts, channels, shipping, unit economics, brand concepts, decision briefs and recorded decisions.
+  - Create a personal token in Settings.
+  - claude.ai: add the token's connector URL (`/mcp?token=...`) as a custom connector.
+  - Claude Code: `claude mcp add --transport http ai-commerce-os <url>/mcp --header "Authorization: Bearer <token>"`.
+- The in-app Copilot has the same action tools.
+
 ### How evidence is handled
 
 1. **Gather**: the research provider returns real search results. Excerpts are verbatim provider text and are never written by the model.
@@ -100,6 +118,7 @@ Later pushes to the default branch redeploy automatically. Migrations run on boo
 | `MAX_SEARCHES_PER_STEP` / `MAX_RESEARCH_COST_USD` / `MAX_STEP_ATTEMPTS` | `5` / `5` / `2` | Research guardrails |
 | `SIGNUP_ENABLED` / `ALLOWED_SIGNUP_EMAILS` | `false` / empty | Who can register after the first user |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | empty | Enables "Continue with Google". Uses an OAuth client of type *Web application* with redirect URI `<service URL>/api/auth/google/callback`. Same sign-up policy as email; a Google login with the same verified email links to an existing account |
+| `SERPAPI_API_KEY` | empty | Optional: enables Google Trends / Amazon / Google Shopping demand signals (can also be saved in Settings) |
 | `PUBLIC_BASE_URL` | Render's `RENDER_EXTERNAL_URL` | Base URL for the Google redirect URI (set to `http://localhost:3000` for local dev) |
 
 ### Known limits of this MVP

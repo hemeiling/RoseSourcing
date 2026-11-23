@@ -7,6 +7,7 @@ import {
   Factory,
   FolderKanban,
   LayoutDashboard,
+  LayoutGrid,
   LogOut,
   Menu,
   Palette,
@@ -42,6 +43,7 @@ export function BrandMark({ light }: { light?: boolean }) {
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/pipeline", label: "Product Pipeline", icon: LayoutGrid },
   { href: "/projects", label: "Business Projects", icon: FolderKanban },
   { href: "/market", label: "Market Opportunity", icon: TrendingUp },
   { href: "/competitors", label: "Competitor Intelligence", icon: Swords },

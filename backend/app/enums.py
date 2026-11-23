@@ -9,6 +9,7 @@ Confidence = Literal["high", "medium", "low"]
 VerificationStatus = Literal["unverified", "source_linked", "human_verified", "disputed"]
 
 FindingSection = Literal[
+    "demand",
     "market_size",
     "growth",
     "customer_segments",

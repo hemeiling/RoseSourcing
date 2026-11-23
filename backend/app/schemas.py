@@ -86,6 +86,10 @@ class ProjectOut(ORM):
     notes: str | None
     assumptions: list[dict[str, Any]]
     status: str
+    decision: str
+    decision_note: str | None
+    decided_at: datetime | None
+    cover_scan_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
 

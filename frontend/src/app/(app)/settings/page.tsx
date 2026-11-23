@@ -2,7 +2,9 @@
 
 import { CheckCircle2, CircleDashed, ScrollText, Server, ShieldCheck, Workflow } from "lucide-react";
 import { useAuth, useProjects, useStatus } from "@/components/providers";
-import { Badge, Card, CardBody, CardHeader, PageHeader, PlannedBadge, Spinner, Td, Th } from "@/components/ui";
+import { ClaudeConnectorSection } from "@/components/settings/claude-connector";
+import { ConnectorsSection } from "@/components/settings/connectors";
+import { Badge, Card, CardBody, CardHeader, PageHeader, Spinner, Td, Th } from "@/components/ui";
 import { dateTime, money, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { AuditEvent } from "@/lib/types";
@@ -114,24 +116,8 @@ export default function SettingsPage() {
             </CardBody>
           </Card>
 
-          <Card className="lg:col-span-2">
-            <CardHeader title="Integrations" subtitle="Contracts are defined; no external platform is connected in this release." />
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px]">
-                <thead className="border-b border-slate-100 bg-slate-50"><tr><Th>Integration</Th><Th>Area</Th><Th>State</Th><Th>Detail</Th></tr></thead>
-                <tbody className="divide-y divide-slate-100">
-                  {status.integrations.map((i) => (
-                    <tr key={i.key}>
-                      <Td className="font-medium">{i.name}</Td>
-                      <Td>{titleCase(i.category)}</Td>
-                      <Td>{i.state === "planned" ? <PlannedBadge /> : <Badge>{titleCase(i.state)}</Badge>}</Td>
-                      <Td className="text-xs text-slate-600">{i.detail}</Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+          <ConnectorsSection />
+          <ClaudeConnectorSection />
 
           {project && (
             <Card className="lg:col-span-2">

@@ -7,6 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 SectionLit = Literal[
+    "demand",
     "market_size",
     "growth",
     "customer_segments",

@@ -10,8 +10,25 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 
-from .api import analytics, auth, brand, channels, commerce, competitors, copilot, projects, research, suppliers, system
+from .api import (
+    analytics,
+    auth,
+    brand,
+    channels,
+    commerce,
+    competitors,
+    connectors_api,
+    copilot,
+    decisions,
+    projects,
+    research,
+    scans,
+    suppliers,
+    system,
+    tokens,
+)
 from .config import get_settings
+from .mcp_server import MCPMiddleware, session_manager
 from .services.agents.opportunity import recover_interrupted_runs
 from .services.llm.base import LLMError, LLMNotConfigured, LLMRefusal, LLMTransientError
 
@@ -30,7 +47,8 @@ async def lifespan(app: FastAPI):
             log.warning("Marked %d in-flight research run(s) as interrupted", n)
     except Exception:  # noqa: BLE001 - DB may not be migrated yet in dev
         log.exception("Could not check for interrupted runs")
-    yield
+    async with session_manager.run():  # Claude connector (MCP) transport
+        yield
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan,
@@ -58,8 +76,10 @@ async def _llm_error(_: Request, exc: LLMError) -> JSONResponse:
     return JSONResponse(status_code=502, content={"detail": {"code": "ai_error", "message": str(exc)}})
 
 
-for r in (auth, projects, research, competitors, brand, suppliers, channels, commerce, analytics, copilot, system):
+for r in (auth, projects, research, competitors, brand, suppliers, channels, commerce, analytics, copilot, system,
+          connectors_api, scans, decisions, tokens):
     app.include_router(r.router)
+app.add_middleware(MCPMiddleware)
 
 
 # ----------------------------------------------------------------------------- static frontend

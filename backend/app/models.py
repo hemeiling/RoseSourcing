@@ -13,6 +13,7 @@ from typing import Any
 
 from sqlalchemy import (
     Boolean,
+    LargeBinary,
     Date,
     DateTime,
     ForeignKey,
@@ -82,6 +83,39 @@ class BusinessProject(IdMixin, TimestampMixin, Base):
     # Business assumptions the user is testing: [{label, value, status: hypothesis|validated|invalidated}]
     assumptions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, default=list)
     status: Mapped[str] = mapped_column(String(32), default="active")  # active | archived
+    # The founder's go / no-go call on this product or category (recorded by a person, never by AI).
+    decision: Mapped[str] = mapped_column(String(16), default="undecided", server_default="undecided")  # undecided | go | no_go | on_hold
+    decision_note: Mapped[str | None] = mapped_column(Text)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cover_scan_id: Mapped[uuid.UUID | None] = mapped_column(Uuid)  # product photo that started this project
+
+
+class ProjectDecision(IdMixin, Base):
+    """Append-only history of go / no-go decisions with a snapshot of the evidence at that moment."""
+
+    __tablename__ = "project_decisions"
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("business_projects.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    decision: Mapped[str] = mapped_column(String(16))
+    note: Mapped[str | None] = mapped_column(Text)
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+class ProductScan(IdMixin, TimestampMixin, Base):
+    """A product photo/screenshot the founder uploaded, and what the AI identified in it."""
+
+    __tablename__ = "product_scans"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("business_projects.id", ondelete="CASCADE"), index=True)
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    image: Mapped[bytes] = mapped_column(LargeBinary)
+    media_type: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(16), default="identifying")  # identifying | identified | failed
+    identification: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    error: Mapped[str | None] = mapped_column(Text)
+    research_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("research_runs.id", ondelete="SET NULL"))
 
 
 # --------------------------------------------------------------------------- research
@@ -574,3 +608,34 @@ class AuditEvent(IdMixin, Base):
     entity_type: Mapped[str | None] = mapped_column(String(48))
     entity_id: Mapped[str | None] = mapped_column(String(64))
     details: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+# --------------------------------------------------------------------------- connectors & access
+
+
+class IntegrationCredential(IdMixin, TimestampMixin, Base):
+    """Encrypted credentials for an external connector (one row per connector, workspace-wide)."""
+
+    __tablename__ = "integration_credentials"
+
+    connector: Mapped[str] = mapped_column(String(48), unique=True)
+    encrypted_fields: Mapped[str] = mapped_column(Text)  # Fernet token of a JSON object
+    field_hints: Mapped[dict[str, str]] = mapped_column(JSONB, default=dict)  # field -> last 4 chars, for display
+    updated_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    last_test_ok: Mapped[bool | None] = mapped_column(Boolean)
+    last_test_message: Mapped[str | None] = mapped_column(Text)
+    last_tested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ApiToken(IdMixin, Base):
+    """Personal access token for the Claude connector (MCP). Only a hash is stored."""
+
+    __tablename__ = "api_tokens"
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, server_default=func.now())
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(100))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    last4: Mapped[str] = mapped_column(String(8))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

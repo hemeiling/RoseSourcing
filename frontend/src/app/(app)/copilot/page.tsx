@@ -14,6 +14,10 @@ import { useApi } from "@/lib/hooks";
 import type { CopilotMessage, CopilotThread } from "@/lib/types";
 
 const EXAMPLES = [
+  "Start market research for this product, focusing on beginners' practice wear",
+  "Add Brand Z as a competitor: their practice dress is $64 at https://example.com/dress",
+  "Draft an RFQ to my cheapest supplier asking for samples",
+  "Give me a go / no-go decision brief",
   "Is this an attractive market based on the evidence we have?",
   "Which customer segment should I target first?",
   "How should I differentiate from competitors?",

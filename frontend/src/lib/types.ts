@@ -31,9 +31,15 @@ export interface Project {
   notes: string | null;
   assumptions: Assumption[];
   status: string;
+  decision: Decision;
+  decision_note: string | null;
+  decided_at: string | null;
+  cover_scan_id: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export type Decision = "undecided" | "go" | "no_go" | "on_hold";
 
 export interface RunStep {
   key: string;
@@ -562,4 +568,104 @@ export interface ChannelPlan {
     research_run_id: string;
     generated_by: { model: string; generated_at: string };
   };
+}
+
+export interface ConnectorField {
+  name: string;
+  label: string;
+  secret: boolean;
+  env: string | null;
+  hint: string | null;
+}
+
+export interface ConnectorStatus {
+  key: string;
+  name: string;
+  group: string;
+  active: boolean;
+  provides: string;
+  requirements: string;
+  cost: string;
+  setup_url: string | null;
+  login_note: string | null;
+  fields: ConnectorField[];
+  configured: boolean;
+  source: "app" | "environment" | null;
+  state: "connected" | "not_connected" | "credentials_saved";
+  last_test_ok: boolean | null;
+  last_test_message: string | null;
+  last_tested_at: string | null;
+}
+
+export interface ProductIdentification {
+  is_product: boolean;
+  product_name: string;
+  research_category: string;
+  product_type: string;
+  key_attributes: string[];
+  materials_guess: string[];
+  style_tags: string[];
+  likely_customers: string[];
+  price_tier_guess: string;
+  search_keywords: string[];
+  visible_brand_or_text: string | null;
+  ip_caution: string | null;
+  uncertainties: string[];
+  confidence: "high" | "medium" | "low";
+}
+
+export interface ProductScan {
+  id: string;
+  project_id: string;
+  status: "identifying" | "identified" | "failed";
+  identification: ProductIdentification | null;
+  error: string | null;
+  research_run_id: string | null;
+  image_url: string;
+  created_at: string;
+  run_status: string | null;
+}
+
+export interface PipelineItem {
+  id: string;
+  name: string;
+  category: string;
+  target_country: string;
+  status: string;
+  decision: Decision;
+  decision_note: string | null;
+  decided_at: string | null;
+  image_url: string | null;
+  attractiveness: string | null;
+  ai_recommendation: "go" | "no_go" | "needs_more_evidence" | null;
+  ai_headline: string | null;
+  contribution_margin: number | null;
+  contribution_margin_pct: number | null;
+  scenario_type: string | null;
+  latest_run: { id: string; kind: string; status: string; current_step: string | null } | null;
+  counts: { findings: number; competitors: number; suppliers: number };
+  last_decision_at: string | null;
+  updated_at: string;
+}
+
+export interface DecisionBriefContent {
+  recommendation: "go" | "no_go" | "needs_more_evidence";
+  confidence: "high" | "medium" | "low";
+  headline: string;
+  reasons_for: { point: string; finding_ids: string[] }[];
+  reasons_against: { point: string; finding_ids: string[] }[];
+  key_numbers: { label: string; value: string; basis: string }[];
+  conditions_to_go: string[];
+  kill_criteria: string[];
+  cheapest_next_test: string;
+  evidence_gaps: string[];
+  generated_by: { model: string; generated_at: string };
+}
+
+export interface DecisionHistoryItem {
+  id: string;
+  decision: Decision;
+  note: string | null;
+  snapshot: Record<string, unknown>;
+  created_at: string;
 }

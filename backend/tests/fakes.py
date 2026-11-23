@@ -55,7 +55,7 @@ class FakeLLM:
         r.usage = LLMUsage(input_tokens=1000, output_tokens=200, search_requests=2, cost_usd=0.03, model=self.model)
         return r
 
-    def structured(self, *, system: str, prompt: str, output_model: type, max_tokens: int = 16000):
+    def structured(self, *, system: str, prompt: str, output_model: type, max_tokens: int = 16000, images=None):
         self.calls.append(f"structured:{output_model.__name__}")
         usage = LLMUsage(input_tokens=500, output_tokens=300, cost_usd=0.01, model=self.model)
         if output_model is StepExtraction and "Populate channels" in prompt:
@@ -122,13 +122,22 @@ class FakeLLM:
                 recommended_segment="Social dancers", recommended_segment_rationale="Largest group", segment_finding_refs=["F1"],
                 differentiation=[RefIdea(idea="Inclusive sizing", rationale="Fit complaints", finding_refs=["F1"])],
                 pricing_summary="Competitor at $79", test_price_low=59, test_price_high=79, pricing_finding_refs=["F1"],
-                unit_economics=UEProposal(retail_price=ue(69, "sourced_research", ["F1"]), factory_cost=ue(18), freight_per_unit=ue(3),
+                unit_economics=UEProposal(retail_price=ue(69, "sourced_research", ["F1", "F2"]), factory_cost=ue(18), freight_per_unit=ue(3),
                                           duty_rate_pct=ue(30), import_clearance_per_unit=ue(0.5), packaging_per_unit=ue(1.5),
                                           fulfillment_per_unit=ue(6), payment_fee_pct=ue(2.9), marketing_cac=ue(15),
                                           return_rate_pct=ue(12), moq=ue(100)),
                 risks=[RiskItem(risk="Tariff changes", severity="high", mitigation="Broker", finding_refs=[])],
                 evidence_gaps=[GapItem(gap="Market size", why_it_matters="Sizing", how_to_close="Survey")],
                 next_steps=[NextStep(action="Run a landing page test", rationale="Cheap", priority="high")],
+            ), usage
+        if output_model.__name__ == "ProductIdentification":
+            self.images = images
+            return output_model(
+                is_product=True, product_name="Women's Latin practice dress", research_category="Latin dance practice dresses",
+                product_type="dress", key_attributes=["fringe hem", "v-neck"], materials_guess=["polyester spandex"],
+                style_tags=["latin"], likely_customers=["social dancers"], price_tier_guess="mid",
+                search_keywords=["latin dance dress", "latin practice dress"], visible_brand_or_text=None, ip_caution=None,
+                uncertainties=["fabric"], confidence="medium",
             ), usage
         # Generators: build a minimal valid instance from the schema.
         return _minimal(output_model), usage
@@ -159,6 +168,8 @@ def _minimal(model: type) -> Any:
             return None
         if isinstance(ann, type) and issubclass(ann, BaseModel):
             return _minimal(ann)
+        if ann is bool:
+            return True
         if ann is str:
             return "x"
         if ann in (int, float):

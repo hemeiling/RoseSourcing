@@ -6,7 +6,7 @@ import json
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import or_, select
@@ -48,7 +48,10 @@ How to work:
 - Never invent market sizes, prices, supplier quotes, reviews or growth rates. For profit or margin questions, call calculate_unit_economics - do not do the math yourself - and state which inputs are assumptions.
 - For "where should I sell" or "how should I ship" questions, use compare_sales_channels and compare_shipping_options; say whether each fee or rate is verified, sourced, or an assumption.
 - Supplier verification status is set by the founder. Never describe an unverified supplier as vetted, certified or reliable.
-- Write actions: only create_recommendation and save_cost_scenario change data. Only say something was saved if the tool result returns "ok": true with an id. You cannot publish listings, buy inventory, launch campaigns, or contact suppliers - those require the founder to act in the app with explicit approval.
+- Action tools run the app's steps for this product/category: start_research (market opportunity, competitor discovery, channels & shipping), add_competitor / record_competitor_price, add_supplier / add_supplier_quote, draft_supplier_rfq, generate_brand_concept, save_cost_scenario, create_recommendation, generate_decision_brief, record_decision.
+- Use an action tool only when the founder asks for that work. Research runs and AI generations cost money (research runs are capped per run); mention this when you start one.
+- record_decision is the founder's call: use it only when they explicitly state their go / no-go / on-hold decision, and quote their reason.
+- Only say something was done if the tool result returns "ok": true. Research runs execute in the background: report the run id and status, not results you have not seen. You cannot publish listings, buy inventory, launch campaigns, or send messages to suppliers - drafts must be sent by the founder.
 - Be concise and practical. Use short sections or bullets. End with a clear next step when useful."""
 
 
@@ -87,6 +90,63 @@ class ListRecsIn(BaseModel):
     status: str | None = None
 
 
+class StartResearchIn(BaseModel):
+    kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics"] = "market_opportunity"
+    focus: str | None = Field(None, description="What to pay special attention to")
+    keywords: list[str] = Field(default_factory=list, description="Shopper search phrases for demand signals (max 3)")
+
+
+class BrandIn(BaseModel):
+    kind: Literal["names", "positioning", "personas", "voice", "collections", "palettes", "messaging"]
+    brief: str | None = None
+
+
+class AddCompetitorIn(BaseModel):
+    name: str
+    website: str | None = None
+    price_tier: Literal["budget", "mid", "premium", "luxury"] | None = None
+    positioning: str | None = None
+    notes: str | None = None
+
+
+class PriceIn(BaseModel):
+    competitor: str
+    product: str
+    price: float = Field(gt=0)
+    currency: str = "USD"
+    source_url: str | None = None
+
+
+class AddSupplierIn(BaseModel):
+    name: str
+    country: str | None = None
+    city: str | None = None
+    platform: str | None = None
+    website: str | None = None
+    notes: str | None = None
+
+
+class QuoteIn(BaseModel):
+    supplier: str
+    product_name: str
+    unit_price: float | None = Field(None, ge=0)
+    currency: str = "USD"
+    moq: int | None = Field(None, ge=0)
+    sample_cost: float | None = Field(None, ge=0)
+    lead_time_days: int | None = Field(None, ge=0)
+    incoterm: str | None = None
+
+
+class RfqIn(BaseModel):
+    supplier: str
+    notes: str | None = None
+
+
+class DecisionIn(BaseModel):
+    decision: Literal["go", "no_go", "on_hold", "undecided"]
+    note: str
+
+
 class ShippingIn(BaseModel):
     units: int = Field(100, ge=1, le=1_000_000, description="Shipment size in units")
     product_id: str | None = Field(None, description="Product whose carton specs to use; defaults to the first with specs")
@@ -111,6 +171,24 @@ TOOLS: list[ToolSpec] = [
              {"type": "object", "properties": {}, "additionalProperties": False}),
     ToolSpec("compare_shipping_options", "Freight and fulfillment options on file (quotes, assumptions, sourced benchmarks) with computed "
              "cost per unit and transit time for a shipment size, using a product's carton specs.", ShippingIn.model_json_schema()),
+    ToolSpec("start_research", "Start a background research run for this product/category: market_opportunity (demand signals, "
+             "market, customers, competitors, sourcing, risks, report), competitor_discovery, or channels_logistics. Costs money; capped per run.",
+             StartResearchIn.model_json_schema()),
+    ToolSpec("research_status", "Status and step progress of the latest research run.",
+             {"type": "object", "properties": {}, "additionalProperties": False}),
+    ToolSpec("add_competitor", "Add a competitor record.", AddCompetitorIn.model_json_schema()),
+    ToolSpec("record_competitor_price", "Record an observed competitor price (creates the competitor/product if needed). Include the source URL.",
+             PriceIn.model_json_schema()),
+    ToolSpec("add_supplier", "Add a supplier record (always unverified until the founder checks it).", AddSupplierIn.model_json_schema()),
+    ToolSpec("add_supplier_quote", "Add a quote to an existing supplier (by name).", QuoteIn.model_json_schema()),
+    ToolSpec("draft_supplier_rfq", "Draft (not send) a request-for-quotation email to a supplier, saved in its communication log.",
+             RfqIn.model_json_schema()),
+    ToolSpec("generate_brand_concept", "Generate and save a brand concept draft (names, positioning, personas, voice, collections, palettes, messaging).",
+             BrandIn.model_json_schema()),
+    ToolSpec("generate_decision_brief", "Generate an evidence-linked go / no-go recommendation from everything stored for this product.",
+             {"type": "object", "properties": {}, "additionalProperties": False}),
+    ToolSpec("record_decision", "Record the founder's own go / no_go / on_hold decision with their reason. Only when they explicitly decide.",
+             DecisionIn.model_json_schema()),
     ToolSpec("list_recommendations", "Saved recommendations / next steps and their status.", ListRecsIn.model_json_schema()),
     ToolSpec("list_brand_concepts", "Saved brand concepts (names, positioning, personas, palettes, messaging).",
              {"type": "object", "properties": {}, "additionalProperties": False}),
@@ -285,6 +363,165 @@ class CopilotTools:
         spec = PackagingSpec(**{f: float(getattr(product, f)) for f in fields})
         result = compare_shipping(list(options), Shipment(units=args.units, packaging=spec))
         return {"ok": True, "product": product.name, **result}, f"Compared shipping for {args.units} units of {product.name}"
+
+    # ---- action tools (each step of the workflow)
+    def t_start_research(self, raw: dict) -> tuple[dict, str]:
+        from ..research.providers import get_research_provider
+        from .opportunity import initial_steps, submit_run
+
+        args = StartResearchIn(**raw)
+        provider = get_research_provider(None)
+        if not provider.is_configured():
+            return {"ok": False, "error": f"{provider.label} is not configured. {provider.config_requirement()}"}, "Research not configured"
+        if self.db.scalars(select(ResearchRun).where(ResearchRun.project_id == self.project.id,
+                                                     ResearchRun.status.in_(["queued", "running"]))).first():
+            return {"ok": False, "error": "A research run is already in progress for this project."}, "Run already in progress"
+        params = {k: v for k, v in {"focus": args.focus, "keywords": args.keywords[:3] or None}.items() if v}
+        run = ResearchRun(project_id=self.project.id, created_by_id=self.user.id, kind=args.kind, status="queued",
+                          provider=provider.name, model=get_llm().model, params=params, steps=initial_steps(args.kind))
+        self.db.add(run)
+        self.db.flush()
+        audit.record(self.db, "research_run.started", user_id=self.user.id, project_id=self.project.id, actor="agent:copilot",
+                     entity_type="research_run", entity_id=run.id, details={"kind": args.kind, **params})
+        self.db.commit()
+        submit_run(run.id)
+        self._ref("run", run.id, f"{args.kind} research run")
+        return {"ok": True, "run_id": str(run.id), "status": "queued", "steps": [s["label"] for s in run.steps],
+                "cost_cap_usd": get_settings().max_research_cost_usd}, f"Started {args.kind.replace('_', ' ')} research"
+
+    def t_research_status(self, _: dict) -> tuple[dict, str]:
+        run = self.db.scalars(select(ResearchRun).where(ResearchRun.project_id == self.project.id).order_by(ResearchRun.created_at.desc())).first()
+        if not run:
+            return {"ok": True, "run": None}, "No research runs yet"
+        return {"ok": True, "run": {"id": str(run.id), "kind": run.kind, "status": run.status, "current_step": run.current_step,
+                                    "steps": [{"label": s["label"], "status": s["status"], "error": s.get("error")} for s in run.steps],
+                                    "cost_usd": float(run.cost_usd or 0)}}, f"Latest run is {run.status}"
+
+    def _competitor(self, name: str, create: bool = True) -> Competitor | None:
+        c = self.db.scalars(select(Competitor).where(Competitor.project_id == self.project.id, Competitor.name.ilike(name.strip()))).first()
+        if c is None and create:
+            c = Competitor(project_id=self.project.id, name=name.strip()[:200], discovered_by="manual")
+            self.db.add(c)
+            self.db.flush()
+        return c
+
+    def t_add_competitor(self, raw: dict) -> tuple[dict, str]:
+        args = AddCompetitorIn(**raw)
+        if self._competitor(args.name, create=False):
+            return {"ok": False, "error": f"'{args.name}' is already a competitor."}, "Competitor exists"
+        c = Competitor(project_id=self.project.id, discovered_by="manual", **args.model_dump())
+        self.db.add(c)
+        self.db.flush()
+        audit.record(self.db, "competitor.created", user_id=self.user.id, project_id=self.project.id, actor="agent:copilot",
+                     entity_type="competitor", entity_id=c.id)
+        self.db.commit()
+        self._ref("competitor", c.id, c.name, c.website)
+        return {"ok": True, "id": str(c.id), "name": c.name}, f"Added competitor {c.name}"
+
+    def t_record_competitor_price(self, raw: dict) -> tuple[dict, str]:
+        from decimal import Decimal
+
+        from ...models import CompetitorProduct, PriceObservation
+
+        args = PriceIn(**raw)
+        c = self._competitor(args.competitor)
+        prod = next((p for p in c.products if p.name.lower() == args.product.lower()), None)
+        if prod is None:
+            prod = CompetitorProduct(competitor_id=c.id, name=args.product[:300], url=args.source_url)
+            c.products.append(prod)
+            self.db.flush()
+        obs = PriceObservation(price=Decimal(str(args.price)), currency=args.currency.upper()[:8], source_url=args.source_url,
+                               source_type="manual", verification_status="unverified",
+                               note="Recorded via AI copilot from the founder's message" + ("" if args.source_url else " (no source URL given)"))
+        prod.price_observations.append(obs)
+        audit.record(self.db, "price_observation.created", user_id=self.user.id, project_id=self.project.id, actor="agent:copilot",
+                     entity_type="price_observation", details={"competitor": c.name, "product": prod.name, "price": args.price})
+        self.db.commit()
+        return {"ok": True, "competitor": c.name, "product": prod.name, "price": args.price}, f"Recorded {c.name} price {args.price}"
+
+    def _supplier(self, name: str) -> Supplier | None:
+        return self.db.scalars(select(Supplier).where(Supplier.project_id == self.project.id, Supplier.name.ilike(name.strip()))).first()
+
+    def t_add_supplier(self, raw: dict) -> tuple[dict, str]:
+        args = AddSupplierIn(**raw)
+        if self._supplier(args.name):
+            return {"ok": False, "error": f"'{args.name}' already exists."}, "Supplier exists"
+        sup = Supplier(project_id=self.project.id, verification_status="unverified", source="manual", **args.model_dump())
+        self.db.add(sup)
+        self.db.flush()
+        audit.record(self.db, "supplier.created", user_id=self.user.id, project_id=self.project.id, actor="agent:copilot",
+                     entity_type="supplier", entity_id=sup.id)
+        self.db.commit()
+        self._ref("supplier", sup.id, sup.name, sup.website)
+        return {"ok": True, "id": str(sup.id), "name": sup.name, "verification_status": "unverified"}, f"Added supplier {sup.name}"
+
+    def t_add_supplier_quote(self, raw: dict) -> tuple[dict, str]:
+        from decimal import Decimal
+
+        from ...models import SupplierQuote
+
+        args = QuoteIn(**raw)
+        sup = self._supplier(args.supplier)
+        if sup is None:
+            return {"ok": False, "error": f"No supplier named '{args.supplier}'. Add it first."}, "Supplier not found"
+        q = SupplierQuote(supplier_id=sup.id, product_name=args.product_name[:300], moq=args.moq, currency=args.currency.upper()[:8],
+                          unit_price=Decimal(str(args.unit_price)) if args.unit_price is not None else None,
+                          sample_cost=Decimal(str(args.sample_cost)) if args.sample_cost is not None else None,
+                          lead_time_days=args.lead_time_days, incoterm=args.incoterm, source="manual",
+                          notes="Recorded via AI copilot from the founder's message")
+        self.db.add(q)
+        self.db.commit()
+        return {"ok": True, "id": str(q.id), "supplier": sup.name}, f"Added quote from {sup.name}"
+
+    def t_draft_supplier_rfq(self, raw: dict) -> tuple[dict, str]:
+        from ...models import SupplierCommunication
+        from .generators import draft_rfq
+
+        args = RfqIn(**raw)
+        sup = self._supplier(args.supplier)
+        if sup is None:
+            return {"ok": False, "error": f"No supplier named '{args.supplier}'."}, "Supplier not found"
+        draft, _ex = draft_rfq(self.db, self.project, self.user, sup, None, args.notes)
+        comm = SupplierCommunication(supplier_id=sup.id, channel="email", direction="draft", subject=draft.subject,
+                                     summary=draft.body, next_action="Review and send this draft yourself.")
+        self.db.add(comm)
+        self.db.commit()
+        return {"ok": True, "supplier": sup.name, "subject": draft.subject, "body": draft.body,
+                "note": "Saved as a draft in the supplier's communication log; nothing was sent."}, f"Drafted RFQ for {sup.name}"
+
+    def t_generate_brand_concept(self, raw: dict) -> tuple[dict, str]:
+        from .generators import generate_brand
+
+        args = BrandIn(**raw)
+        content, ex = generate_brand(self.db, self.project, self.user, args.kind, args.brief)
+        concept = BrandConcept(project_id=self.project.id, kind=args.kind, title=f"{args.kind.title()} (via copilot)", content=content,
+                               brief=args.brief, agent_execution_id=ex.id)
+        self.db.add(concept)
+        self.db.commit()
+        self._ref("brand", concept.id, concept.title)
+        return {"ok": True, "id": str(concept.id), "kind": args.kind, "content": content}, f"Generated {args.kind} concept"
+
+    def t_generate_decision_brief(self, _: dict) -> tuple[dict, str]:
+        from .decision import generate
+
+        brief, snap = generate(self.db, self.project, self.user)
+        self.db.commit()
+        self._ref("decision_brief", snap.id, f"Decision brief: {brief.recommendation}")
+        return {"ok": True, "id": str(snap.id), **snap.content}, f"Decision brief: {brief.recommendation.replace('_', ' ')}"
+
+    def t_record_decision(self, raw: dict) -> tuple[dict, str]:
+        from ...models import ProjectDecision
+        from .decision import evidence_snapshot
+
+        args = DecisionIn(**raw)
+        self.project.decision, self.project.decision_note = args.decision, args.note
+        self.project.decided_at = datetime.now(timezone.utc)
+        self.db.add(ProjectDecision(project_id=self.project.id, user_id=self.user.id, decision=args.decision, note=args.note,
+                                    snapshot=evidence_snapshot(self.db, self.project)))
+        audit.record(self.db, "decision.recorded", user_id=self.user.id, project_id=self.project.id, actor="agent:copilot",
+                     entity_type="project", entity_id=self.project.id, details={"to": args.decision, "note": args.note})
+        self.db.commit()
+        return {"ok": True, "decision": args.decision}, f"Recorded decision: {args.decision.replace('_', ' ')}"
 
     def t_list_recommendations(self, raw: dict) -> tuple[dict, str]:
         args = ListRecsIn(**raw)

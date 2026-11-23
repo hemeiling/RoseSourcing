@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 import httpx2
 
 from ...config import get_settings
+from .. import connectors
 from ..llm.anthropic_provider import get_llm
 from ..llm.base import LLMNotConfigured, LLMTransientError, LLMUsage
 
@@ -158,18 +159,18 @@ class TavilyProvider:
     label = "Tavily Search API"
 
     def is_configured(self) -> bool:
-        return bool(get_settings().tavily_api_key) and get_llm().is_configured()
+        return bool(connectors.get_value("tavily", "api_key")) and get_llm().is_configured()
 
     def config_requirement(self) -> str | None:
         missing = []
-        if not get_settings().tavily_api_key:
-            missing.append("TAVILY_API_KEY")
+        if not connectors.get_value("tavily", "api_key"):
+            missing.append("a Tavily API key (Settings > Data sources)")
         if not get_llm().is_configured():
             missing.append("ANTHROPIC_API_KEY (used to structure findings)")
         return f"Set {', '.join(missing)}." if missing else None
 
     def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None) -> EvidenceBundle:
-        key = get_settings().tavily_api_key
+        key = connectors.get_value("tavily", "api_key")
         if not key:
             raise LLMNotConfigured("TAVILY_API_KEY is not set.")
         collector = _SourceCollector()
@@ -203,18 +204,18 @@ class BraveSearchProvider:
     label = "Brave Search API"
 
     def is_configured(self) -> bool:
-        return bool(get_settings().brave_search_api_key) and get_llm().is_configured()
+        return bool(connectors.get_value("brave", "api_key")) and get_llm().is_configured()
 
     def config_requirement(self) -> str | None:
         missing = []
-        if not get_settings().brave_search_api_key:
-            missing.append("BRAVE_SEARCH_API_KEY")
+        if not connectors.get_value("brave", "api_key"):
+            missing.append("a Brave Search API key (Settings > Data sources)")
         if not get_llm().is_configured():
             missing.append("ANTHROPIC_API_KEY (used to structure findings)")
         return f"Set {', '.join(missing)}." if missing else None
 
     def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None) -> EvidenceBundle:
-        key = get_settings().brave_search_api_key
+        key = connectors.get_value("brave", "api_key")
         if not key:
             raise LLMNotConfigured("BRAVE_SEARCH_API_KEY is not set.")
         collector = _SourceCollector()
