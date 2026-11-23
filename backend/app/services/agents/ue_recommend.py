@@ -36,7 +36,8 @@ class RecommendedInput(BaseModel):
 
 
 class UERecommendation(BaseModel):
-    summary: str = Field(description="Two or three sentences: the recommended price position and what the numbers mean")
+    summary: str = Field(description="Two or three sentences: the recommended price position and the main risks. "
+                                     "Do not state margin or contribution figures - the calculator computes them")
     inputs: list[RecommendedInput]
 
 
@@ -51,7 +52,8 @@ Rules:
 - Duty, fees and freight: use the cited rate exactly as the evidence states it. Channel fees: use the channel the research
   recommends launching on.
 - Budget, MOQ and samples should fit the founder's budget.
-- Never invent a source. Keep each reason to one sentence."""
+- Never invent a source. Keep each reason to one sentence.
+- Do not calculate margins or contribution yourself; the calculator does that from your inputs."""
 
 
 def _money(v: Any) -> str:
@@ -130,7 +132,7 @@ def recommend(db: Session, project: BusinessProject, user: User) -> AnalysisSnap
             continue  # out of range for this input (e.g. a percentage over 100)
         cited = [x for x in dict.fromkeys(r.refs) if x in refs]
         basis = r.basis if cited else "assumption"
-        exact = any(f"{r.value:g}" in refs[x]["text"].replace(",", "") or f"{r.value:.2f}" in refs[x]["text"] for x in cited)
+        exact = basis != "assumption" and any(f"{r.value:g}" in refs[x]["text"].replace(",", "") or f"{r.value:.2f}" in refs[x]["text"] for x in cited)
         values[r.field] = int(r.value) if r.field in ("moq", "units_per_shipment") else r.value
         items.append({"field": r.field, "value": values[r.field], "basis": basis, "why": r.why, "exact_in_source": exact,
                       "sources": [{"ref": x, "label": refs[x]["label"], "url": refs[x]["url"]} for x in cited]})
