@@ -23,6 +23,7 @@ from ..models import (
     ShippingOption,
     Supplier,
     SizeChart,
+    AnalysisSnapshot,
 )
 from ..schemas import ProjectIn, ProjectOut, ProjectPatch
 from .deps import DB, CurrentUser, ProjectDep
@@ -107,6 +108,8 @@ def dashboard(project: ProjectDep, db: DB) -> dict:
             "scenarios": count(CostScenario), "brand_concepts": count(BrandConcept), "products": count(ProductConcept),
             "experiments": count(Experiment), "research_runs": count(ResearchRun),
             "channels": count(SalesChannel), "shipping_options": count(ShippingOption), "size_charts": count(SizeChart),
+            "price_tier_reports": count(AnalysisSnapshot, AnalysisSnapshot.kind == "price_tiers"),
+            "compliance_checks": count(AnalysisSnapshot, AnalysisSnapshot.kind == "compliance_checklist"),
         },
         "findings_by_type": by_type,
         "latest_report": {"id": str(latest_opp.id), "title": latest_opp.title, "attractiveness": latest_opp.attractiveness,

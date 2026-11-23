@@ -138,6 +138,19 @@ class ExtractedSizeChart(BaseModel):
     source_ref: str | None = Field(description="Dossier ref whose excerpt contains this chart (research only); null for images")
 
 
+class ExtractedPriceTier(BaseModel):
+    tier: Literal["budget", "mid", "premium", "luxury"]
+    price_low: float | None = Field(description="Low end of typical prices in this tier, only if shown in a cited excerpt")
+    price_high: float | None = Field(description="High end of typical prices in this tier, only if shown in a cited excerpt")
+    currency: str = Field(description="ISO currency code, e.g. USD")
+    materials_and_quality: list[str] = Field(description="Materials, construction and quality signals typical of this tier, per the sources")
+    buyer_profile: str | None = Field(description="Who buys at this tier and why, per the sources; null if not evidenced")
+    customer_needs: list[str] = Field(description="What buyers at this tier want or praise, from reviews and listings")
+    complaints: list[str] = Field(description="Common complaints or unmet needs at this tier, from reviews")
+    examples: list[ExtractedPrice] = Field(description="Representative products whose prices are visible in an excerpt")
+    source_refs: list[str] = Field(description="Dossier refs that support this tier's description")
+
+
 class StepExtraction(BaseModel):
     findings: list[ExtractedFinding]
     segments: list[ExtractedSegment]
@@ -145,6 +158,7 @@ class StepExtraction(BaseModel):
     channels: list[ExtractedChannel]
     shipping_benchmarks: list[ExtractedShipping]
     size_charts: list[ExtractedSizeChart]
+    price_tiers: list[ExtractedPriceTier]
     evidence_gaps: list[str] = Field(description="Important questions the evidence did not answer")
 
 
@@ -243,3 +257,22 @@ class ChannelLogisticsPlan(BaseModel):
     risks: list[RiskItem]
     open_questions: list[GapItem]
     next_steps: list[NextStep]
+
+
+# ----------------------------------------------------------------------------- compliance
+
+
+class ComplianceItem(BaseModel):
+    area: Literal["design_ip", "labeling", "forced_labor", "safety", "other"]
+    requirement: str = Field(description="The rule or risk, stated plainly")
+    status: Literal["action_needed", "likely_ok", "unknown"] = Field(
+        description="action_needed = the founder must do something; likely_ok = evidence suggests no issue; unknown = not established by the findings")
+    what_to_do: str = Field(description="The concrete next step, e.g. who to ask or which document to get")
+    finding_refs: list[str]
+
+
+class CompliancePlan(BaseModel):
+    summary: str
+    items: list[ComplianceItem]
+    supplier_questions: list[str] = Field(description="Specific questions to send each supplier, answerable with documents")
+    caveat: str = Field(description="One sentence: this is research, not legal advice, and what a professional should confirm")

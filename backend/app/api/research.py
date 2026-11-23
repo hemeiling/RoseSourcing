@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import uuid
 
+from typing import Literal
+
 from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import or_, select
 
 from .. import audit
 from ..config import get_settings
-from ..models import CustomerSegment, EvidenceSource, MarketOpportunity, ResearchFinding, ResearchRun
+from ..models import AnalysisSnapshot, CustomerSegment, EvidenceSource, MarketOpportunity, ResearchFinding, ResearchRun, Supplier
 from ..schemas import (
     EvidenceSourceOut,
     FindingOut,
@@ -55,6 +57,9 @@ def start_run(body: ResearchStartIn, project: ProjectDep, db: DB, user: CurrentU
     if active:
         raise HTTPException(409, "A research run is already in progress for this project.")
     params = body.model_dump(exclude={"kind", "provider"}, exclude_none=True)
+    if body.kind == "compliance":
+        names = db.scalars(select(Supplier.name).where(Supplier.project_id == project.id)).all()
+        params["suppliers"] = ", ".join(names)[:1000] or "none on file yet"
     run = ResearchRun(project_id=project.id, created_by_id=user.id, kind=body.kind, status="queued", provider=provider.name,
                       model=get_llm().model, params=params, steps=initial_steps(body.kind))
     db.add(run)
@@ -102,6 +107,14 @@ def resume_run(run_id: uuid.UUID, db: DB, user: CurrentUser) -> ResearchRun:
     db.commit()
     submit_run(run.id)
     return run
+
+
+@router.get("/projects/{project_id}/snapshots/{kind}")
+def latest_snapshot(kind: Literal["price_tiers", "compliance_checklist"], project: ProjectDep, db: DB) -> dict | None:
+    """The latest price-tier breakdown or compliance checklist for a product (null if none yet)."""
+    snap = db.scalars(select(AnalysisSnapshot).where(AnalysisSnapshot.project_id == project.id, AnalysisSnapshot.kind == kind)
+                      .order_by(AnalysisSnapshot.created_at.desc())).first()
+    return {"id": str(snap.id), "kind": snap.kind, "content": snap.content, "created_at": snap.created_at} if snap else None
 
 
 @router.get("/projects/{project_id}/findings", response_model=list[FindingOut])

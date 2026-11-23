@@ -13,6 +13,7 @@ from app.services.agents.research_schemas import (
     ExtractedPrice,
     ExtractedSegment,
     ExtractedMeasure,
+    ExtractedPriceTier,
     ExtractedShipping,
     ExtractedSizeChart,
     ExtractedSizeLabel,
@@ -30,7 +31,7 @@ from app.services.llm.base import ChatResult, LLMUsage, ToolCallRecord, WebCitat
 
 
 def _ext(**kw: Any) -> StepExtraction:
-    for k in ("findings", "segments", "competitors", "channels", "shipping_benchmarks", "size_charts", "evidence_gaps"):
+    for k in ("findings", "segments", "competitors", "channels", "shipping_benchmarks", "size_charts", "price_tiers", "evidence_gaps"):
         kw.setdefault(k, [])
     return StepExtraction(**kw)
 
@@ -91,6 +92,23 @@ class FakeLLM:
                 ],
                 evidence_gaps=[],
             ), usage
+        if output_model.__name__.startswith("Extraction_") and "Populate price_tiers" in prompt:
+            m = re.search(r"\[(S\d+)\] Brand A Dress", prompt)
+            ref = m.group(1) if m else "S1"
+            return _ext(price_tiers=[
+                ExtractedPriceTier(tier="premium", price_low=70, price_high=120, currency="USD", materials_and_quality=["Lined, stretch mesh"],
+                                   buyer_profile="Competitive dancers", customer_needs=["Comfort for long practice"], complaints=["Runs small"],
+                                   examples=[ExtractedPrice(product_name="Practice Dress", price=79, currency="USD", product_url=None, source_ref=ref),
+                                             ExtractedPrice(product_name="Invented gown", price=999, currency="USD", product_url=None, source_ref=ref)],
+                                   source_refs=[ref]),
+                ExtractedPriceTier(tier="budget", price_low=None, price_high=None, currency="USD", materials_and_quality=[], buyer_profile=None,
+                                   customer_needs=["Cheap"], complaints=[], examples=[], source_refs=[]),
+            ]), usage
+        if output_model.__name__ == "CompliancePlan":
+            return output_model(summary="Check labels and traceability.", caveat="Not legal advice.",
+                                items=[{"area": "forced_labor", "requirement": "Trace cotton origin", "status": "action_needed",
+                                        "what_to_do": "Ask the supplier for mill records", "finding_refs": ["F1"]}],
+                                supplier_questions=["Which mill spun the cotton?", "Can you send fiber content test reports?"]), usage
         if output_model.__name__.startswith("Extraction_") and "Populate size_charts" in prompt:
             m = re.search(r"\[(S\d+)\] Brand A size guide", prompt)
             row = lambda size, bust, waist: ExtractedSizeRow(  # noqa: E731

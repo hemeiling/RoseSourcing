@@ -41,6 +41,8 @@ from ...models import (
     ResearchFinding,
     ResearchRun,
     SizeChart,
+    Supplier,
+    SupplierCommunication,
 )
 from .. import demand
 from ..llm.anthropic_provider import get_llm
@@ -48,7 +50,7 @@ from ..logistics import PackagingSpec, Shipment, channel_economics, compare_ship
 from ..llm.base import LLMError, LLMNotConfigured, LLMRefusal, LLMUsage
 from ..research.providers import EvidenceBundle, get_research_provider
 from ..unit_economics import UnitEconomicsInputs, calculate
-from .research_schemas import ChannelLogisticsPlan, ExtractedFinding, OpportunitySynthesis, StepExtraction
+from .research_schemas import ChannelLogisticsPlan, CompliancePlan, ExtractedFinding, OpportunitySynthesis, StepExtraction
 from .size_chart import chart_fields, rows_from_extraction
 from .runtime import apply_usage, finish_execution, start_execution, with_retries
 
@@ -108,7 +110,8 @@ STEP_DEFS: dict[str, dict[str, Any]] = {
         "question": (
             "Which brands and retailers sell {category} to customers in {country}? For each, find the website, positioning, "
             "sales channels, and currently listed prices for representative products (with product page URLs). "
-            "Prioritise direct competitors around the {price_range} price range plus adjacent tiers. {focus}"
+            "Prioritise direct competitors around the {price_range} price range, and cover every price tier from budget to "
+            "luxury with representative products in each. {focus}"
         ),
         "hints": [
             "{category} brands {country}",
@@ -241,27 +244,99 @@ STEP_DEFS["fit_experience"] = {
     ],
 }
 
+STEP_DEFS["price_tiers"] = {
+    "label": "Price tiers & customer needs",
+    "sections": ["pricing", "customer_segments", "unmet_needs", "competitors"],
+    "question": (
+        "How is {category} priced and positioned in {country}, from budget to luxury? Using real listings - Amazon Best Sellers "
+        "and top search results, Etsy best sellers and top shops, Google Shopping, and brand or department-store sites - split the "
+        "market into price tiers (budget, mid-range, premium, luxury/designer). For each tier give the typical price range, 2-4 "
+        "representative products with listed prices and URLs, the materials, construction and quality differences, who buys at "
+        "that tier and why, and what customers praise and complain about in reviews. {focus}"
+    ),
+    "hints": [
+        "{category} amazon best sellers",
+        "{category} etsy best seller handmade",
+        "luxury designer {category} price",
+        "{category} reviews cheap quality complaints",
+        "premium {category} materials quality",
+    ],
+}
+STEP_DEFS["design_ip"] = {
+    "label": "Design patents, trademarks & IP",
+    "sections": ["regulatory", "risks"],
+    "question": (
+        "Could selling {category} infringe a design patent, trademark or trade dress in {country}? Search for US design patents "
+        "(USPTO, Google Patents) on similar product designs - record patent numbers, titles, owners, grant dates and links - and "
+        "for registered trademarks or distinctive brand designs in this category. Note that US design patents filed on or after "
+        "May 13, 2015 last 15 years from grant. Flag well-known brand designs a small seller should not copy. {focus}"
+    ),
+    "hints": [
+        "{category} design patent USPTO",
+        "{category} design patent google patents",
+        "{category} trademark knock-off lawsuit",
+        "{category} trade dress infringement",
+    ],
+}
+STEP_DEFS["labeling"] = {
+    "label": "Labelling & product rules",
+    "sections": ["regulatory", "risks"],
+    "question": (
+        "What labelling and product-safety rules apply to selling {category} in {country}? Cover fiber-content, country-of-origin "
+        "and manufacturer-identity (RN) labelling under the Textile Fiber Products Identification Act and FTC rules, care labelling, "
+        "rules that apply if marketed to children (CPSIA, tracking labels, testing), California Proposition 65, flammability, and "
+        "marketplace requirements (e.g. Amazon). Cite official FTC, CPSC and CBP pages."
+    ),
+    "hints": [
+        "FTC textile labeling requirements fiber content country of origin",
+        "FTC care labeling rule",
+        "RN number textile manufacturer identification",
+        "CPSIA children's accessories requirements",
+        "Amazon apparel accessories compliance requirements",
+    ],
+}
+STEP_DEFS["uflpa"] = {
+    "label": "Forced labour (UFLPA) & import rules",
+    "sections": ["regulatory", "risks", "sourcing_costs"],
+    "question": (
+        "What does the Uyghur Forced Labor Prevention Act (UFLPA) mean for importing {category} made in {sourcing} into {country}? "
+        "Cover the rebuttable presumption for goods made wholly or partly in Xinjiang or by listed entities, which materials are "
+        "high-risk (e.g. cotton), the supply-chain tracing documents CBP expects from importers, how detentions work, and the "
+        "current UFLPA Entity List. Check whether any of these suppliers appear on it: {suppliers}. Cite DHS and CBP pages."
+    ),
+    "hints": [
+        "UFLPA entity list DHS",
+        "UFLPA importer guidance supply chain tracing documentation CBP",
+        "UFLPA cotton apparel detentions",
+        "UFLPA high priority sectors",
+    ],
+}
+
 RUN_STEPS = {
     "market_opportunity": ["demand_signals", "market_size", "customers", "competitors", "sourcing", "risks", "synthesis"],
     "channels_logistics": ["channels", "logistics", "plan"],
     "competitor_discovery": ["competitors"],
     "fit_sizing": ["fit_charts", "fit_experience"],
+    "price_tiers": ["price_tiers"],
+    "compliance": ["design_ip", "labeling", "uflpa", "compliance_plan"],
 }
 
 STEP_LABELS = {k: v["label"] for k, v in STEP_DEFS.items()} | {
     "synthesis": "Opportunity report synthesis",
     "plan": "Channel & logistics plan",
+    "compliance_plan": "Compliance checklist & supplier questions",
 }
-SYNTHESIS_STEP = {"market_opportunity": "synthesis", "channels_logistics": "plan"}
+SYNTHESIS_STEP = {"market_opportunity": "synthesis", "channels_logistics": "plan", "compliance": "compliance_plan"}
 STEP_AGENT = {"competitors": "competitor_intelligence", "channels": "commerce", "logistics": "sourcing", "demand_signals": "analytics",
-              "fit_charts": "fit", "fit_experience": "fit"}
+              "fit_charts": "fit", "fit_experience": "fit", "price_tiers": "competitor_intelligence",
+              "design_ip": "sourcing", "labeling": "sourcing", "uflpa": "sourcing"}
 
 
 # Each step asks for findings, gaps and only the record list it fills, with its own section choices. One schema with
 # every list is too large for the API to compile into a constrained grammar.
 STEP_RECORDS = {"customers": "segments", "competitors": "competitors", "channels": "channels", "logistics": "shipping_benchmarks",
-                "fit_charts": "size_charts"}
-_RECORD_LISTS = ("findings", "segments", "competitors", "channels", "shipping_benchmarks", "size_charts", "evidence_gaps")
+                "fit_charts": "size_charts", "price_tiers": "price_tiers"}
+_RECORD_LISTS = ("findings", "segments", "competitors", "channels", "shipping_benchmarks", "size_charts", "price_tiers", "evidence_gaps")
 _step_models: dict[str, type[BaseModel]] = {}
 
 
@@ -305,6 +380,7 @@ def project_context(project: BusinessProject, params: dict[str, Any]) -> dict[st
         "price_range": price_range,
         "year": str(datetime.now(timezone.utc).year),
         "focus": (f"Additional focus from the user: {params['focus']}" if params.get("focus") else ""),
+        "suppliers": params.get("suppliers") or "none on file yet",
     }
 
 
@@ -502,6 +578,7 @@ def _persist_extraction(db, run: ResearchRun, step_key: str, bundle: EvidenceBun
 
     dropped_fees, dropped_rates = _persist_channels_and_shipping(db, run, bundle, ext, ref_to_id)
     dropped_sizes = _persist_size_charts(db, run, bundle, ext, ref_to_id)
+    dropped_prices += _persist_price_tiers(db, run, bundle, ext)
 
     if ext.evidence_gaps or dropped_prices or dropped_fees or dropped_rates or dropped_sizes:
         gaps = list(ext.evidence_gaps)
@@ -643,6 +720,44 @@ def _shopper_keywords(run_id: uuid.UUID, ctx: dict[str, str], llm, usage: LLMUsa
     return kws
 
 
+def _persist_price_tiers(db, run: ResearchRun, bundle: EvidenceBundle, ext: StepExtraction) -> int:
+    """Save the price-tier breakdown. Example prices are kept only when they appear in the cited excerpt; a tier's range is
+    kept when its numbers appear in the tier's sources, otherwise it is derived from the kept examples."""
+    if not ext.price_tiers:
+        return 0
+    refs = bundle.by_ref()
+    order = {"budget": 0, "mid": 1, "premium": 2, "luxury": 3}
+    dropped, tiers = 0, []
+    for t in sorted(ext.price_tiers, key=lambda t: order[t.tier]):
+        examples = []
+        for e in t.examples:
+            src = refs.get(e.source_ref)
+            if src and _price_in_excerpts(e.price, src.excerpts):
+                examples.append({"product": e.product_name, "price": e.price, "currency": e.currency.upper()[:8],
+                                 "url": e.product_url or src.url, "source_url": src.url})
+            else:
+                dropped += 1
+        srcs = [refs[r] for r in t.source_refs if r in refs]
+        excerpts = [x for s in srcs for x in s.excerpts] + [x for e in t.examples if e.source_ref in refs for x in refs[e.source_ref].excerpts]
+        stated = [v for v in (t.price_low, t.price_high) if v is not None]
+        if stated and all(_price_in_excerpts(v, excerpts) for v in stated):
+            low, high, basis = min(stated), max(stated), "sourced"
+        elif examples:
+            low, high, basis = min(e["price"] for e in examples), max(e["price"] for e in examples), "from_examples"
+        else:
+            low = high = None
+            basis = "unavailable"
+        tiers.append({
+            "tier": t.tier, "price_low": low, "price_high": high, "range_basis": basis, "currency": t.currency.upper()[:8],
+            "materials_and_quality": t.materials_and_quality, "buyer_profile": t.buyer_profile, "customer_needs": t.customer_needs,
+            "complaints": t.complaints, "examples": examples, "evidence_type": "sourced" if srcs else "ai_inference",
+            "sources": [{"url": s.url, "title": s.title} for s in srcs],
+        })
+    db.add(AnalysisSnapshot(project_id=run.project_id, kind="price_tiers",
+                            content={"tiers": tiers, "research_run_id": str(run.id), "generated_at": datetime.now(timezone.utc).isoformat()}))
+    return dropped
+
+
 def _persist_demand(db, run: ResearchRun, keywords: list[str], geo: str) -> tuple[int, dict[str, Any]]:
     """Collect SerpApi popularity data (Google Trends, Amazon, Google Shopping) and store it as sourced findings."""
     if not demand.configured():
@@ -711,6 +826,7 @@ def _extraction_prompt(step_key: str, ctx: dict[str, str], bundle: EvidenceBundl
         "channels": "Populate channels with each selling channel; fill fee fields only with numbers stated in the fee_source_ref excerpt, otherwise null.",
         "shipping_benchmarks": "Populate shipping_benchmarks only with rates stated in an excerpt, with that excerpt as source_ref.",
         "size_charts": "Populate size_charts with each size chart visible in an excerpt, copying every measurement exactly as printed, with that excerpt as source_ref.",
+        "price_tiers": "Populate price_tiers with one entry per tier the evidence supports; give example prices only when visible in the cited excerpt.",
     }
     rec = STEP_RECORDS.get(step_key)
     return (
@@ -880,7 +996,7 @@ def execute_run(run_id: uuid.UUID) -> None:
 
     synth_key = SYNTHESIS_STEP.get(kind)
     if fatal is None and synth_key and _step_status(run_id, synth_key) == "pending" and _run_status(run_id) != "cancelled":
-        (_run_synthesis if synth_key == "synthesis" else _run_channel_plan)(run_id, ctx)
+        {"synthesis": _run_synthesis, "plan": _run_channel_plan, "compliance_plan": _run_compliance_plan}[synth_key](run_id, ctx)
 
     with session_scope() as db:
         run = db.get(ResearchRun, run_id)
@@ -1138,6 +1254,72 @@ def _run_channel_plan(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
         audit.record(db, "channel_plan.created", user_id=user_id, project_id=project_id, actor="agent:supervisor",
                      entity_type="analysis_snapshot", entity_id=snap.id)
     _update_step(run_id, "plan", status="completed", finished_at=datetime.now(timezone.utc).isoformat())
+
+
+COMPLIANCE_SYSTEM = """You are an import-compliance analyst helping a small founder prepare to sell a product. You are not a lawyer.
+Rules:
+- Base every item on the findings provided and cite them by F-ref. If a requirement is not established by the findings, mark it "unknown" and say how to confirm it.
+- Never state that a design is free to use, that a product is compliant, or that a supplier is cleared - only what the evidence shows.
+- Supplier questions must be specific and answerable with documents: fiber content, country of origin of each material, mills and spinners, traceability records, label artwork, test reports.
+- Keep it short and practical; the founder will act on it."""
+
+
+def _run_compliance_plan(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
+    """Turn the compliance findings into a checklist, and draft (not send) the questions for each supplier on file."""
+    llm = get_llm()
+    with session_scope() as db:
+        run = db.get(ResearchRun, run_id)
+        research_ok = any(s["status"] == "completed" for s in run.steps if s["key"] != "compliance_plan")
+        user_id, project_id = run.created_by_id, run.project_id
+        project = db.get(BusinessProject, project_id)
+        findings = db.scalars(select(ResearchFinding).where(ResearchFinding.research_run_id == run_id).order_by(ResearchFinding.created_at)).all()
+        fmap = {f"F{i}": f for i, f in enumerate(findings, 1)}
+        f_lines = [f"{ref} [{f.section}] ({f.evidence_type}, {f.confidence}): {f.claim}" for ref, f in fmap.items()]
+        product_name = project.name
+    if not research_ok:
+        _update_step(run_id, "compliance_plan", status="skipped", error="Skipped: no research step completed.")
+        return
+    _update_step(run_id, "compliance_plan", status="running", started_at=datetime.now(timezone.utc).isoformat(), attempts=1)
+    prompt = (f"Business context:\n{context_block(ctx)}\nSuppliers on file: {ctx['suppliers']}\n\n=== FINDINGS ===\n" + ("\n".join(f_lines) or "(none)")
+              + "\n\nWrite the compliance checklist (design/IP, labelling, forced labour/UFLPA, safety) and the supplier questions.")
+    with session_scope() as db:
+        ex = start_execution(db, agent="sourcing", operation="compliance_checklist", project_id=project_id, user_id=user_id,
+                             model=llm.model, research_run_id=run_id, input_summary=f"{len(f_lines)} findings")
+        ex_id = ex.id
+    try:
+        plan, usage = with_retries(lambda: llm.structured(system=COMPLIANCE_SYSTEM, prompt=prompt, output_model=CompliancePlan, max_tokens=8000))
+    except Exception as e:  # noqa: BLE001
+        with session_scope() as db:
+            finish_execution(db.get(AgentExecution, ex_id), error=str(e)[:2000])
+        _update_step(run_id, "compliance_plan", status="failed", error=str(e)[:1000], finished_at=datetime.now(timezone.utc).isoformat())
+        return
+    _add_run_usage(run_id, usage)
+    content = plan.model_dump()
+    for item in content["items"]:
+        item["finding_ids"] = [str(fmap[r].id) for r in item.pop("finding_refs") if r in fmap]
+    content.update(research_run_id=str(run_id), generated_by={"model": usage.model or llm.model, "generated_at": datetime.now(timezone.utc).isoformat()})
+    with session_scope() as db:
+        drafted = 0
+        if plan.supplier_questions:
+            body = ("Hello,\n\nBefore we place an order for " + product_name + ", could you please confirm the following and send any supporting documents?\n\n"
+                    + "\n".join(f"{i}. {q}" for i, q in enumerate(plan.supplier_questions, 1)) + "\n\nThank you.")
+            for sup in db.scalars(select(Supplier).where(Supplier.project_id == project_id)).all():
+                db.add(SupplierCommunication(supplier_id=sup.id, channel="email", direction="draft", subject=f"Compliance questions - {product_name}"[:300],
+                                             summary=body, next_action="Review this draft and send it yourself."))
+                drafted += 1
+        content["supplier_drafts"] = drafted
+        snap = AnalysisSnapshot(project_id=project_id, kind="compliance_checklist", content=content, agent_execution_id=ex_id)
+        db.add(snap)
+        for item in plan.items:
+            if item.status == "action_needed":
+                db.add(Recommendation(project_id=project_id, source="research", title=f"{item.requirement}"[:300], body=item.what_to_do,
+                                      priority="high" if item.area in ("design_ip", "forced_labor") else "medium", research_run_id=run_id))
+        ex = db.get(AgentExecution, ex_id)
+        apply_usage(ex, usage)
+        finish_execution(ex, output={"items": len(plan.items), "supplier_drafts": drafted})
+        audit.record(db, "compliance_checklist.created", user_id=user_id, project_id=project_id, actor="agent:sourcing",
+                     entity_type="analysis_snapshot", entity_id=snap.id, details={"supplier_drafts": drafted})
+    _update_step(run_id, "compliance_plan", status="completed", finished_at=datetime.now(timezone.utc).isoformat())
 
 
 def recover_interrupted_runs() -> int:

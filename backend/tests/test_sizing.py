@@ -145,3 +145,31 @@ def test_copilot_sizing_tools(authed, project, monkeypatch):
         assert ok and res["recommended"] == "M" and res["chart"] == "Pasted chart" and "Recommended M" in summary
         ok, out, _ = tools.execute("list_size_charts", {})
         assert json.loads(out)["size_charts"][0]["rows"][1]["size"] == "M"
+
+
+def test_price_tier_run_keeps_only_sourced_prices(authed, project, fake_llm, monkeypatch):
+    monkeypatch.setattr("app.api.research.submit_run", opportunity.execute_run)
+    r = authed.post(f"/api/projects/{project['id']}/research-runs", json={"kind": "price_tiers"})
+    assert r.status_code == 201, r.text
+    assert authed.get(f"/api/research-runs/{r.json()['id']}").json()["status"] == "completed"
+    snap = authed.get(f"/api/projects/{project['id']}/snapshots/price_tiers").json()
+    budget, premium = snap["content"]["tiers"]  # ordered budget -> luxury
+    assert budget["tier"] == "budget" and budget["range_basis"] == "unavailable" and budget["evidence_type"] == "ai_inference"
+    assert [e["price"] for e in premium["examples"]] == [79]  # the invented $999 example was dropped
+    assert premium["range_basis"] == "from_examples" and premium["price_low"] == premium["price_high"] == 79
+    assert premium["customer_needs"] == ["Comfort for long practice"] and premium["sources"]
+    assert authed.get(f"/api/projects/{project['id']}/dashboard").json()["counts"]["price_tier_reports"] == 1
+
+
+def test_compliance_run_drafts_supplier_questions(authed, project, fake_llm, monkeypatch):
+    monkeypatch.setattr("app.api.research.submit_run", opportunity.execute_run)
+    sup = authed.post(f"/api/projects/{project['id']}/suppliers", json={"name": "Guangzhou Dancewear Co"}).json()
+    r = authed.post(f"/api/projects/{project['id']}/research-runs", json={"kind": "compliance"})
+    run = authed.get(f"/api/research-runs/{r.json()['id']}").json()
+    assert run["status"] == "completed" and run["params"]["suppliers"] == "Guangzhou Dancewear Co"
+    assert [s["key"] for s in run["steps"]] == ["design_ip", "labeling", "uflpa", "compliance_plan"]
+    snap = authed.get(f"/api/projects/{project['id']}/snapshots/compliance_checklist").json()["content"]
+    assert snap["items"][0]["status"] == "action_needed" and snap["supplier_drafts"] == 1
+    comms = authed.get(f"/api/suppliers/{sup['id']}").json()["communications"]
+    assert comms[0]["direction"] == "draft" and "Which mill spun the cotton?" in comms[0]["summary"]
+    assert authed.get(f"/api/projects/{project['id']}/snapshots/price_tiers").json() is None

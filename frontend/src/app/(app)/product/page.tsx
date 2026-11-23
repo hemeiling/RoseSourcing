@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { DecisionBadge } from "@/components/decision";
+import { ComplianceSection, PriceTiersSection } from "@/components/product-insights";
 import { useProjects } from "@/components/providers";
 import { Button, Card, CardBody, CardHeader, EmbedContext, EmptyState, Spinner } from "@/components/ui";
 import { money } from "@/lib/format";
@@ -21,6 +22,8 @@ import DashboardPage from "../dashboard/page";
 import MarketPage from "../market/page";
 import SizingPage from "../sizing/page";
 import SuppliersPage from "../suppliers/page";
+
+const CUSTOM: Partial<Record<SectionId, (p: { projectId: string }) => ReactNode>> = { pricing: PriceTiersSection, compliance: ComplianceSection };
 
 const PAGES: Partial<Record<SectionId, () => ReactNode>> = {
   overview: DashboardPage, market: MarketPage, competitors: CompetitorsPage, sizing: SizingPage, suppliers: SuppliersPage,
@@ -54,6 +57,8 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
   if (!c.size_charts) todos.push({ text: "No size chart yet", detail: "Add your size guide or a supplier's chart so customers can find their size.", section: "sizing", tone: "slate" });
   if (!c.channels) todos.push({ text: "Selling channels not compared", detail: "Compare marketplace and store fees for this product.", section: "channels", tone: "slate" });
   if (!c.scenarios) todos.push({ text: "No unit economics yet", detail: "Model cost, price and margin.", section: "economics", tone: "slate" });
+  if (!c.price_tier_reports) todos.push({ text: "Price tiers not researched", detail: "See what budget, mid, premium and luxury buyers each want before you pick a price.", section: "pricing", tone: "slate" });
+  if (!c.compliance_checks) todos.push({ text: "No compliance check yet", detail: "Design patents, labelling and UFLPA forced-labour rules - and questions for your supplier.", section: "compliance", tone: "amber" });
   if (unavailable) todos.push({ text: `${unavailable} research questions had no reliable data`, detail: "Listed as 'data unavailable' findings - these are your evidence gaps.", section: "market", tone: "slate" });
   if (decision === "undecided") todos.push({ text: "Record your go / no-go decision", detail: "Your decision is saved with a snapshot of the evidence.", section: "overview", tone: "slate" });
 
@@ -211,9 +216,18 @@ function ProductReport({ id }: { id: string }) {
       <div className="space-y-12">
         {SECTIONS.map((s) => {
           const Page = PAGES[s.id];
+          const Custom = CUSTOM[s.id];
           return (
           <section key={s.id} id={s.id} className="scroll-mt-32" aria-label={s.title}>
-            {Page ? (
+            {Custom ? (
+              <>
+                <div className="mb-4 border-b border-line pb-3">
+                  <h2 className="text-2xl font-semibold leading-tight text-ink">{s.title}</h2>
+                  {s.description && <p className="mt-1 max-w-3xl text-sm text-slate-600">{s.description}</p>}
+                </div>
+                <Custom projectId={id} />
+              </>
+            ) : Page ? (
               <EmbedContext.Provider value={{ id: s.id, title: s.title, description: s.description }}>
                 <Page />
               </EmbedContext.Provider>

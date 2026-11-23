@@ -56,7 +56,7 @@ export interface RunStep {
 export interface ResearchRun {
   id: string;
   project_id: string;
-  kind: "market_opportunity" | "competitor_discovery" | "channels_logistics" | "fit_sizing";
+  kind: "market_opportunity" | "competitor_discovery" | "channels_logistics" | "fit_sizing" | "price_tiers" | "compliance";
   status: "queued" | "running" | "completed" | "completed_with_errors" | "failed" | "interrupted" | "cancelled";
   provider: string;
   model: string;

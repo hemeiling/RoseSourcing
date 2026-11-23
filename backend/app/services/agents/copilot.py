@@ -94,7 +94,7 @@ class ListRecsIn(BaseModel):
 
 
 class StartResearchIn(BaseModel):
-    kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics", "fit_sizing"] = "market_opportunity"
+    kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics", "fit_sizing", "price_tiers", "compliance"] = "market_opportunity"
     focus: str | None = Field(None, description="What to pay special attention to")
     keywords: list[str] = Field(default_factory=list, description="Shopper search phrases for demand signals (max 3)")
 
@@ -200,8 +200,9 @@ TOOLS: list[ToolSpec] = [
     ToolSpec("compare_shipping_options", "Freight and fulfillment options on file (quotes, assumptions, sourced benchmarks) with computed "
              "cost per unit and transit time for a shipment size, using a product's carton specs.", ShippingIn.model_json_schema()),
     ToolSpec("start_research", "Start a background research run for this product/category: market_opportunity (demand signals, "
-             "market, customers, competitors, sourcing, risks, report), competitor_discovery, channels_logistics, or fit_sizing (competitor size "
-             "charts, fit complaints, returns policies). Costs money; capped per run.",
+             "market, customers, competitors, sourcing, risks, report), competitor_discovery, channels_logistics, fit_sizing (competitor size "
+             "charts, fit complaints, returns policies), price_tiers (budget-to-luxury tiers with quality and customer needs per tier) or "
+             "compliance (design patents/IP, labelling, UFLPA; drafts supplier questions). Costs money; capped per run.",
              StartResearchIn.model_json_schema()),
     ToolSpec("research_status", "Status and step progress of the latest research run.",
              {"type": "object", "properties": {}, "additionalProperties": False}),
@@ -412,6 +413,9 @@ class CopilotTools:
                                                      ResearchRun.status.in_(["queued", "running"]))).first():
             return {"ok": False, "error": "A research run is already in progress for this project."}, "Run already in progress"
         params = {k: v for k, v in {"focus": args.focus, "keywords": args.keywords[:3] or None}.items() if v}
+        if args.kind == "compliance":
+            names = self.db.scalars(select(Supplier.name).where(Supplier.project_id == self.project.id)).all()
+            params["suppliers"] = ", ".join(names)[:1000] or "none on file yet"
         run = ResearchRun(project_id=self.project.id, created_by_id=self.user.id, kind=args.kind, status="queued",
                           provider=provider.name, model=get_llm().model, params=params, steps=initial_steps(args.kind))
         self.db.add(run)
