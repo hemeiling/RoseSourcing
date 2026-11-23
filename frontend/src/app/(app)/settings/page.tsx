@@ -90,6 +90,7 @@ export default function SettingsPage() {
             <CardHeader title="Guardrails" icon={<ShieldCheck className="h-4 w-4" />} subtitle="Bounded agent behaviour - no open-ended loops" />
             <CardBody className="divide-y divide-slate-100 py-1">
               <Row label="Web searches per research step">{status.guardrails.max_searches_per_step}</Row>
+              <Row label="Pages read in full per step">{status.guardrails.max_page_reads_per_step ?? 0}</Row>
               <Row label="Cost cap per research run">{money(status.guardrails.max_research_cost_usd, { decimals: 2 })}</Row>
               <Row label="Attempts per step (transient errors)">{status.guardrails.max_step_attempts}</Row>
               <Row label="Copilot lookups per answer">{status.guardrails.copilot_max_tool_rounds}</Row>

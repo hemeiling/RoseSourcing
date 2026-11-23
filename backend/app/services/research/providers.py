@@ -8,6 +8,7 @@ configured reports exactly what is missing; nothing is ever simulated.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Protocol
 from urllib.parse import urlparse
@@ -83,7 +84,7 @@ class _SourceCollector:
     def __init__(self) -> None:
         self.sources: dict[str, SourceDoc] = {}
 
-    def add(self, url: str, title: str | None, page_age: str | None = None, excerpt: str | None = None) -> SourceDoc:
+    def add(self, url: str, title: str | None, page_age: str | None = None, excerpt: str | None = None, max_excerpts: int = 8) -> SourceDoc:
         key = url.split("#")[0].rstrip("/")
         doc = self.sources.get(key)
         if doc is None:
@@ -95,7 +96,7 @@ class _SourceCollector:
             doc.page_age = page_age
         if excerpt:
             ex = excerpt.strip()
-            if ex and ex not in doc.excerpts and len(doc.excerpts) < 8:
+            if ex and ex not in doc.excerpts and len(doc.excerpts) < max_excerpts:
                 doc.excerpts.append(ex)
         return doc
 
@@ -106,7 +107,27 @@ Search the web and report only what sources actually say. Rules:
 - If you cannot find reliable data for something, say plainly that it was not found. Never estimate or fill gaps silently.
 - Prefer primary and reputable sources (government statistics, trade bodies, company sites, established publications). Note when a source is a vendor blog, press release, or paid market-research teaser.
 - Note the year/date of each statistic when the source gives one.
-- Be concise: short paragraphs of findings, each grounded in citations."""
+- Be concise: short paragraphs of findings, each grounded in citations.
+- When a page is likely to state the exact figures you need - fee schedules, price lists, size charts, minimum order quantities, return policies, review summaries - open it with web_fetch and report the figures exactly as written. Prefer official pages (the platform's own fee page, the brand's size guide)."""
+
+
+def page_passages(text: str, max_chars: int = 6000, max_passages: int = 14) -> list[str]:
+    """Passages of a fetched page that carry figures (prices, %, sizes, quantities), in page order.
+    These become the source's excerpts, so numbers can be checked against what the page actually says."""
+    blocks = [b.strip() for b in re.split(r"\n\s*\n|\n(?=[#*|-])", text) if b.strip()]
+    keep: list[str] = []
+    used = 0
+    for b in blocks:
+        if not re.search(r"\d", b):
+            continue
+        b = re.sub(r"\s+", " ", b)
+        for i in range(0, len(b), 700):
+            piece = b[i:i + 700]
+            if used + len(piece) > max_chars or len(keep) >= max_passages:
+                return keep
+            keep.append(piece)
+            used += len(piece)
+    return keep
 
 
 class AnthropicWebSearchProvider:
@@ -130,7 +151,8 @@ class AnthropicWebSearchProvider:
             "Report what you find, citing sources for every statement. List anything you could not find."
         )
         raw = get_llm().web_research(
-            system=RESEARCH_SYSTEM, prompt=prompt, max_searches=settings.max_searches_per_step, country_code=country_code
+            system=RESEARCH_SYSTEM, prompt=prompt, max_searches=settings.max_searches_per_step, country_code=country_code,
+            max_fetches=settings.max_page_reads_per_step,
         )
         collector = _SourceCollector()
         notes_parts: list[str] = []
@@ -141,6 +163,13 @@ class AnthropicWebSearchProvider:
                 if doc.ref not in refs:
                     refs.append(doc.ref)
             notes_parts.append(text + (" [" + ", ".join(refs) + "]" if refs else ""))
+        # Pages read in full: their figure-bearing passages become verbatim excerpts.
+        for page in raw.pages:
+            doc = collector.add(page.url, page.title, page_age=f"read in full {page.retrieved_at[:10]}" if page.retrieved_at else "read in full")
+            for passage in page_passages(page.text):
+                collector.add(page.url, None, excerpt=passage, max_excerpts=20)
+            if not doc.excerpts:
+                collector.add(page.url, None, excerpt=re.sub(r"\s+", " ", page.text)[:700], max_excerpts=20)
         # Search hits that were returned but never cited are still recorded (title only).
         for hit in raw.hits:
             collector.add(hit.url, hit.title, page_age=hit.page_age)

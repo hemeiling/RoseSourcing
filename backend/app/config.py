@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     # Server-side refusal fallback (beta). Set to "off" to disable.
     anthropic_fallbacks: str = "default"
     web_search_tool_type: str = "web_search_20260209"
+    web_fetch_tool_type: str = "web_fetch_20260209"
 
     # Research providers: anthropic_web_search | tavily | brave
     research_provider: str = "anthropic_web_search"
@@ -49,6 +50,7 @@ class Settings(BaseSettings):
 
     # Guardrails
     max_searches_per_step: int = 5
+    max_page_reads_per_step: int = 3  # pages Claude may open in full per research step (0 = search snippets only)
     max_research_cost_usd: float = 5.0
     max_step_attempts: int = 2
     copilot_max_tool_rounds: int = 8

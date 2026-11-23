@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from ...config import get_settings
 from .base import (
     ChatResult,
+    FetchedPage,
     LLMError,
     LLMNotConfigured,
     LLMRefusal,
@@ -44,6 +45,7 @@ class AnthropicProvider:
         self._api_key = s.anthropic_api_key
         self._fallbacks = s.anthropic_fallbacks
         self._web_search_type = s.web_search_tool_type
+        self._web_fetch_type = s.web_fetch_tool_type
         self._client: anthropic.Anthropic | None = None
 
     # ------------------------------------------------------------------ plumbing
@@ -179,24 +181,31 @@ class AnthropicProvider:
 
     # ------------------------------------------------------------------ web research
 
-    def web_research(self, *, system: str, prompt: str, max_searches: int, country_code: str | None) -> WebResearchResult:
+    def web_research(self, *, system: str, prompt: str, max_searches: int, country_code: str | None,
+                     max_fetches: int = 0) -> WebResearchResult:
         tool: dict[str, Any] = {"type": self._web_search_type, "name": "web_search", "max_uses": max_searches}
         if country_code and len(country_code) == 2:
             tool["user_location"] = {"type": "approximate", "country": country_code.upper()}
+        tools: list[dict[str, Any]] = [tool]
+        if max_fetches > 0 and self._web_fetch_type:
+            # Direct calls only, so fetched pages come back as blocks we can keep as evidence (not filtered inside code).
+            tools.append({"type": self._web_fetch_type, "name": "web_fetch", "max_uses": max_fetches, "max_content_tokens": 8000,
+                          "allowed_callers": ["direct"]})
 
         result = WebResearchResult()
         messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
         for _ in range(MAX_PAUSE_CONTINUATIONS + 1):
-            response = self._call(
-                self.client.beta.messages.create,
-                model=self.model,
-                max_tokens=16000,
-                system=system,
-                messages=messages,
-                tools=[tool],
-                output_config={"effort": self.effort},
-                **self._extra(),
-            )
+            try:
+                response = self._call(self.client.beta.messages.create, model=self.model, max_tokens=16000, system=system,
+                                      messages=messages, tools=tools, output_config={"effort": self.effort}, **self._extra())
+            except LLMError as e:
+                if len(tools) < 2 or "fetch" not in str(e).lower() and "allowed_callers" not in str(e).lower():
+                    raise
+                log.warning("Web fetch unavailable (%s); continuing with search only", str(e)[:200])
+                result.errors.append("Page reading (web fetch) is not available for this account; used search results only.")
+                tools = tools[:1]
+                response = self._call(self.client.beta.messages.create, model=self.model, max_tokens=16000, system=system,
+                                      messages=messages, tools=tools, output_config={"effort": self.effort}, **self._extra())
             self._check_refusal(response)
             result.usage.add(self._usage(response))
             self._collect_research_blocks(response.content, result)
@@ -214,6 +223,21 @@ class AnthropicProvider:
                 q = (getattr(block, "input", None) or {}).get("query")
                 if q:
                     result.queries.append(q)
+            elif btype == "server_tool_use" and getattr(block, "name", None) == "web_fetch":
+                u = (getattr(block, "input", None) or {}).get("url")
+                if u:
+                    result.queries.append(f"read page: {u}")
+            elif btype == "web_fetch_tool_result":
+                payload = getattr(block, "content", None)
+                if getattr(payload, "type", None) == "web_fetch_result":
+                    doc = getattr(payload, "content", None)
+                    src = getattr(doc, "source", None)
+                    text = getattr(src, "data", None) if getattr(src, "type", None) == "text" else None
+                    if text:
+                        result.pages.append(FetchedPage(url=payload.url, title=getattr(doc, "title", None), text=text,
+                                                        retrieved_at=getattr(payload, "retrieved_at", None)))
+                else:
+                    result.errors.append(f"web_fetch error: {getattr(payload, 'error_code', 'unknown_error')}")
             elif btype == "web_search_tool_result":
                 payload = getattr(block, "content", None)
                 if isinstance(payload, list):

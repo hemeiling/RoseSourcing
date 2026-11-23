@@ -48,7 +48,7 @@ class FakeLLM:
     def is_configured(self) -> bool:
         return True
 
-    def web_research(self, *, system: str, prompt: str, max_searches: int, country_code: str | None) -> WebResearchResult:
+    def web_research(self, *, system: str, prompt: str, max_searches: int, country_code: str | None, max_fetches: int = 0) -> WebResearchResult:
         self.calls.append("web_research")
         r = WebResearchResult()
         r.queries = ["test query"]

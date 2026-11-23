@@ -62,11 +62,22 @@ class WebSearchHit:
 
 
 @dataclass
+class FetchedPage:
+    """A page Claude opened in full with the web fetch tool (text as returned by the provider, not the model)."""
+
+    url: str
+    title: str | None
+    text: str
+    retrieved_at: str | None = None
+
+
+@dataclass
 class WebResearchResult:
     """Raw output of a model-driven web research call. Hits and citations come from the provider, not the model."""
 
     text_segments: list[tuple[str, list[WebCitation]]] = field(default_factory=list)
     hits: list[WebSearchHit] = field(default_factory=list)
+    pages: list[FetchedPage] = field(default_factory=list)
     queries: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     usage: LLMUsage = field(default_factory=LLMUsage)

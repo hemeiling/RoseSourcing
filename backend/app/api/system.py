@@ -32,7 +32,7 @@ def status(user: CurrentUser) -> dict:
         "research": {"default_provider": s.research_provider,
                      "providers": [{"name": p.name, "label": p.label, "configured": p.is_configured(), "requirement": p.config_requirement()}
                                    for p in PROVIDERS.values()]},
-        "guardrails": {"max_searches_per_step": s.max_searches_per_step, "max_research_cost_usd": s.max_research_cost_usd,
+        "guardrails": {"max_searches_per_step": s.max_searches_per_step, "max_page_reads_per_step": s.max_page_reads_per_step, "max_research_cost_usd": s.max_research_cost_usd,
                        "max_step_attempts": s.max_step_attempts, "copilot_max_tool_rounds": s.copilot_max_tool_rounds},
         "signup": {"enabled": s.signup_enabled, "invite_list_size": len(s.allowed_signup_email_set)},
         "integrations": [i.__dict__ for i in integration_statuses()],

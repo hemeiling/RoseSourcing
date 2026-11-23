@@ -413,7 +413,7 @@ export interface SystemStatus {
   environment: string;
   ai: { configured: boolean; provider: string; model: string; effort: string; refusal_fallback: string; requirement: string | null };
   research: { default_provider: string; providers: ProviderStatus[] };
-  guardrails: { max_searches_per_step: number; max_research_cost_usd: number; max_step_attempts: number; copilot_max_tool_rounds: number };
+  guardrails: { max_searches_per_step: number; max_page_reads_per_step?: number; max_research_cost_usd: number; max_step_attempts: number; copilot_max_tool_rounds: number };
   signup: { enabled: boolean; invite_list_size: number };
   integrations: IntegrationStatus[];
   agents: Record<string, string>;
