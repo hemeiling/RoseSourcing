@@ -195,7 +195,7 @@ export function SupplierFormModal({
             <Input value={form.capabilities} onChange={set("capabilities")} />
           </Field>
         </div>
-        <Field label="Certifications the supplier claims" hint="Recorded as claims only. 136sourcing never shows these as verified.">
+        <Field label="Certifications the supplier claims" hint="Recorded as claims only. 136Sourcing never shows these as verified.">
           <Input value={form.certifications_claimed} onChange={set("certifications_claimed")} placeholder="e.g. ISO 9001, BSCI, OEKO-TEX" />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -660,7 +660,7 @@ function RfqTab({ supplier, products, onChanged }: { supplier: Supplier; product
     <div className="space-y-3">
       <p className="text-sm text-slate-600">
         The Sourcing Agent drafts a request-for-quotation email using your project and product details. It is saved to the communications log as a draft.{" "}
-        <span className="font-medium">136sourcing never sends messages to suppliers.</span>
+        <span className="font-medium">136Sourcing never sends messages to suppliers.</span>
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
         <Field label="Product (optional)">

@@ -33,7 +33,7 @@ log = logging.getLogger(__name__)
 TOKEN_PREFIX = "aicos_"
 
 INSTRUCTIONS = (
-    "136sourcing: evidence-linked product research and launch workspace. Each product or category the founder evaluates is a "
+    "136Sourcing: evidence-linked product research and launch workspace. Each product or category the founder evaluates is a "
     "project. Call list_projects (or create_project for a new product), then pass project_id to the step tools: start_research, "
     "research_status, get_opportunity_report, search_findings, competitors, suppliers, channels, shipping, unit economics, "
     "brand concepts, decision briefs and record_decision. Cite findings with their evidence type and source links. Never claim "

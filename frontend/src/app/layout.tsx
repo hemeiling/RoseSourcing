@@ -4,7 +4,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: "136sourcing",
+  title: "136Sourcing",
   description: "Evidence-led product launches: market research, price tiers, suppliers, compliance and unit economics for every product you consider.",
 };
 

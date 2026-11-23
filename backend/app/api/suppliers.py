@@ -151,7 +151,7 @@ def rfq_draft(supplier_id: uuid.UUID, body: RfqIn, db: DB, user: CurrentUser) ->
     c = SupplierCommunication(
         supplier_id=s.id, channel="email", direction="draft", subject=draft.subject,
         summary=f"{draft.body}\n\nQuestions checklist:\n{questions}",
-        next_action="Review and send this draft yourself. 136sourcing does not send messages.",
+        next_action="Review and send this draft yourself. 136Sourcing does not send messages.",
     )
     db.add(c)
     audit.record(db, "rfq_draft.created", user_id=user.id, project_id=s.project_id, actor="agent:sourcing",

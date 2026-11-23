@@ -1,7 +1,7 @@
 import clsx from "clsx";
 
 /**
- * 136sourcing mark: a friendly parcel - the product you source - with a sparkle for the winning find.
+ * 136Sourcing mark: a friendly parcel - the product you source - with a sparkle for the winning find.
  * Humble flat shapes, a few cheerful colours, and a small smile.
  */
 export function BoxMark({ className }: { className?: string }) {
@@ -22,7 +22,7 @@ export function BoxMark({ className }: { className?: string }) {
   );
 }
 
-/** Mark plus wordmark: a colourful "136" and "sourcing" in plain lowercase. */
+/** Mark plus wordmark: the colourful "136" house name, then the product name - 136Sourcing (and e.g. 136CRM). */
 export function BrandMark({ light, compact }: { light?: boolean; compact?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
@@ -33,9 +33,9 @@ export function BrandMark({ light, compact }: { light?: boolean; compact?: boole
             <span className={light ? "text-white" : "text-[#5b3bc9]"}>1</span>
             <span className={light ? "text-[#ffc2d4]" : "text-[#e8467c]"}>3</span>
             <span className={light ? "text-[#9ff0e6]" : "text-[#0f9e90]"}>6</span>
-            <span className={clsx("font-semibold", light ? "text-white" : "text-ink")}>sourcing</span>
+            <span className={clsx("font-semibold", light ? "text-white" : "text-ink")}>Sourcing</span>
           </div>
-          <div className={clsx("mt-1 text-[11px] font-medium", light ? "text-white/75" : "text-slate-500")}>product research &amp; sourcing</div>
+          <div className={clsx("mt-1 text-[11px] font-medium", light ? "text-white/75" : "text-slate-500")}>Product research &amp; sourcing</div>
         </div>
       )}
     </div>

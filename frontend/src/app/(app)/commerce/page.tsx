@@ -378,7 +378,7 @@ function Approvals({ approvals }: { approvals: ReturnType<typeof useApi<Approval
             <Alert tone="red">{errorText(approvals.error)}</Alert>
           ) : (approvals.data ?? []).length === 0 ? (
             <EmptyState icon={<ClipboardCheck className="h-5 w-5" />} title="No approval requests">
-              When integrations are connected, any action that leaves 136sourcing will appear here for you to approve or reject first.
+              When integrations are connected, any action that leaves 136Sourcing will appear here for you to approve or reject first.
             </EmptyState>
           ) : (
             <ul className="divide-y divide-slate-100">

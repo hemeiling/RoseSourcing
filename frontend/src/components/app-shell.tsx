@@ -23,7 +23,7 @@ function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () 
   return (
     <nav className="flex h-full flex-col" aria-label="Main">
       <div className={clsx("flex items-center border-b border-line pb-4 pt-5", collapsed ? "flex-col gap-3 px-2" : "justify-between gap-2 px-4")}>
-        <Link href="/products" onClick={onNavigate} aria-label="136sourcing home"><BrandMark compact={collapsed} /></Link>
+        <Link href="/products" onClick={onNavigate} aria-label="136Sourcing home"><BrandMark compact={collapsed} /></Link>
         {onToggle && (
           <button onClick={onToggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className="rounded-md p-1.5 text-primary-700 hover:bg-primary-50">
