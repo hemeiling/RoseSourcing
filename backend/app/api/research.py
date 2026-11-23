@@ -21,6 +21,7 @@ from ..schemas import (
     ResearchStartIn,
     SegmentOut,
 )
+from ..services.agents import run_all
 from ..services.agents.opportunity import initial_steps, submit_run
 from ..services.llm.anthropic_provider import get_llm
 from ..services import demand
@@ -56,7 +57,8 @@ def start_run(body: ResearchStartIn, project: ProjectDep, db: DB, user: CurrentU
         raise HTTPException(503, {"code": "research_not_configured", "message": f"{provider.label} is not configured. {provider.config_requirement()}"})
     active = db.scalars(select(ResearchRun).where(ResearchRun.project_id == project.id,
                                                   ResearchRun.status.in_(["queued", "running"]))).first()
-    if active:
+    chain = run_all.progress(project.id)
+    if active or (chain and not chain["done"]):
         raise HTTPException(409, "A research run is already in progress for this project.")
     params = body.model_dump(exclude={"kind", "provider"}, exclude_none=True)
     if body.kind == "compliance":
@@ -71,6 +73,34 @@ def start_run(body: ResearchStartIn, project: ProjectDep, db: DB, user: CurrentU
     db.commit()
     submit_run(run.id)
     return run
+
+
+@router.get("/projects/{project_id}/research-runs/run-all")
+def run_all_plan(project: ProjectDep, db: DB) -> dict:
+    """What "Run all" would do: skip finished agents, resume interrupted or failed runs, start the rest - with estimates."""
+    steps = run_all.plan(db, project.id)
+    return {"steps": steps, "total_estimate_usd": round(sum(s["estimate_usd"] for s in steps), 2), "progress": run_all.progress(project.id)}
+
+
+@router.post("/projects/{project_id}/research-runs/run-all", status_code=202)
+def run_all_start(project: ProjectDep, db: DB, user: CurrentUser) -> dict:
+    """Run every missing agent for this product, one after another on the server, never repeating a finished one."""
+    provider = get_research_provider(None)
+    if not provider.is_configured():
+        raise HTTPException(503, {"code": "research_not_configured", "message": f"{provider.label} is not configured. {provider.config_requirement()}"})
+    prog = run_all.progress(project.id)
+    active = db.scalars(select(ResearchRun).where(ResearchRun.project_id == project.id, ResearchRun.status.in_(["queued", "running"]))).first()
+    if active or (prog and not prog["done"]):
+        raise HTTPException(409, "Research is already running for this product; Run all can start when it finishes.")
+    steps = run_all.plan(db, project.id)
+    todo = [s for s in steps if s["action"] in ("new", "resume")]
+    if not todo:
+        raise HTTPException(409, "Every agent has already finished for this product - nothing to run.")
+    audit.record(db, "research_run.run_all", user_id=user.id, project_id=project.id, entity_type="project", entity_id=project.id,
+                 details={"agents": [s["kind"] for s in todo], "estimate_usd": round(sum(s["estimate_usd"] for s in todo), 2)})
+    db.commit()
+    run_all.start(project.id, user.id, steps)
+    return {"started": [s["kind"] for s in todo], "total_estimate_usd": round(sum(s["estimate_usd"] for s in todo), 2)}
 
 
 @router.get("/projects/{project_id}/research-runs", response_model=list[ResearchRunOut])

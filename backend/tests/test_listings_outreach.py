@@ -347,3 +347,33 @@ def test_recommended_price_is_raised_until_each_sale_earns():
     assert items[0]["value"] == fixed.retail_price and items[0]["research_value"] == 14.99 and "loses" in note
     same, none = ensure_viable_price(fixed, items)
     assert none is None and same.retail_price == fixed.retail_price
+
+
+def test_run_all_skips_done_resumes_failed_and_never_repeats(authed, project, fake_llm, monkeypatch):
+    import threading
+
+    from app.services.agents import run_all
+
+    pid = project["id"]
+    monkeypatch.setattr("app.api.research.submit_run", opportunity.execute_run)
+    monkeypatch.setattr(demand, "configured", lambda: False)  # no SerpApi: SerpApi-only agents fail fast, AI agents still run
+    done = authed.post(f"/api/projects/{pid}/research-runs", json={"kind": "price_tiers"}).json()
+    failed = authed.post(f"/api/projects/{pid}/research-runs", json={"kind": "listing_tracker"}).json()
+    assert authed.get(f"/api/research-runs/{failed['id']}").json()["status"] == "failed"
+
+    plan = {s["kind"]: s for s in authed.get(f"/api/projects/{pid}/research-runs/run-all").json()["steps"]}
+    assert plan["price_tiers"]["action"] == "done" and plan["price_tiers"]["estimate_usd"] == 0
+    assert plan["listing_tracker"]["action"] == "resume" and plan["listing_tracker"]["run_id"] == failed["id"]
+    assert plan["market_opportunity"]["action"] == "new"
+
+    # Run the chain in this thread so the test can check the result.
+    monkeypatch.setattr(threading, "Thread", lambda target, args, **kw: type("T", (), {"start": lambda self: target(*args)})())
+    r = authed.post(f"/api/projects/{pid}/research-runs/run-all")
+    assert r.status_code == 202 and "price_tiers" not in r.json()["started"]
+    runs = authed.get(f"/api/projects/{pid}/research-runs").json()
+    kinds = [x["kind"] for x in runs]
+    assert kinds.count("price_tiers") == 1 and kinds.count("listing_tracker") == 1  # resumed, not repeated
+    assert set(run_all.ORDER) <= set(kinds)
+    assert run_all.progress(__import__("uuid").UUID(pid))["done"]
+    again = authed.post(f"/api/projects/{pid}/research-runs/run-all")
+    assert again.status_code in (202, 409)  # only agents that are still unfinished (e.g. without SerpApi) would run again

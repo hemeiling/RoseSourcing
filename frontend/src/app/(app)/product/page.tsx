@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { AlertTriangle, ArrowRight, Bot, ChevronDown, ChevronsDownUp, ChevronsUpDown, ListChecks, Pencil } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bot, ChevronDown, ChevronsDownUp, ChevronsUpDown, ListChecks, Loader2, Pencil, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
@@ -13,7 +13,7 @@ import { TrendsExplorer } from "@/components/trends-explorer";
 import { ComplianceSection, PriceTiersSection } from "@/components/product-insights";
 import { ResearchRunStarter } from "@/components/research-run-starter";
 import { useProjects } from "@/components/providers";
-import { Button, Card, CardBody, CardHeader, EmbedContext, EmptyState, Spinner } from "@/components/ui";
+import { Button, Card, CardBody, CardHeader, EmbedContext, EmptyState, Modal, Spinner } from "@/components/ui";
 import { money } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { AGENTS } from "@/lib/agents";
@@ -51,13 +51,104 @@ type Dashboard = {
 
 type Todo = { text: string; detail?: string; section: string; tone: "red" | "amber" | "slate" };
 
+type RunAllStep = { kind: ResearchRun["kind"]; action: "done" | "running" | "resume" | "new"; run_id: string | null; estimate_usd: number };
+type RunAllPlan = {
+  steps: RunAllStep[];
+  total_estimate_usd: number;
+  progress: { total: number; finished: number; current: string | null; done: boolean; stopped: string | null } | null;
+};
+const agentName = (kind: string) => AGENTS.find((a) => a.kind === kind)?.name ?? kind;
+
+/** One click runs every agent this product is missing, one after another on the server. Finished agents are skipped
+ *  and interrupted ones resume where they stopped, so nothing is paid for twice. */
+function RunAll({ projectId, plan, onChange }: { projectId: string; plan: RunAllPlan | undefined; onChange: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (!plan) return null;
+  const todo = plan.steps.filter((s) => s.action === "new" || s.action === "resume");
+  const prog = plan.progress;
+  const chainRunning = !!prog && !prog.done;
+  const anyRunning = chainRunning || plan.steps.some((s) => s.action === "running");
+  const start = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await post(`/api/projects/${projectId}/research-runs/run-all`);
+      setOpen(false);
+      onChange();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      {chainRunning ? (
+        <span className="flex items-center gap-2 text-xs text-slate-600">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-600" aria-hidden /> Running {Math.min(prog.finished + 1, prog.total)} of {prog.total}{prog.current ? `: ${agentName(prog.current)}` : ""}
+        </span>
+      ) : todo.length === 0 ? (
+        <span className="text-xs text-slate-500">All agents have run</span>
+      ) : (
+        <Button size="sm" onClick={() => setOpen(true)} disabled={anyRunning} title={anyRunning ? "An agent is running - wait for it to finish" : undefined}>
+          <PlayCircle className="h-3.5 w-3.5" /> Run all missing ({todo.length}, ~{money(todo.reduce((t, s) => t + s.estimate_usd, 0))})
+        </Button>
+      )}
+      <Modal open={open} onClose={() => setOpen(false)} title="Run all missing agents">
+        <p className="text-sm text-slate-600">
+          They run one after another on the server, in an order where later agents use earlier results. Agents that already
+          finished are skipped; interrupted or failed ones continue where they stopped, so finished work is not paid for again.
+        </p>
+        <ul className="mt-3 divide-y divide-slate-100 text-sm">
+          {plan.steps.map((s) => (
+            <li key={s.kind} className="flex items-center justify-between gap-3 py-1.5">
+              <span className={clsx("min-w-0", s.action === "done" ? "text-slate-400" : "text-ink")}>{agentName(s.kind)}</span>
+              <span className="whitespace-nowrap text-xs">
+                {s.action === "done" ? <span className="text-slate-400">Done - skipped</span>
+                  : s.action === "running" ? <span className="text-amber-700">Running now</span>
+                  : <span className="text-slate-600">{s.action === "resume" ? "Continue" : "New run"} · ~{money(s.estimate_usd)}</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-sm font-semibold text-ink">Estimated cost: ~{money(todo.reduce((t, s) => t + s.estimate_usd, 0))}</p>
+        <p className="mt-1 text-xs text-slate-500">
+          Estimates come from earlier runs; each run stops at the cost cap. If the server restarts or sleeps mid-way, click
+          Run all again - it picks up where it stopped. Keep this page open while it runs.
+        </p>
+        {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
+          <Button onClick={start} loading={busy}>Run {todo.length} agent{todo.length === 1 ? "" : "s"}</Button>
+        </div>
+      </Modal>
+    </>
+  );
+}
+
 /** Every research agent, with its latest run for this product. "Run" jumps to the section where it is started. */
 function AgentsPanel({ projectId }: { projectId: string }) {
   const runs = useApi<ResearchRun[]>(`/api/projects/${projectId}/research-runs`);
+  const plan = useApi<RunAllPlan>(`/api/projects/${projectId}/research-runs/run-all`);
+  const { reload: reloadRuns } = runs;
+  const { reload: reloadPlan } = plan;
+  const active = (!!plan.data?.progress && !plan.data.progress.done) || !!runs.data?.some((r) => r.status === "queued" || r.status === "running");
+  // While anything runs, refresh every 10 s (this also keeps a sleeping free server awake).
+  useEffect(() => {
+    if (!active) return;
+    const t = setInterval(() => { reloadRuns(); reloadPlan(); }, 10000);
+    return () => clearInterval(t);
+  }, [active, reloadRuns, reloadPlan]);
   return (
     <Card className="lg:col-span-2">
       <CardHeader title="Research agents" icon={<Bot className="h-4 w-4" />}
-        subtitle="The same agents work on every product. Each run is saved with this product, with its sources and cost." />
+        subtitle="The same agents work on every product. Each run is saved with this product, with its sources and cost."
+        actions={<RunAll projectId={projectId} plan={plan.data} onChange={() => { reloadRuns(); reloadPlan(); }} />} />
+      {plan.data?.progress?.done && plan.data.progress.stopped && (
+        <p className="mx-5 mb-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{plan.data.progress.stopped}</p>
+      )}
       {/* A list rather than a table, so on a phone the status and link wrap under the agent instead of scrolling sideways. */}
       <ul className="divide-y divide-slate-100 text-sm">
         {AGENTS.map((a) => {

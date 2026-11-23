@@ -1,13 +1,13 @@
 "use client";
 
-import { Pencil, Plus, Star, Swords, Trash2 } from "lucide-react";
+import { ArrowUpRight, Pencil, Plus, Star, Swords, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { RequireProject } from "@/components/app-shell";
 import { CsvImportCard } from "@/components/competitors/csv-import";
 import { PositioningCard, PriceComparisonCard } from "@/components/competitors/charts";
 import { CompetitorDetailModal, CompetitorFormModal, DiscoveredByBadge, fmtPrice } from "@/components/competitors/competitor-modals";
 import { DiscoverPanel } from "@/components/competitors/discovery";
-import { Alert, Badge, Button, Card, CardHeader, EmptyState, ExternalLink, PageHeader, Spinner, Tabs, Td, Th } from "@/components/ui";
+import { Alert, Badge, Button, Card, CardHeader, EmptyState, ExternalLink, PageHeader, ProductThumb, Spinner, Tabs, Td, Th } from "@/components/ui";
 import { del, errorText, patch } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { date, domainOf, titleCase } from "@/lib/format";
@@ -20,14 +20,22 @@ export default function CompetitorsPage() {
 }
 
 function latestPrice(c: Competitor) {
-  let best: { price: number; currency: string; product: string; observed_at: string } | null = null;
+  let best: { price: number; currency: string; product: string; observed_at: string; url: string | null; image: string | null } | null = null;
   let count = 0;
   for (const p of c.products)
     for (const o of p.price_observations) {
       count++;
-      if (!best || o.observed_at > best.observed_at) best = { price: o.price, currency: o.currency, product: p.name, observed_at: o.observed_at };
+      if (!best || o.observed_at > best.observed_at)
+        best = { price: o.price, currency: o.currency, product: p.name, observed_at: o.observed_at, url: o.source_url ?? p.url, image: p.image_url };
     }
   return { best, count };
+}
+
+/** Where a competitor's name links: its website, else the listing where it was seen. */
+function competitorLink(c: Competitor, best: ReturnType<typeof latestPrice>["best"]) {
+  if (c.website) return { href: c.website, label: domainOf(c.website) };
+  const url = best?.url ?? c.products.find((p) => p.url)?.url ?? c.products.flatMap((p) => p.price_observations).find((o) => o.source_url)?.source_url;
+  return url ? { href: url, label: `listing on ${domainOf(url)}` } : null;
 }
 
 function Competitors({ projectId }: { projectId: string }) {
@@ -136,7 +144,7 @@ function Competitors({ projectId }: { projectId: string }) {
             )}
             {competitors.length > 0 && (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[820px]">
+                <table className="w-full min-w-[640px]">
                   <thead className="border-b border-slate-200 bg-slate-50/60">
                     <tr>
                       <Th className="w-10">
@@ -154,6 +162,7 @@ function Competitors({ projectId }: { projectId: string }) {
                   <tbody className="divide-y divide-slate-100">
                     {competitors.map((c) => {
                       const { best, count } = latestPrice(c);
+                      const link = competitorLink(c, best);
                       return (
                         <tr key={c.id} className="hover:bg-slate-50/50">
                           <Td>
@@ -168,14 +177,18 @@ function Competitors({ projectId }: { projectId: string }) {
                             </button>
                           </Td>
                           <Td>
-                            <button onClick={() => setDetailId(c.id)} className="text-left font-medium text-slate-900 hover:text-primary-800 hover:underline">
-                              {c.name}
-                            </button>
-                            {c.website && (
-                              <div className="text-xs">
-                                <ExternalLink href={c.website}>{domainOf(c.website)}</ExternalLink>
-                              </div>
+                            {link ? (
+                              <a href={link.href} target="_blank" rel="noopener noreferrer" title={`Open ${c.name} (${link.label})`}
+                                className="inline-flex items-start gap-1 font-medium text-primary-700 underline decoration-primary-300 underline-offset-2 hover:text-primary-800 hover:decoration-primary-800">
+                                {c.name}
+                                <ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                              </a>
+                            ) : (
+                              <button onClick={() => setDetailId(c.id)} className="text-left font-medium text-slate-900 hover:text-primary-800 hover:underline">
+                                {c.name}
+                              </button>
                             )}
+                            {link && <div className="text-xs text-slate-500">{link.label}</div>}
                             {c.positioning && <div className="mt-0.5 max-w-xs text-xs text-slate-500">{c.positioning}</div>}
                           </Td>
                           <Td>{c.price_tier ? <Badge tone="blue">{titleCase(c.price_tier)}</Badge> : <span className="text-xs text-slate-400">Unknown</span>}</Td>
@@ -186,27 +199,31 @@ function Competitors({ projectId }: { projectId: string }) {
                           <Td className="text-xs">{c.products.length}</Td>
                           <Td className="text-xs">
                             {best ? (
-                              <>
-                                <span className="text-sm font-medium text-slate-900">{fmtPrice(best.price, best.currency)}</span>
-                                <div className="text-slate-500">
-                                  {best.product} · {date(best.observed_at)}
+                              <div className="flex items-start gap-2.5">
+                                {best.image && <ProductThumb src={best.image} href={best.url} alt={best.product} size={40} />}
+                                <div className="min-w-0">
+                                  <span className="text-sm font-medium text-slate-900">{fmtPrice(best.price, best.currency)}</span>
+                                  <div className="text-slate-500">
+                                    {best.url ? <ExternalLink href={best.url}>{best.product}</ExternalLink> : best.product} · {date(best.observed_at)}
+                                  </div>
+                                  <div className="text-slate-400">{count} observation{count === 1 ? "" : "s"}</div>
                                 </div>
-                                <div className="text-slate-400">{count} observation{count === 1 ? "" : "s"}</div>
-                              </>
+                              </div>
                             ) : (
                               <span className="text-slate-400">None recorded</span>
                             )}
                           </Td>
-                          <Td className="whitespace-nowrap text-right">
-                            <Button size="sm" variant="secondary" onClick={() => setDetailId(c.id)}>
-                              Products &amp; prices
+                          <Td className="text-right">
+                            <div className="flex flex-wrap items-center justify-end gap-1">
+                            <Button size="sm" variant="secondary" onClick={() => setDetailId(c.id)} className="whitespace-nowrap">
+                              Prices
                             </Button>
                             <button
                               onClick={() => {
                                 setEditing(c);
                                 setFormOpen(true);
                               }}
-                              className="ml-1 rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                              className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                               aria-label={`Edit ${c.name}`}
                             >
                               <Pencil className="h-3.5 w-3.5" />
@@ -214,6 +231,7 @@ function Competitors({ projectId }: { projectId: string }) {
                             <button onClick={() => remove(c)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Delete ${c.name}`}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
+                            </div>
                           </Td>
                         </tr>
                       );
