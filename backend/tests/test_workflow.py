@@ -92,7 +92,10 @@ def test_demand_signals_from_serpapi(authed, project, fake_llm, monkeypatch):
     _serpapi_fixture(monkeypatch)
     monkeypatch.setattr("app.api.research.submit_run", opportunity.execute_run)
     r = authed.post(f"/api/projects/{project['id']}/research-runs", json={"kind": "market_opportunity"})
-    assert authed.get(f"/api/research-runs/{r.json()['id']}").json()["status"] == "completed"
+    run = authed.get(f"/api/research-runs/{r.json()['id']}").json()
+    assert run["status"] == "completed"
+    # No keywords given: short shopper phrases are suggested, saved, and demand data is collected once for them.
+    assert run["params"]["keywords_source"] == "ai_suggested" and run["params"]["demand_collected_for"] == run["params"]["keywords"]
     demand_f = [f for f in authed.get(f"/api/projects/{project['id']}/findings?section=demand").json() if f["evidence_type"] == "sourced"]
     claims = " | ".join(f["claim"] for f in demand_f)
     assert "rising" in claims and "60/100 vs 40/100" in claims  # +50%

@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel, Field, create_model
 from sqlalchemy import select
 
 from ... import audit
@@ -620,6 +620,29 @@ def _persist_size_charts(db, run: ResearchRun, bundle: EvidenceBundle, ext: Step
     return dropped
 
 
+class ShopperKeywords(BaseModel):
+    keywords: list[str] = Field(description="2-3 short generic phrases (2-5 words) shoppers actually type on Amazon or Google "
+                                            "for this category; no brand names, no parentheses")
+
+
+def _shopper_keywords(run_id: uuid.UUID, ctx: dict[str, str], llm, usage: LLMUsage) -> list[str]:
+    """Demand APIs need what shoppers type, not a long category description. Saved on the run so a resume reuses them."""
+    fallback = [re.sub(r"\s*\(.*?\)", "", ctx["category"]).strip()[:80] or ctx["category"][:80]]
+    try:
+        out, u = llm.structured(system="You choose search phrases for measuring shopper demand.", output_model=ShopperKeywords, max_tokens=1000,
+                                prompt=f"Category: {ctx['category']}\nMarket: {ctx['country']}\nFocus: {ctx.get('focus') or 'none'}")
+        usage.add(u)
+        _add_run_usage(run_id, u)
+        kws = [k.strip()[:80] for k in out.keywords if k.strip()][:3] or fallback
+    except LLMError as e:
+        log.warning("Keyword suggestion failed, using the category: %s", e)
+        kws = fallback
+    with session_scope() as db:
+        run = db.get(ResearchRun, run_id)
+        run.params = {**(run.params or {}), "keywords": kws, "keywords_source": "ai_suggested"}
+    return kws
+
+
 def _persist_demand(db, run: ResearchRun, keywords: list[str], geo: str) -> tuple[int, dict[str, Any]]:
     """Collect SerpApi popularity data (Google Trends, Amazon, Google Shopping) and store it as sourced findings."""
     if not demand.configured():
@@ -763,7 +786,7 @@ def execute_run(run_id: uuid.UUID) -> None:
         run.started_at = run.started_at or datetime.now(timezone.utc)
         run.error = None
         ctx = project_context(project, run.params or {})
-        keywords = [k for k in (run.params or {}).get("keywords") or [] if isinstance(k, str)] or [ctx["category"]]
+        keywords = [k for k in (run.params or {}).get("keywords") or [] if isinstance(k, str)]
         kind = run.kind
         provider_name = run.provider
         user_id = run.created_by_id
@@ -804,10 +827,15 @@ def execute_run(run_id: uuid.UUID) -> None:
             usage = LLMUsage()
             try:
                 api_findings, api_meta = 0, {}
-                if key == "demand_signals" and attempts["n"] == 1:  # don't re-collect API data on a retry
+                if key == "demand_signals":
+                    kws = keywords or _shopper_keywords(run_id, ctx, llm, usage)
                     with session_scope() as db:
-                        api_findings, api_meta = _persist_demand(db, db.get(ResearchRun, run_id), keywords, cc or "US")
-                    hints = [f"{k} best sellers" for k in keywords[:2]] + hints
+                        run = db.get(ResearchRun, run_id)
+                        # Collect API data once per keyword set: not again on a retry or a resume.
+                        if attempts["n"] == 1 and (run.params or {}).get("demand_collected_for") != kws:
+                            api_findings, api_meta = _persist_demand(db, run, kws, cc or "US")
+                            run.params = {**(run.params or {}), "demand_collected_for": kws}
+                    hints = [f"{k} best sellers" for k in kws[:2]] + hints
                 bundle = provider.gather(question=question, context=context_block(ctx), query_hints=hints, country_code=cc)
                 usage.add(bundle.usage)
                 _add_run_usage(run_id, bundle.usage)  # searches are paid for even if extraction fails below
