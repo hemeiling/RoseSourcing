@@ -32,6 +32,11 @@ function messageFrom(detail: unknown, fallback: string): { message: string; code
 
 type Opts = { method?: string; body?: unknown; form?: FormData; signal?: AbortSignal };
 
+// The hosting proxy answers 502/503/504 with its own HTML page when the server is busy, waking up or restarting.
+const BUSY = new Set([502, 503, 504]);
+const RETRY_DELAYS_MS = [2000, 5000]; // read-only requests retry quietly before showing an error
+const busyMessage = (status: number) => `The server is busy or restarting (${status}). Wait a moment and try again - nothing was lost.`;
+
 export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T> {
   const init: RequestInit = { method: opts.method ?? (opts.body || opts.form ? "POST" : "GET"), credentials: "include", signal: opts.signal };
   if (opts.form) {
@@ -40,11 +45,17 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
     init.headers = { "Content-Type": "application/json" };
     init.body = JSON.stringify(opts.body);
   }
-  let res: Response;
-  try {
-    res = await fetch(path, init);
-  } catch {
-    throw new ApiError(0, "Network error - the server could not be reached.");
+  let res: Response | null = null;
+  // Only GETs are retried: repeating a POST could start a run or save a record twice.
+  const retries = init.method === "GET" ? RETRY_DELAYS_MS : [];
+  for (let attempt = 0; ; attempt++) {
+    try {
+      res = await fetch(path, init);
+      if (!BUSY.has(res.status) || attempt >= retries.length) break;
+    } catch {
+      if (opts.signal?.aborted || attempt >= retries.length) throw new ApiError(0, "Network error - the server could not be reached.");
+    }
+    await new Promise((r) => setTimeout(r, retries[attempt]));
   }
   if (res.status === 204) return undefined as T;
   const text = await res.text();
@@ -55,6 +66,10 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
     data = text;
   }
   if (!res.ok) {
+    if (typeof data === "string") {
+      // Not our API's JSON (e.g. the proxy's HTML error page): never show the raw page.
+      throw new ApiError(res.status, BUSY.has(res.status) ? busyMessage(res.status) : `Request failed (${res.status}).`);
+    }
     const { message, code } = messageFrom((data as { detail?: unknown })?.detail ?? data, `Request failed (${res.status})`);
     if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/api/auth/")) {
       window.dispatchEvent(new Event("aicos:unauthorized"));

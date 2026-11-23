@@ -126,7 +126,7 @@ def add_listing_links(body: ListingLinksIn, project: ProjectDep, db: DB, user: C
     """Listing links the founder found: each becomes an unverified supplier lead with its link (no AI, no cost). A link
     already saved for this product is skipped; the listed price and MOQ can be added on the quote afterwards."""
     sups = db.scalars(select(Supplier).where(Supplier.project_id == project.id)).all()
-    saved = {u for s in sups for u in [s.website, *(q.source_url for q in s.quotes)] if u}
+    saved = {clean_url(u) or u for s in sups for u in [s.website, *(q.source_url for q in s.quotes)] if u}
     today = datetime.now(timezone.utc).date()
     added, already, invalid = [], [], []
     for raw in body.urls:

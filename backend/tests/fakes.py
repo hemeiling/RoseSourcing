@@ -120,7 +120,7 @@ class FakeLLM:
                                          seller_signals=[], source_ref=ref),
                 # A listing page that showed no price: kept as a lead because its link is a product listing.
                 ExtractedSupplierListing(supplier_name="yundance", platform="alibaba", product_title="K-323 Latin Dance Dress",
-                                         listing_url="https://www.alibaba.com/product-detail/K-323-Latin-Dance-Dress_1601169741486.html",
+                                         listing_url="https://www.alibaba.com/product-detail/K-323-Latin-Dance-Dress_1601169741486.html?utm_source=linkedin",
                                          price_low=None, price_high=None, currency="USD", moq=None, customization=["Custom colors"],
                                          lead_time_days=None, seller_signals=[], source_ref=ref),
             ]), usage

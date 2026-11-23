@@ -5,7 +5,7 @@ services:
   - type: web
     name: ai-commerce-os
     runtime: docker
-    plan: free
+    plan: starter  # 0.5 CPU, 512 MB, $7/month ("0.5c-512mb" in the dashboard): no spin-down, so research runs are not interrupted
     region: oregon
     dockerfilePath: ./Dockerfile
     dockerContext: .

@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { FolderKanban, LayoutGrid, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, Settings, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { SECTION_BY_ROUTE, productHref } from "@/lib/sections";
 import { useAuth, useProjects, useStatus } from "./providers";
 import { BrandMark } from "./brand-logo";
@@ -112,6 +112,12 @@ function initials(name: string): string {
 }
 
 const COLLAPSE_KEY = "136sourcing.sidebarCollapsed";
+const WIDTH_KEY = "136sourcing.sidebarWidth";
+const DEFAULT_W = 256;
+const MIN_W = 200;
+const MAX_W = 440;
+const RAIL_W = 64; // collapsed icon rail
+const clampW = (w: number) => Math.min(MAX_W, Math.max(MIN_W, Math.round(w)));
 
 function ProjectSwitcher() {
   const { projects, project, select } = useProjects();
@@ -147,15 +153,66 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [width, setWidth] = useState(DEFAULT_W);
+  const [dragging, setDragging] = useState(false);
+  const live = useRef({ collapsed, width });
+  live.current = { collapsed, width };
   const section = pathname ? SECTION_BY_ROUTE[pathname] : undefined;
 
   useEffect(() => {
-    try { setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === "1"); } catch { /* storage unavailable */ }
+    try {
+      setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === "1");
+      const w = Number(window.localStorage.getItem(WIDTH_KEY));
+      if (w) setWidth(clampW(w));
+    } catch { /* storage unavailable */ }
   }, []);
+  const save = (c: boolean, w: number) => {
+    try {
+      window.localStorage.setItem(COLLAPSE_KEY, c ? "1" : "0");
+      window.localStorage.setItem(WIDTH_KEY, String(w));
+    } catch { /* storage unavailable */ }
+  };
   const toggle = () => setCollapsed((c) => {
-    try { window.localStorage.setItem(COLLAPSE_KEY, c ? "0" : "1"); } catch { /* storage unavailable */ }
+    save(!c, live.current.width);
     return !c;
   });
+
+  // Drag the sidebar's right edge to resize it; dragging far left folds it to the icon rail, dragging out opens it again.
+  const startDrag = (e: PointerEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDragging(true);
+  };
+  const onDrag = (e: PointerEvent<HTMLDivElement>) => {
+    if (!dragging) return;
+    if (e.clientX < (MIN_W + RAIL_W) / 2) {
+      setCollapsed(true);
+    } else {
+      setCollapsed(false);
+      setWidth(clampW(e.clientX));
+    }
+  };
+  const endDrag = (e: PointerEvent<HTMLDivElement>) => {
+    if (!dragging) return;
+    e.currentTarget.releasePointerCapture(e.pointerId);
+    setDragging(false);
+    save(live.current.collapsed, live.current.width);
+  };
+  const resetWidth = () => {
+    setCollapsed(false);
+    setWidth(DEFAULT_W);
+    save(false, DEFAULT_W);
+  };
+  const keyResize = (e: KeyboardEvent<HTMLDivElement>) => {
+    const step = e.key === "ArrowRight" ? 16 : e.key === "ArrowLeft" ? -16 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const w = clampW((collapsed ? MIN_W - 16 : width) + step);
+    const c = collapsed ? step < 0 : step < 0 && width <= MIN_W;
+    setCollapsed(c);
+    setWidth(w);
+    save(c, w);
+  };
 
   // The old per-area pages now live as sections of the product report.
   useEffect(() => {
@@ -176,9 +233,17 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen">
-      <aside className={clsx("fixed inset-y-0 left-0 z-30 hidden border-r border-line bg-white transition-[width] duration-200 lg:block", collapsed ? "w-16" : "w-64")}>
+    <div className={clsx("min-h-screen", dragging && "cursor-col-resize select-none")} style={{ "--sidebar-w": `${collapsed ? RAIL_W : width}px` } as CSSProperties}>
+      <aside className={clsx("fixed inset-y-0 left-0 z-30 hidden w-(--sidebar-w) border-r border-line bg-white lg:block", !dragging && "transition-[width] duration-200")}>
         <Sidebar collapsed={collapsed} onToggle={toggle} />
+        <div role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabIndex={0}
+          aria-valuemin={RAIL_W} aria-valuemax={MAX_W} aria-valuenow={collapsed ? RAIL_W : width}
+          title="Drag to resize · double-click to reset"
+          onPointerDown={startDrag} onPointerMove={onDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onDoubleClick={resetWidth} onKeyDown={keyResize}
+          className="group absolute inset-y-0 -right-1.5 z-10 w-3 cursor-col-resize touch-none outline-none">
+          <span className={clsx("absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors",
+            dragging ? "bg-primary-500" : "bg-transparent group-hover:bg-primary-300 group-focus-visible:bg-primary-500")} />
+        </div>
       </aside>
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
@@ -191,7 +256,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </aside>
         </div>
       )}
-      <div className={clsx("transition-[padding] duration-200", collapsed ? "lg:pl-16" : "lg:pl-64")}>
+      <div className={clsx("lg:pl-(--sidebar-w)", !dragging && "transition-[padding] duration-200")}>
         <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-white px-4 sm:px-6">
           <button className="rounded p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
             <Menu className="h-5 w-5" />

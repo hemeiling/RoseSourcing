@@ -52,6 +52,7 @@ from ..dedupe import add_recommendation, find_channel
 from ..price_tiers import apply_to_competitors as apply_tiers_to_competitors
 from ..research.providers import EvidenceBundle, SourceDoc, get_research_provider
 from ..unit_economics import UnitEconomicsInputs, calculate
+from ..urls import clean_url
 from .research_schemas import ChannelLogisticsPlan, CompliancePlan, ExtractedCompetitor, ExtractedFinding, OpportunitySynthesis, StepExtraction
 from .size_chart import chart_fields, rows_from_extraction
 from .runtime import apply_usage, finish_execution, start_execution, with_retries
@@ -861,7 +862,7 @@ def _persist_supplier_listings(db, run: ResearchRun, bundle: EvidenceBundle, ext
         moq = li.moq if li.moq is not None and _number_in(li.moq, src.excerpts) else None
         lead = li.lead_time_days if li.lead_time_days is not None and _number_in(li.lead_time_days, src.excerpts) else None
         dropped += sum(v is not None for v in (li.price_low, li.price_high, li.moq, li.lead_time_days)) - sum(v is not None for v in (low, high, moq, lead))
-        url = li.listing_url or src.url
+        url = clean_url(li.listing_url or src.url) or (li.listing_url or src.url)  # no tracking codes, so a re-find matches
         if low is None and high is None and moq is None and not _LISTING_URL.search(url or ""):
             continue
         where = PLATFORM_LABEL[li.platform]
@@ -873,7 +874,7 @@ def _persist_supplier_listings(db, run: ResearchRun, bundle: EvidenceBundle, ext
         sup = db.scalars(select(Supplier).where(Supplier.project_id == run.project_id, Supplier.name.ilike(name))).first()
         if sup is None:
             sup = Supplier(project_id=run.project_id, name=name, country=None, platform=PLATFORM.get(li.platform, "other"),
-                           website=li.listing_url or src.url, source="research", verification_status="unverified",
+                           website=url, source="research", verification_status="unverified",
                            capabilities=li.customization[:10],
                            notes=(f"Found by research on {where}. " + (f"Seller signals as listed: {'; '.join(li.seller_signals)}. " if li.seller_signals else "")
                                   + "Not verified - check the store, ask for samples and documents.")[:2000])
@@ -887,7 +888,7 @@ def _persist_supplier_listings(db, run: ResearchRun, bundle: EvidenceBundle, ext
                       currency=li.currency.upper()[:8], lead_time_days=lead, quote_date=today, source="research_listing", source_url=url,
                       notes=note[:2000])
         # The same listing found again (a re-run) refreshes its quote instead of adding a duplicate.
-        same = next((q for q in sup.quotes if q.source == "research_listing" and q.source_url == url
+        same = next((q for q in sup.quotes if q.source == "research_listing" and (clean_url(q.source_url or "") or q.source_url) == url
                      and q.product_name.lower() == li.product_title[:300].lower()), None)
         if same is not None:
             for k, v in values.items():

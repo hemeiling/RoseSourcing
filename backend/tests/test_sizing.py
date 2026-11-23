@@ -205,7 +205,7 @@ def test_supplier_listing_run_creates_unverified_suppliers(authed, project, fake
     # after the listing; a listing page without a shown price is kept as a lead with no numbers.
     assert sorted(s["name"] for s in sups) == ["Alibaba.com listing: Velvet knot band", "Yiwu Knot Co", "yundance"]
     lead = next(x for x in sups if x["name"] == "yundance")["quotes"][0]
-    assert lead["unit_price"] is None and "not shown" in lead["notes"] and "product-detail" in lead["source_url"]
+    assert lead["unit_price"] is None and "not shown" in lead["notes"] and lead["source_url"].endswith("_1601169741486.html")  # tracking code stripped
     s = next(x for x in sups if x["name"] == "Yiwu Knot Co")
     assert s["verification_status"] == "unverified" and s["platform"] == "alibaba"
     q = s["quotes"][0]
