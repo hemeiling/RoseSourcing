@@ -7,6 +7,7 @@ import { CsvImportCard } from "@/components/competitors/csv-import";
 import { PositioningCard, PriceComparisonCard } from "@/components/competitors/charts";
 import { CompetitorDetailModal, CompetitorFormModal, DiscoveredByBadge, fmtPrice } from "@/components/competitors/competitor-modals";
 import { DiscoverPanel } from "@/components/competitors/discovery";
+import { fmtFigure } from "@/components/market-size";
 import { Alert, Badge, Button, Card, CardHeader, EmptyState, ExternalLink, PageHeader, ProductThumb, Spinner, Tabs, Td, Th } from "@/components/ui";
 import { del, errorText, patch } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
@@ -53,7 +54,9 @@ function Competitors({ projectId }: { projectId: string }) {
     setVersion((v) => v + 1);
   }, [reload]);
 
-  const competitors = useMemo(() => (data ?? []).filter((c) => !watchOnly || c.on_watchlist), [data, watchOnly]);
+  // Starred (watchlist) competitors first; otherwise the saved order.
+  const competitors = useMemo(() => (data ?? []).filter((c) => !watchOnly || c.on_watchlist)
+    .sort((a, b) => Number(b.on_watchlist) - Number(a.on_watchlist)), [data, watchOnly]);
   const detail = data?.find((c) => c.id === detailId) ?? null;
 
   async function toggleWatch(c: Competitor) {
@@ -168,12 +171,12 @@ function Competitors({ projectId }: { projectId: string }) {
                           <Td>
                             <button
                               onClick={() => toggleWatch(c)}
-                              className="rounded p-1 hover:bg-slate-100"
+                              className="group rounded p-1 hover:bg-amber-50"
                               aria-label={c.on_watchlist ? `Remove ${c.name} from watchlist` : `Add ${c.name} to watchlist`}
                               aria-pressed={c.on_watchlist}
                               title={c.on_watchlist ? "On watchlist" : "Add to watchlist"}
                             >
-                              <Star className={c.on_watchlist ? "h-4 w-4 fill-slate-500 text-slate-500" : "h-4 w-4 text-slate-300"} />
+                              <Star className={c.on_watchlist ? "h-4 w-4 fill-amber-300 text-amber-500" : "h-4 w-4 text-slate-300 group-hover:text-amber-400"} />
                             </button>
                           </Td>
                           <Td>
@@ -189,6 +192,12 @@ function Competitors({ projectId }: { projectId: string }) {
                               </button>
                             )}
                             {link && <div className="text-xs text-slate-500">{link.label}</div>}
+                            {c.revenue && (
+                              <div className="text-xs text-slate-600">
+                                Revenue {fmtFigure(c.revenue)}{c.revenue.year ? ` (${c.revenue.year})` : ""}
+                                {c.revenue.source_url && <> · <ExternalLink href={c.revenue.source_url}>source</ExternalLink></>}
+                              </div>
+                            )}
                             {c.positioning && <div className="mt-0.5 max-w-xs text-xs text-slate-500">{c.positioning}</div>}
                           </Td>
                           <Td>{c.price_tier ? <Badge tone="blue">{titleCase(c.price_tier)}</Badge> : <span className="text-xs text-slate-400">Unknown</span>}</Td>

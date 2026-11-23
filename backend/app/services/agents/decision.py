@@ -108,8 +108,20 @@ def _latest(db: Session, pid, kind: str) -> AnalysisSnapshot | None:
 
 
 def _product_research(db: Session, project: BusinessProject) -> list[str]:
-    """Price tiers, tracked listings, review complaints, the spec sheet and recommended numbers - what the offer rests on."""
+    """Market size, competitor revenue, price tiers, tracked listings, review complaints, the spec sheet and recommended
+    numbers - what the offer rests on."""
     out: list[str] = []
+    sizes = db.scalars(select(ResearchFinding).where(ResearchFinding.project_id == project.id, ResearchFinding.section.in_(["market_size", "growth"]),
+                                                     ResearchFinding.metric.is_not(None)).order_by(ResearchFinding.created_at.desc()).limit(12)).all()
+    if sizes:
+        out.append("=== MARKET SIZE & GROWTH ===\n" + "\n".join(
+            f"- {f.metric['name']}: {f.metric.get('value_low')}{'-' + str(f.metric['value_high']) if f.metric.get('value_high') not in (None, f.metric.get('value_low')) else ''} "
+            f"{f.metric.get('unit')} ({f.metric.get('year') or 'year not stated'}; {f.evidence_type}, {f.confidence})" for f in sizes))
+    revs = [c for c in db.scalars(select(Competitor).where(Competitor.project_id == project.id)).all() if c.revenue]
+    if revs:
+        out.append("=== COMPETITOR REVENUE (as stated by sources) ===\n" + "\n".join(
+            f"- {c.name}: {c.revenue.get('value_low')}{'-' + str(c.revenue['value_high']) if c.revenue.get('value_high') not in (None, c.revenue.get('value_low')) else ''} "
+            f"{c.revenue.get('unit')} ({c.revenue.get('year') or 'year not stated'}) - {c.revenue.get('name')}" for c in revs))
     if (t := _latest(db, project.id, "price_tiers")):
         out.append("=== PRICE TIERS ===\n" + "\n".join(
             f"- {x.get('tier')}: ${x.get('price_low')}-${x.get('price_high')}; quality: {'; '.join(x.get('materials_and_quality') or [])}; "

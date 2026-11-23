@@ -2,7 +2,7 @@
 // (e.g. #listings), so links and deep links reach the exact part. `route` is the old standalone page it replaces.
 
 export type TabId = "overview" | "market" | "competitors" | "fit" | "suppliers" | "compliance" | "channels" | "economics" | "brand";
-export type PartId = "review" | "decision" | "research" | "trends" | "pricing" | "listings" | "brands" | "reviews" | "sizing"
+export type PartId = "review" | "decision" | "market-size" | "research" | "trends" | "pricing" | "listings" | "brands" | "reviews" | "sizing"
   | "supplier-list" | "outreach" | "brand-concepts" | "commerce";
 export type SectionId = TabId | PartId;
 
@@ -15,6 +15,7 @@ export const SECTIONS: Tab[] = [
     { id: "review", title: "To-dos", description: "What is still missing or weak for this product, and the research agents that fill it. Each item jumps to the part that fixes it." },
   ] },
   { id: "market", title: "Market & demand", parts: [
+    { id: "market-size", title: "Market size", description: "How big the industry and this category are, and how much competitors sell - each figure with its year and source." },
     { id: "research", title: "Market research", route: "/market", description: "Demand, market size, customers, competitors, sourcing and risks - every finding linked to its source." },
     { id: "trends", title: "Search trends", description: "Google Trends: compare up to 5 search phrases over time, see where each is searched most, and the related searches and topics that are rising." },
   ] },

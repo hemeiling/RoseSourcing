@@ -65,6 +65,10 @@ class ExtractedCompetitor(BaseModel):
     channels: list[str] = Field(description="e.g. own website, Amazon, Etsy, studios, competitions")
     source_refs: list[str]
     prices: list[ExtractedPrice] = Field(description="Only prices that appear in the dossier")
+    revenue: ExtractedMetric | None = Field(
+        description="Annual revenue or sales only if an excerpt states it (filing, press, or a named estimate); name says what it covers "
+                    "(whole company or one line) and who published it; otherwise null")
+    revenue_source_ref: str | None = Field(description="Dossier ref whose excerpt states the revenue figure, or null")
 
 
 class ExtractedSegment(BaseModel):

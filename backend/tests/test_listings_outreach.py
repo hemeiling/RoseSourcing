@@ -377,3 +377,29 @@ def test_run_all_skips_done_resumes_failed_and_never_repeats(authed, project, fa
     assert run_all.progress(__import__("uuid").UUID(pid))["done"]
     again = authed.post(f"/api/projects/{pid}/research-runs/run-all")
     assert again.status_code in (202, 409)  # only agents that are still unfinished (e.g. without SerpApi) would run again
+
+
+def test_competitor_revenue_kept_only_when_the_source_states_it(authed, project, fake_llm, monkeypatch):
+    from types import SimpleNamespace
+
+    from app.services.agents.opportunity import validated_revenue
+    from app.services.agents.research_schemas import ExtractedCompetitor, ExtractedMetric
+
+    src = SimpleNamespace(url="https://news.example.com/capezio", title="Capezio results",
+                          excerpts=["Capezio reported net sales of $1,250 million in 2024, up 4%."])
+    c = ExtractedCompetitor(name="Capezio", website=None, positioning=None, price_tier="mid", channels=[], source_refs=["S1"], prices=[],
+                            revenue=ExtractedMetric(name="Capezio net sales (company total, reported)", value_low=1250, value_high=None,
+                                                    unit="USD million", year="2024"), revenue_source_ref="S1")
+    kept = validated_revenue(c, {"S1": src})
+    assert kept and kept["value_low"] == 1250 and kept["source_url"] == src.url
+    assert validated_revenue(c.model_copy(update={"revenue_source_ref": "S9"}), {"S1": src}) is None  # no such source
+    wrong = c.model_copy(update={"revenue": c.revenue.model_copy(update={"value_low": 900})})
+    assert validated_revenue(wrong, {"S1": src}) is None  # figure not in the source's text
+
+    # Through a run: the fake agent claims a revenue its source does not state, so the competitor is saved without it.
+    pid = project["id"]
+    monkeypatch.setattr("app.api.research.submit_run", opportunity.execute_run)
+    authed.post(f"/api/projects/{pid}/research-runs", json={"kind": "competitor_discovery"})
+    comps = authed.get(f"/api/projects/{pid}/competitors").json()
+    brand_a = next(x for x in comps if x["name"] == "Brand A")
+    assert brand_a["revenue"] is None

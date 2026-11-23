@@ -52,7 +52,7 @@ from ..dedupe import add_recommendation, find_channel
 from ..price_tiers import apply_to_competitors as apply_tiers_to_competitors
 from ..research.providers import EvidenceBundle, SourceDoc, get_research_provider
 from ..unit_economics import UnitEconomicsInputs, calculate
-from .research_schemas import ChannelLogisticsPlan, CompliancePlan, ExtractedFinding, OpportunitySynthesis, StepExtraction
+from .research_schemas import ChannelLogisticsPlan, CompliancePlan, ExtractedCompetitor, ExtractedFinding, OpportunitySynthesis, StepExtraction
 from .size_chart import chart_fields, rows_from_extraction
 from .runtime import apply_usage, finish_execution, start_execution, with_retries
 
@@ -81,7 +81,9 @@ STEP_DEFS: dict[str, dict[str, Any]] = {
         "sections": ["market_size", "growth", "other"],
         "question": (
             "What credible evidence exists about the size and growth of the {category} market in {country}? "
-            "If category-specific figures are unavailable, look for the closest broader category and say so explicitly. "
+            "Give the size of the wider industry (e.g. the accessories, apparel or dancewear market) and of the specific "
+            "category where published, each with its geography, year, currency and publisher. "
+            "If category-specific figures are unavailable, use the closest broader category and say so explicitly. "
             "Also look for demand indicators such as participation numbers, number of relevant studios/clubs/events, or search interest."
         ),
         "hints": [
@@ -112,6 +114,8 @@ STEP_DEFS: dict[str, dict[str, Any]] = {
         "question": (
             "Which brands and retailers sell {category} to customers in {country}? For each, find the website, positioning, "
             "sales channels, and currently listed prices for representative products (with product page URLs). "
+            "Where it is published (company filings, press, or a named market-research estimate), note each company's annual "
+            "revenue or sales with its year. "
             "Prioritise direct competitors around the {price_range} price range, and cover every price tier from budget to "
             "luxury with representative products in each. {focus}"
         ),
@@ -120,6 +124,7 @@ STEP_DEFS: dict[str, dict[str, Any]] = {
             "{category} online store prices",
             "buy {category} {country}",
             "{category} amazon best sellers",
+            "{category} brand annual revenue",
         ],
     },
     "sourcing": {
@@ -512,6 +517,17 @@ def validate_finding(f: ExtractedFinding, bundle: EvidenceBundle) -> dict[str, A
     }
 
 
+def validated_revenue(c: ExtractedCompetitor, refs: dict[str, Any]) -> dict[str, Any] | None:
+    """A competitor's revenue is kept only when its cited source exists and that source's text states the figure."""
+    m, src = c.revenue, refs.get(c.revenue_source_ref or "")
+    if m is None or src is None or (m.value_low is None and m.value_high is None):
+        return None
+    hay = " ".join(src.excerpts).replace(",", "")
+    if not all(_price_in_excerpts(v, [hay]) for v in (m.value_low, m.value_high) if v is not None):
+        return None
+    return {**m.model_dump(), "source_url": src.url, "source_title": src.title}
+
+
 def _price_in_excerpts(price: float, excerpts: list[str]) -> bool:
     hay = " ".join(excerpts).replace(",", "")
     candidates = {f"{price:.2f}", f"{price:g}", str(int(price)) if price == int(price) else f"{price:.2f}"}
@@ -604,6 +620,8 @@ def _persist_extraction(db, run: ResearchRun, step_key: str, bundle: EvidenceBun
         comp.channels = sorted(set((comp.channels or []) + c.channels))
         if valid and not comp.evidence_source_id:
             comp.evidence_source_id = ref_to_id[valid[0]]
+        if (rev := validated_revenue(c, refs)) and (not comp.revenue or str(rev.get("year") or "") >= str(comp.revenue.get("year") or "")):
+            comp.revenue = rev  # the most recent stated figure wins
         db.flush()
         for p in c.prices:
             src = refs.get(p.source_ref)
@@ -927,7 +945,9 @@ def _extraction_prompt(step_key: str, ctx: dict[str, str], bundle: EvidenceBundl
     sections = ", ".join(STEP_DEFS[step_key]["sections"])
     record_instructions = {
         "segments": "Populate segments with distinct customer segments.",
-        "competitors": "Populate competitors with each brand/retailer found, including only prices visible in excerpts.",
+        "competitors": ("Populate competitors with each brand/retailer found, including only prices visible in excerpts. Fill revenue "
+                        "only with a figure stated in the revenue_source_ref excerpt (name what it covers and who published it); "
+                        "otherwise null."),
         "channels": "Populate channels with each selling channel; fill fee fields only with numbers stated in the fee_source_ref excerpt, otherwise null.",
         "shipping_benchmarks": "Populate shipping_benchmarks only with rates stated in an excerpt, with that excerpt as source_ref.",
         "size_charts": "Populate size_charts with each size chart visible in an excerpt, copying every measurement exactly as printed, with that excerpt as source_ref.",

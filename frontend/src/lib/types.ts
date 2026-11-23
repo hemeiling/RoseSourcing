@@ -217,6 +217,9 @@ export interface Competitor {
   on_watchlist: boolean;
   discovered_by: string;
   evidence_source_id: string | null;
+  /** Annual revenue, saved only when the cited source's text states the figure. */
+  revenue: { name: string; value_low: number | null; value_high: number | null; unit: string; year: string | null;
+    source_url: string | null; source_title: string | null } | null;
   created_at: string;
   products: CompetitorProduct[];
 }

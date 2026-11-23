@@ -8,6 +8,7 @@ import { Suspense, useCallback, useEffect, useRef, useState, type MouseEvent, ty
 import { AiRecommendationLine, DecisionBadge } from "@/components/decision";
 import { RunStatusBadge, fmtCost } from "@/components/market/shared";
 import { ListingTrackerSection, ReviewInsightsSection } from "@/components/listing-insights";
+import { MarketSizeSection } from "@/components/market-size";
 import { OutreachSection } from "@/components/outreach";
 import { TrendsExplorer } from "@/components/trends-explorer";
 import { ComplianceSection, PriceTiersSection } from "@/components/product-insights";
@@ -33,7 +34,7 @@ import SuppliersPage from "../suppliers/page";
 
 // What each tab or part shows. Tabs with parts render each part under its own heading and anchor.
 const CUSTOM: Partial<Record<SectionId, (p: { projectId: string }) => ReactNode>> = {
-  trends: TrendsExplorer, pricing: PriceTiersSection, listings: ListingTrackerSection, reviews: ReviewInsightsSection, outreach: OutreachSection,
+  "market-size": MarketSizeSection, trends: TrendsExplorer, pricing: PriceTiersSection, listings: ListingTrackerSection, reviews: ReviewInsightsSection, outreach: OutreachSection,
   compliance: ComplianceSection,
 };
 const PAGES: Partial<Record<SectionId, () => ReactNode>> = {

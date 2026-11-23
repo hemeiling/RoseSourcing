@@ -175,7 +175,11 @@ class FakeLLM:
                                                  prices=[ExtractedPrice(product_name="Practice Dress", price=79.0, currency="USD",
                                                                         product_url="https://branda.example.com/dress", source_ref="S2"),
                                                          ExtractedPrice(product_name="Ghost Skirt", price=55.0, currency="USD",
-                                                                        product_url=None, source_ref="S42")])],
+                                                                        product_url=None, source_ref="S42")],
+                                                 # Not stated in S2's text, so it must not be saved.
+                                                 revenue=ExtractedMetric(name="Brand A annual sales", value_low=12.5, value_high=None,
+                                                                         unit="USD million", year="2024"),
+                                                 revenue_source_ref="S2")],
                 channels=[], shipping_benchmarks=[],
                 evidence_gaps=["No category-specific market size found."],
             ), usage

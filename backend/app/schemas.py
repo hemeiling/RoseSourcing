@@ -288,6 +288,7 @@ class CompetitorOut(ORM):
     on_watchlist: bool
     discovered_by: str
     evidence_source_id: uuid.UUID | None
+    revenue: dict | None = None
     created_at: datetime
     products: list[CompetitorProductOut]
 

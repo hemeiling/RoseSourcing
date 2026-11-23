@@ -248,6 +248,8 @@ class Competitor(IdMixin, TimestampMixin, Base):
     on_watchlist: Mapped[bool] = mapped_column(Boolean, default=False)
     discovered_by: Mapped[str] = mapped_column(String(32), default="manual")  # ai_research | manual | csv
     evidence_source_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("evidence_sources.id", ondelete="SET NULL"))
+    # {name, value_low, value_high, unit, year, source_url, source_title}: only a figure found in the cited source's text
+    revenue: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
     products: Mapped[list[CompetitorProduct]] = relationship(
         back_populates="competitor", cascade="all, delete-orphan", lazy="selectin"
