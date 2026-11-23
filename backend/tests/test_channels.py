@@ -105,6 +105,10 @@ def test_channels_logistics_run(authed, project, fake_llm, monkeypatch):
     assert cmp["rows"][0]["per_unit_low"] == 4.4 and cmp["rows"][0]["per_unit_high"] == 5.6
     econ = authed.get(f"/api/projects/{pid}/channels/compare").json()
     assert {r["name"] for r in econ["rows"]} == {"Example Marketplace", "Studio wholesale"}
+    by_name = {r["name"]: r for r in econ["rows"]}
+    assert by_name["Example Marketplace"]["fees_on_file"] and not by_name["Studio wholesale"]["fees_on_file"]
+    assert by_name["Studio wholesale"]["warnings"][0].startswith("No fees on file for Studio wholesale")
+    assert econ["rows"][-1]["name"] == "Studio wholesale"  # channels without fees come after those with fees
 
     sc = authed.post(f"/api/projects/{pid}/scenarios/from-channel/{mk['id']}")
     assert sc.status_code == 201, sc.text

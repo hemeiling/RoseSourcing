@@ -209,17 +209,18 @@ export function ChannelsTab({ projectId, version }: { projectId: string; version
                           <div className="mt-0.5 flex flex-wrap gap-1">
                             <Badge>{CHANNEL_TYPE_LABEL[r.channel_type] ?? r.channel_type}</Badge>
                             <Badge tone={CHANNEL_STATUS_TONE[r.status] ?? "slate"}>{titleCase(r.status)}</Badge>
+                            {r.fees_on_file === false && <Badge tone="amber">No fees on file</Badge>}
                           </div>
                           {warnings.length > 0 && (
                             <div className="mt-1 flex gap-1 text-[11px] text-amber-700" title={warnings.join("\n")}>
                               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-                              <span className="line-clamp-2">{warnings[0]}{warnings.length > 1 ? ` (+${warnings.length - 1} more)` : ""}</span>
+                              <span>{warnings[0]}{warnings.length > 1 ? ` (+${warnings.length - 1} more)` : ""}</span>
                             </div>
                           )}
                         </Td>
                         <Td>{money(r.price)}</Td>
-                        <Td>{money(r.channel_fees_per_unit)}</Td>
-                        <Td>{money(r.payment_fees_per_unit)}</Td>
+                        <Td className={r.fees_on_file === false ? "text-slate-400" : undefined}>{money(r.channel_fees_per_unit)}{r.fees_on_file === false && " ?"}</Td>
+                        <Td className={r.fees_on_file === false ? "text-slate-400" : undefined}>{money(r.payment_fees_per_unit)}{r.fees_on_file === false && " ?"}</Td>
                         <Td>
                           <span className={r.contribution_margin >= 0 ? "font-medium text-ink" : "font-medium text-red-700"}>{money(r.contribution_margin)}</span>
                           <span className="ml-1 text-xs text-slate-500">{pct(r.contribution_margin_pct)}</span>

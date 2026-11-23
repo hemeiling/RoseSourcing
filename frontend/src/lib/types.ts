@@ -555,6 +555,7 @@ export interface ChannelEconomicsRow {
   channel_type: string;
   status: string;
   fee_basis: string;
+  fees_on_file?: boolean;
   fee_source_url: string | null;
   fees_checked_at: string | null;
   price: number;

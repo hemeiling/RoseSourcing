@@ -155,12 +155,19 @@ def channel_economics(db: Session, project: BusinessProject, channels: list[Sale
         warnings = list(r["warnings"])
         if ch.fee_basis == "assumption":
             warnings.insert(0, "Fees are assumptions - check the platform's current fee page and mark them verified.")
+        # A channel with no fees saved borrows the scenario's fees, which usually belong to another channel.
+        fees_on_file = any(getattr(ch, c) is not None for c in ("commission_pct", "per_order_fee", "payment_fee_pct", "payment_fee_fixed"))
+        if not fees_on_file:
+            warnings.insert(0, f"No fees on file for {ch.name}: these numbers borrow your scenario's fees ({base.channel_commission_pct:g}% commission, "
+                               f"${base.channel_fee_per_order:.2f} per order, {base.payment_fee_pct:g}% + ${base.payment_fee_fixed:.2f} payment), "
+                               "which may belong to another channel. Add this channel's fees to compare it.")
         rows.append({
             "channel_id": str(ch.id),
             "name": ch.name,
             "channel_type": ch.channel_type,
             "status": ch.status,
             "fee_basis": ch.fee_basis,
+            "fees_on_file": fees_on_file,
             "fee_source_url": ch.fee_source_url,
             "fees_checked_at": ch.fees_checked_at,
             "price": inputs.retail_price,
@@ -175,5 +182,5 @@ def channel_economics(db: Session, project: BusinessProject, channels: list[Sale
             "input_basis": basis,
             "warnings": warnings,
         })
-    rows.sort(key=lambda x: x["contribution_margin"], reverse=True)
+    rows.sort(key=lambda x: (not x["fees_on_file"], -x["contribution_margin"]))  # channels with real fees first
     return {"base_scenario": base_name, "base_price": base.retail_price, "rows": rows}

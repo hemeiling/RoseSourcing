@@ -1331,7 +1331,8 @@ def _run_channel_plan(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
         channels = db.scalars(select(SalesChannel).where(SalesChannel.project_id == project_id,
                                                          SalesChannel.status != "rejected")).all()
         econ = channel_economics(db, project, list(channels))
-        c_lines = [f"- {r['name']} ({r['channel_type']}, fees: {r['fee_basis']}): price ${r['price']:.2f}, channel fees ${r['channel_fees_per_unit']:.2f}/unit, "
+        c_lines = [f"- {r['name']} ({r['channel_type']}, fees: {r['fee_basis']}{'' if r['fees_on_file'] else ', NONE ON FILE - borrowed from the scenario, not this channel'}): "
+                   f"price ${r['price']:.2f}, channel fees ${r['channel_fees_per_unit']:.2f}/unit, "
                    f"contribution ${r['contribution_margin']:.2f}/unit ({r['contribution_margin_pct']}%), break-even CAC ${r['breakeven_cac']:.2f}"
                    for r in econ["rows"]]
         options = db.scalars(select(ShippingOption).where(ShippingOption.project_id == project_id)).all()
