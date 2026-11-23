@@ -117,14 +117,12 @@ function Suppliers({ projectId }: { projectId: string }) {
           )}
           {data && data.length > 0 && (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px]">
+              <table className="w-full min-w-[640px]">
                 <thead className="border-b border-slate-200 bg-slate-50/60">
                   <tr>
                     <Th>Supplier</Th>
-                    <Th>Location</Th>
-                    <Th>Platform</Th>
-                    <Th>Verification</Th>
-                    <Th>Quality</Th>
+                    <Th>Where</Th>
+                    <Th>Status</Th>
                     <Th>Certifications</Th>
                     <Th>Quotes</Th>
                     <Th>Source</Th>
@@ -137,7 +135,7 @@ function Suppliers({ projectId }: { projectId: string }) {
                     const best = usdPrices.length ? Math.min(...usdPrices) : null;
                     return (
                       <tr key={s.id} className="hover:bg-slate-50/50">
-                        <Td>
+                        <Td className="min-w-[11rem]">
                           <button onClick={() => setDetailId(s.id)} className="text-left font-medium text-slate-900 hover:text-primary-800 hover:underline">
                             {s.name}
                           </button>
@@ -148,13 +146,13 @@ function Suppliers({ projectId }: { projectId: string }) {
                           )}
                           {s.capabilities.length > 0 && <div className="mt-0.5 max-w-xs break-words text-xs text-slate-500">{s.capabilities.join(", ")}</div>}
                         </Td>
-                        <Td className="text-xs">{[s.city, s.country].filter(Boolean).join(", ") || "-"}</Td>
-                        <Td className="text-xs">{platformLabel(s.platform)}</Td>
-                        <Td>
-                          <SupplierVerificationBadge status={s.verification_status} labels={labels} />
+                        <Td className="text-xs">
+                          <div className="text-slate-700">{platformLabel(s.platform)}</div>
+                          <div className="text-slate-500">{[s.city, s.country].filter(Boolean).join(", ") || "Location not given"}</div>
                         </Td>
                         <Td>
-                          <QualityStars rating={s.quality_rating} />
+                          <SupplierVerificationBadge status={s.verification_status} labels={labels} />
+                          <div className="mt-1"><QualityStars rating={s.quality_rating} /></div>
                         </Td>
                         <Td className="max-w-[12rem] text-xs text-slate-600">
                           {s.certifications_claimed.length ? (
@@ -167,21 +165,26 @@ function Suppliers({ projectId }: { projectId: string }) {
                         </Td>
                         <Td className="text-xs">
                           {s.quotes.length}
-                          {best !== null && <div className="text-slate-500">from {fmtMoney(best)}/unit</div>}
+                          {best !== null ? <div className="text-slate-500">from {fmtMoney(best)}/unit</div> : (() => {
+                            const listing = s.quotes.find((q) => q.source_url)?.source_url;
+                            return listing && <div className="text-slate-500">Price not shown - <ExternalLink href={listing}>open listing</ExternalLink></div>;
+                          })()}
                         </Td>
                         <Td>
                           <Badge tone={s.source === "csv" ? "blue" : "slate"}>{s.source === "csv" ? "CSV import" : titleCase(s.source)}</Badge>
                         </Td>
-                        <Td className="whitespace-nowrap text-right">
+                        <Td className="text-right">
+                          <div className="flex flex-wrap items-center justify-end gap-1">
                           <Button size="sm" variant="secondary" onClick={() => setDetailId(s.id)}>
                             Open
                           </Button>
-                          <button onClick={() => openEdit(s)} className="ml-1 rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800" aria-label={`Edit ${s.name}`}>
+                          <button onClick={() => openEdit(s)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800" aria-label={`Edit ${s.name}`}>
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
                           <button onClick={() => remove(s)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Delete ${s.name}`}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
+                          </div>
                         </Td>
                       </tr>
                     );

@@ -201,8 +201,11 @@ def test_supplier_listing_run_creates_unverified_suppliers(authed, project, fake
     r = authed.post(f"/api/projects/{project['id']}/research-runs", json={"kind": "supplier_listings"})
     assert authed.get(f"/api/research-runs/{r.json()['id']}").json()["status"] == "completed"
     sups = authed.get(f"/api/projects/{project['id']}/suppliers").json()
-    # The listing with no verifiable number was not saved; an unnamed seller gets its own record named after the listing.
-    assert sorted(s["name"] for s in sups) == ["Alibaba.com listing: Velvet knot band", "Yiwu Knot Co"]
+    # The invented listing (no verifiable number, no listing link) was not saved; an unnamed seller gets its own record named
+    # after the listing; a listing page without a shown price is kept as a lead with no numbers.
+    assert sorted(s["name"] for s in sups) == ["Alibaba.com listing: Velvet knot band", "Yiwu Knot Co", "yundance"]
+    lead = next(x for x in sups if x["name"] == "yundance")["quotes"][0]
+    assert lead["unit_price"] is None and "not shown" in lead["notes"] and "product-detail" in lead["source_url"]
     s = next(x for x in sups if x["name"] == "Yiwu Knot Co")
     assert s["verification_status"] == "unverified" and s["platform"] == "alibaba"
     q = s["quotes"][0]
@@ -210,6 +213,26 @@ def test_supplier_listing_run_creates_unverified_suppliers(authed, project, fake
     assert "not a quote" in q["notes"] and q["source_url"].startswith("https://branda.example.com")
     row = next(r for r in authed.get(f"/api/projects/{project['id']}/suppliers/comparison").json()["rows"] if r["supplier_name"] == "Yiwu Knot Co")
     assert row["source_url"] == q["source_url"]
+
+    # Running the search again refreshes the same listings instead of adding duplicate quotes.
+    authed.post(f"/api/projects/{project['id']}/research-runs", json={"kind": "supplier_listings"})
+    again = authed.get(f"/api/projects/{project['id']}/suppliers").json()
+    assert len(again) == 3 and all(len(s["quotes"]) == 1 for s in again)
+
+
+def test_add_listing_links_saves_leads_once(authed, project):
+    pid = project["id"]
+    urls = ["https://www.alibaba.com/product-detail/L-2034-New-Latin-Dance-Dress_10000010430140.html?spm=a2700&utm_source=x",
+            "https://detail.1688.com/offer/123456789.html", "not a link"]
+    r = authed.post(f"/api/projects/{pid}/suppliers/from-links", json={"urls": urls}).json()
+    assert [a["name"] for a in r["added"]] == ["Alibaba.com listing: L 2034 New Latin Dance Dress", "1688.com listing: 1688.com page"]
+    assert r["invalid"] == ["not a link"]
+    sups = {s["name"]: s for s in authed.get(f"/api/projects/{pid}/suppliers").json()}
+    s = sups["Alibaba.com listing: L 2034 New Latin Dance Dress"]
+    assert s["platform"] == "alibaba" and s["verification_status"] == "unverified" and "spm" not in s["website"]
+    assert s["quotes"][0]["unit_price"] is None and s["quotes"][0]["source"] == "listing_link"
+    again = authed.post(f"/api/projects/{pid}/suppliers/from-links", json={"urls": urls[:1]}).json()
+    assert again["added"] == [] and len(again["already_saved"]) == 1
 
 
 def test_b2b_listing_evidence_uses_google_snippets(monkeypatch):

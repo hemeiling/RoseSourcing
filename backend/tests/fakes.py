@@ -118,6 +118,11 @@ class FakeLLM:
                 ExtractedSupplierListing(supplier_name="unknown", platform="alibaba", product_title="Velvet knot band", listing_url=None,
                                          price_low=79, price_high=None, currency="USD", moq=None, customization=[], lead_time_days=None,
                                          seller_signals=[], source_ref=ref),
+                # A listing page that showed no price: kept as a lead because its link is a product listing.
+                ExtractedSupplierListing(supplier_name="yundance", platform="alibaba", product_title="K-323 Latin Dance Dress",
+                                         listing_url="https://www.alibaba.com/product-detail/K-323-Latin-Dance-Dress_1601169741486.html",
+                                         price_low=None, price_high=None, currency="USD", moq=None, customization=["Custom colors"],
+                                         lead_time_days=None, seller_signals=[], source_ref=ref),
             ]), usage
         if output_model.__name__ == "CompliancePlan":
             return output_model(summary="Check labels and traceability.", caveat="Not legal advice.",

@@ -13,6 +13,7 @@ import { OutreachSection } from "@/components/outreach";
 import { TrendsExplorer } from "@/components/trends-explorer";
 import { ComplianceSection, PriceTiersSection } from "@/components/product-insights";
 import { ResearchRunStarter } from "@/components/research-run-starter";
+import { AddListingLinks } from "@/components/suppliers/add-links";
 import { useProjects } from "@/components/providers";
 import { Button, Card, CardBody, CardHeader, EmbedContext, EmptyState, Modal, Spinner } from "@/components/ui";
 import { money } from "@/lib/format";
@@ -346,8 +347,9 @@ function ProductReport({ id }: { id: string }) {
             <h4 className="mb-2 text-sm font-semibold text-ink">Find suppliers on B2B marketplaces</h4>
             <ResearchRunStarter projectId={id} kind="supplier_listings" label="Search supplier listings"
               onFinished={() => setSuppliersVersion((v) => v + 1)}
-              approval="This searches Alibaba.com, 1688, Made-in-China, Global Sources and DHgate listings through web search. Each supplier found is saved as unverified, with its listed price and MOQ as a 'listing price' quote - only numbers shown on the source are kept. Nothing is ordered or sent."
+              approval="This searches Alibaba.com, 1688, Made-in-China, Global Sources and DHgate listings through web search. Each supplier found is saved as unverified, with its listed price and MOQ as a 'listing price' quote - only numbers shown on the source are kept; a listing whose page showed no price is kept as a lead to open. Nothing is ordered or sent."
               focusPlaceholder="e.g. knotted headbands, custom tweed fabric, MOQ under 500" />
+            <AddListingLinks projectId={id} onAdded={() => setSuppliersVersion((v) => v + 1)} />
           </div>
         )}
         {sid === "brands" && (

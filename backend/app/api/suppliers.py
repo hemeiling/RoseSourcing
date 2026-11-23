@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
+from pydantic import BaseModel, Field
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import select
 
@@ -25,6 +28,7 @@ from ..services import csv_import
 from ..services.agents.generators import draft_rfq
 from ..services.agents.opportunity import PLATFORM_LABEL
 from ..services.agents.sourcing import supplier_comparison
+from ..services.urls import clean_url
 from .deps import DB, CurrentUser, ProjectDep, owned
 
 router = APIRouter(prefix="/api", tags=["suppliers"])
@@ -99,6 +103,61 @@ def delete_supplier(supplier_id: uuid.UUID, db: DB, user: CurrentUser) -> None:
 
 SITE_LABELS = {"alibaba.com": "Alibaba.com", "1688.com": "1688.com", "made-in-china.com": "Made-in-China.com",
                "globalsources.com": "Global Sources", "dhgate.com": "DHgate"}
+
+
+PLATFORM_OF = {"alibaba.com": "alibaba", "1688.com": "1688"}
+
+
+def _listing_title(url: str) -> str | None:
+    """'.../product-detail/K-323-Latin-Dance-Dress-Competition_1601169741486.html' -> 'K-323 Latin Dance Dress Competition'."""
+    slug = urlsplit(url).path.rstrip("/").rsplit("/", 1)[-1]
+    slug = re.sub(r"\.s?html?$", "", slug)
+    slug = re.sub(r"[_-]\d{6,}$", "", slug)
+    words = re.sub(r"[-_+]+", " ", slug).strip()
+    return words[:120] if re.search(r"[A-Za-z]{3}", words) else None
+
+
+class ListingLinksIn(BaseModel):
+    urls: list[str] = Field(min_length=1, max_length=20)
+
+
+@router.post("/projects/{project_id}/suppliers/from-links", status_code=201)
+def add_listing_links(body: ListingLinksIn, project: ProjectDep, db: DB, user: CurrentUser) -> dict:
+    """Listing links the founder found: each becomes an unverified supplier lead with its link (no AI, no cost). A link
+    already saved for this product is skipped; the listed price and MOQ can be added on the quote afterwards."""
+    sups = db.scalars(select(Supplier).where(Supplier.project_id == project.id)).all()
+    saved = {u for s in sups for u in [s.website, *(q.source_url for q in s.quotes)] if u}
+    today = datetime.now(timezone.utc).date()
+    added, already, invalid = [], [], []
+    for raw in body.urls:
+        url = clean_url(raw)
+        if not url:
+            invalid.append(raw[:200])
+            continue
+        if url in saved:
+            already.append(url)
+            continue
+        host = (urlsplit(url).hostname or "").removeprefix("www.")
+        key = next((k for k in SITE_LABELS if host == k or host.endswith("." + k)), None)
+        site = SITE_LABELS[key] if key else host
+        title = _listing_title(url) or f"{site} page"
+        base = f"{site} listing: {title[:80]}"
+        name, n = base, 2
+        while db.scalars(select(Supplier).where(Supplier.project_id == project.id, Supplier.name.ilike(name))).first():
+            name, n = f"{base} ({n})", n + 1
+        sup = Supplier(project_id=project.id, name=name[:300], platform=PLATFORM_OF.get(key or "", "other"), website=url, source="manual",
+                       verification_status="unverified", notes="Added from a link you saved. Not verified - check the store, ask for samples and documents.")
+        db.add(sup)
+        db.flush()
+        db.add(SupplierQuote(supplier_id=sup.id, product_name=title[:300], currency="USD", quote_date=today, source="listing_link", source_url=url,
+                             notes="Saved from a link you added. Add the listed price and MOQ when you have them (a listing price, not a quote)."))
+        saved.add(url)
+        added.append({"id": str(sup.id), "name": sup.name})
+    if added:
+        audit.record(db, "supplier.links_added", user_id=user.id, project_id=project.id, entity_type="project", entity_id=project.id,
+                     details={"count": len(added)})
+    db.commit()
+    return {"added": added, "already_saved": already, "invalid": invalid}
 
 
 @router.post("/suppliers/{supplier_id}/split-listings")

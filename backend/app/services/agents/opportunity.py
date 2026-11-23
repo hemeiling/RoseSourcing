@@ -839,8 +839,15 @@ PLATFORM_LABEL = {"alibaba": "Alibaba.com", "1688": "1688.com", "made_in_china":
                   "dhgate": "DHgate", "other": "a B2B marketplace"}
 
 
+# A specific product listing on a B2B marketplace (not a category page or buying guide).
+_LISTING_URL = re.compile(r"alibaba\.com/product-detail/|detail\.1688\.com/offer/|made-in-china\.com/.*(?:/product/|prod_)|dhgate\.com/product/"
+                          r"|globalsources\.com/.*product", re.I)
+
+
 def _persist_supplier_listings(db, run: ResearchRun, bundle: EvidenceBundle, ext: StepExtraction) -> int:
-    """Save B2B listings as unverified suppliers with a listing-price quote. Numbers are kept only if they appear in the excerpt."""
+    """Save B2B listings as unverified suppliers with a listing-price quote. Numbers are kept only if they appear in the excerpt.
+    A listing page whose price and MOQ could not be read (e.g. the marketplace returned an empty page) is still kept as a
+    lead without numbers, so the founder can open it."""
     refs = bundle.by_ref()
     today = datetime.now(timezone.utc).date()
     dropped = 0
@@ -854,7 +861,8 @@ def _persist_supplier_listings(db, run: ResearchRun, bundle: EvidenceBundle, ext
         moq = li.moq if li.moq is not None and _number_in(li.moq, src.excerpts) else None
         lead = li.lead_time_days if li.lead_time_days is not None and _number_in(li.lead_time_days, src.excerpts) else None
         dropped += sum(v is not None for v in (li.price_low, li.price_high, li.moq, li.lead_time_days)) - sum(v is not None for v in (low, high, moq, lead))
-        if low is None and high is None and moq is None:
+        url = li.listing_url or src.url
+        if low is None and high is None and moq is None and not _LISTING_URL.search(url or ""):
             continue
         where = PLATFORM_LABEL[li.platform]
         name = li.supplier_name.strip()
@@ -873,11 +881,21 @@ def _persist_supplier_listings(db, run: ResearchRun, bundle: EvidenceBundle, ext
             db.flush()
         price = low if low is not None else high
         rng = f"{li.currency.upper()} {low:g}-{high:g}" if low is not None and high is not None and low != high else (f"{li.currency.upper()} {price:g}" if price is not None else "not shown")
-        db.add(SupplierQuote(
-            supplier_id=sup.id, product_name=li.product_title[:300], moq=moq, unit_price=Decimal(str(price)) if price is not None else None,
-            currency=li.currency.upper()[:8], lead_time_days=lead, quote_date=today, source="research_listing", source_url=li.listing_url or src.url,
-            notes=f"Listed price {rng} per unit on {where} (a listing price, not a quote). Source: {li.listing_url or src.url}"[:2000],
-        ))
+        note = (f"Listed price {rng} per unit on {where} (a listing price, not a quote). Source: {url}" if price is not None or moq is not None else
+                f"Price and MOQ were not shown in the text retrieved from {where} - open the listing to see them. Source: {url}")
+        values = dict(product_name=li.product_title[:300], moq=moq, unit_price=Decimal(str(price)) if price is not None else None,
+                      currency=li.currency.upper()[:8], lead_time_days=lead, quote_date=today, source="research_listing", source_url=url,
+                      notes=note[:2000])
+        # The same listing found again (a re-run) refreshes its quote instead of adding a duplicate.
+        same = next((q for q in sup.quotes if q.source == "research_listing" and q.source_url == url
+                     and q.product_name.lower() == li.product_title[:300].lower()), None)
+        if same is not None:
+            for k, v in values.items():
+                if v is not None or k in ("unit_price", "moq"):
+                    setattr(same, k, v if v is not None else getattr(same, k))
+        else:
+            db.add(SupplierQuote(supplier_id=sup.id, **values))
+            db.flush()
     return dropped
 
 
@@ -956,7 +974,8 @@ def _extraction_prompt(step_key: str, ctx: dict[str, str], bundle: EvidenceBundl
                         "describe quality and buyer needs from listing titles, reviews and the other sources. Give example prices only when "
                         "visible in the cited excerpt."),
         "supplier_listings": ("Populate supplier_listings with each specific supplier listing in an excerpt. Fill price, MOQ and lead time "
-                              "only with numbers visible in that listing's excerpt; otherwise null. Use the seller name only if the excerpt "
+                              "only with numbers visible in that listing's excerpt; otherwise null. Include a product listing even when its "
+                              "page showed no price (price null, with its listing_url) - it is still a lead the founder can open. Use the seller name only if the excerpt "
                               "shows it, otherwise write 'unknown'. Never invent a supplier."),
     }
     rec = STEP_RECORDS.get(step_key)
