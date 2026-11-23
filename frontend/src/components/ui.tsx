@@ -261,12 +261,12 @@ export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { valu
 
 export function StatCard({ label, value, hint, icon }: { label: string; value: ReactNode; hint?: ReactNode; icon?: ReactNode }) {
   return (
-    <Card className="border-t-4 border-t-brand-600 px-4 py-3.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-slate-500">{label}</span>
-        {icon && <span className="text-brand-400">{icon}</span>}
+    <Card className="min-w-0 border-t-4 border-t-brand-600 px-4 py-3.5">
+      <div className="flex items-start justify-between gap-2">
+        <span className="min-w-0 text-[11px] font-bold uppercase tracking-[0.06em] text-slate-500">{label}</span>
+        {icon && <span className="shrink-0 text-brand-400">{icon}</span>}
       </div>
-      <div className="mt-1 font-serif text-4xl font-semibold text-brand-700">{value}</div>
+      <div className="mt-1 break-words text-2xl font-semibold leading-tight text-brand-700 sm:text-3xl">{value}</div>
       {hint && <div className="mt-0.5 text-[11px] text-slate-500">{hint}</div>}
     </Card>
   );

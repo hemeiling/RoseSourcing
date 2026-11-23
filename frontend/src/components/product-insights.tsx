@@ -3,7 +3,7 @@
 import { AlertTriangle, CheckCircle2, CircleHelp, ThumbsDown, ThumbsUp } from "lucide-react";
 import { ResearchRunStarter } from "@/components/research-run-starter";
 import { Badge, Card, CardBody, ExternalLink, Spinner, type Tone } from "@/components/ui";
-import { date, money, titleCase } from "@/lib/format";
+import { date, domainOf, money, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 
 type Snapshot<T> = { id: string; content: T; created_at: string } | null;
@@ -96,7 +96,7 @@ export function PriceTiersSection({ projectId }: { projectId: string }) {
 type Checklist = {
   summary: string;
   caveat: string;
-  items: { area: string; requirement: string; status: "action_needed" | "likely_ok" | "unknown"; what_to_do: string; finding_ids: string[] }[];
+  items: { area: string; requirement: string; status: "action_needed" | "likely_ok" | "unknown"; what_to_do: string; finding_ids: string[]; sources?: { url: string; title: string }[] }[];
   supplier_questions: string[];
   supplier_drafts: number;
 };
@@ -136,6 +136,11 @@ export function ComplianceSection({ projectId }: { projectId: string }) {
                         <div className="min-w-0 text-sm">
                           <div className="font-medium text-ink">{i.requirement}</div>
                           <div className="text-slate-600">{i.what_to_do}</div>
+                          {!!i.sources?.length && (
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
+                              {i.sources.slice(0, 4).map((s) => <ExternalLink key={s.url} href={s.url} className="max-w-full truncate">{domainOf(s.url)}</ExternalLink>)}
+                            </div>
+                          )}
                         </div>
                       </li>
                     );

@@ -367,6 +367,7 @@ class QuoteOut(ORM):
     quote_date: date | None
     valid_until: date | None
     source: str
+    source_url: str | None = None
     notes: str | None
 
 

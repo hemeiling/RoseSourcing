@@ -170,6 +170,7 @@ def test_compliance_run_drafts_supplier_questions(authed, project, fake_llm, mon
     assert [s["key"] for s in run["steps"]] == ["design_ip", "labeling", "uflpa", "compliance_plan"]
     snap = authed.get(f"/api/projects/{project['id']}/snapshots/compliance_checklist").json()["content"]
     assert snap["items"][0]["status"] == "action_needed" and snap["supplier_drafts"] == 1
+    assert snap["items"][0]["sources"] and snap["items"][0]["sources"][0]["url"].startswith("http")
     comms = authed.get(f"/api/suppliers/{sup['id']}").json()["communications"]
     assert comms[0]["direction"] == "draft" and "Which mill spun the cotton?" in comms[0]["summary"]
     assert authed.get(f"/api/projects/{project['id']}/snapshots/price_tiers").json() is None
@@ -206,7 +207,9 @@ def test_supplier_listing_run_creates_unverified_suppliers(authed, project, fake
     assert s["verification_status"] == "unverified" and s["platform"] == "alibaba"
     q = s["quotes"][0]
     assert float(q["unit_price"]) == 79 and q["moq"] is None and q["source"] == "research_listing"  # 500 is not in the excerpt
-    assert "not a quote" in q["notes"]
+    assert "not a quote" in q["notes"] and q["source_url"].startswith("https://branda.example.com")
+    row = next(r for r in authed.get(f"/api/projects/{project['id']}/suppliers/comparison").json()["rows"] if r["supplier_name"] == "Yiwu Knot Co")
+    assert row["source_url"] == q["source_url"]
 
 
 def test_b2b_listing_evidence_uses_google_snippets(monkeypatch):

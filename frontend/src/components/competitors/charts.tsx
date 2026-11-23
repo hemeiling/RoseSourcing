@@ -17,7 +17,7 @@ import {
   YAxis,
 } from "recharts";
 import { ApiError, errorText, post } from "@/lib/api";
-import { useApi } from "@/lib/hooks";
+import { useApi, useNarrow, truncate } from "@/lib/hooks";
 import { date, dateTime, domainOf, money, titleCase } from "@/lib/format";
 import { Alert, Badge, Button, Card, CardBody, CardHeader, ConfigNotice, EmptyState, ExternalLink, Spinner, Td, Th } from "@/components/ui";
 import { VerificationBadge } from "@/components/evidence";
@@ -47,6 +47,7 @@ type PriceComparison = {
 const VERIFY_COLOR: Record<string, string> = { source_linked: "#6a48a3", human_verified: "#16a34a", unverified: "#cfc1e6", disputed: "#dc2626" };
 
 export function PriceComparisonCard({ projectId, version }: { projectId: string; version: number }) {
+  const narrow = useNarrow();
   const { data, error, loading, reload } = useApi<PriceComparison>(`/api/projects/${projectId}/competitors/price-comparison`);
   useEffect(() => {
     if (version) reload();
@@ -98,7 +99,8 @@ export function PriceComparisonCard({ projectId, version }: { projectId: string;
                   <BarChart data={usdRows} layout="vertical" margin={{ top: 5, right: 40, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                     <XAxis type="number" tickFormatter={(v: number) => `$${v}`} tick={{ fontSize: 11 }} domain={[0, "auto"]} />
-                    <YAxis type="category" dataKey="label" width={210} tick={{ fontSize: 11 }} interval={0} />
+                    <YAxis type="category" dataKey="label" width={narrow ? 112 : 210} tick={{ fontSize: 11 }} interval={0}
+                      tickFormatter={(v: string) => truncate(v, narrow ? 17 : 34)} />
                     {hyp && <ReferenceArea x1={hyp.min} x2={hyp.max} fill="#4e2a84" fillOpacity={0.08} stroke="#4e2a84" strokeOpacity={0.3} />}
                     <Tooltip
                       cursor={{ fill: "#f1f5f9" }}

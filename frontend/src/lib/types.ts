@@ -229,6 +229,7 @@ export interface Quote {
   quote_date: string | null;
   valid_until: string | null;
   source: string;
+  source_url: string | null;
   notes: string | null;
 }
 
@@ -266,6 +267,7 @@ export interface Supplier {
 export interface ComparisonRow {
   supplier_id: string;
   supplier_name: string;
+  website: string | null;
   country: string | null;
   platform: string | null;
   verification_status: string;
@@ -280,6 +282,7 @@ export interface ComparisonRow {
   lead_time_days: number | null;
   incoterm: string | null;
   quote_date: string | null;
+  source_url: string | null;
   landed_cost: Record<string, number> | null;
   moq_landed_cost_total: number | null;
   within_budget: boolean | null;

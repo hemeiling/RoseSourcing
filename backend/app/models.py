@@ -392,7 +392,8 @@ class SupplierQuote(IdMixin, TimestampMixin, Base):
     est_freight_per_unit: Mapped[Decimal | None] = mapped_column(Money)
     quote_date: Mapped[date | None] = mapped_column(Date)
     valid_until: Mapped[date | None] = mapped_column(Date)
-    source: Mapped[str] = mapped_column(String(32), default="manual")  # manual | csv | email | integration
+    source: Mapped[str] = mapped_column(String(32), default="manual")  # manual | csv | email | integration | research_listing
+    source_url: Mapped[str | None] = mapped_column(Text)  # the listing or document the price came from
     notes: Mapped[str | None] = mapped_column(Text)
 
     supplier: Mapped[Supplier] = relationship(back_populates="quotes")

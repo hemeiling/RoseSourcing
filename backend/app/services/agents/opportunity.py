@@ -829,7 +829,7 @@ def _persist_supplier_listings(db, run: ResearchRun, bundle: EvidenceBundle, ext
         rng = f"{li.currency.upper()} {low:g}-{high:g}" if low is not None and high is not None and low != high else (f"{li.currency.upper()} {price:g}" if price is not None else "not shown")
         db.add(SupplierQuote(
             supplier_id=sup.id, product_name=li.product_title[:300], moq=moq, unit_price=Decimal(str(price)) if price is not None else None,
-            currency=li.currency.upper()[:8], lead_time_days=lead, quote_date=today, source="research_listing",
+            currency=li.currency.upper()[:8], lead_time_days=lead, quote_date=today, source="research_listing", source_url=li.listing_url or src.url,
             notes=f"Listed price {rng} per unit on {where} (a listing price, not a quote). Source: {li.listing_url or src.url}"[:2000],
         ))
     return dropped

@@ -51,29 +51,26 @@ function AgentsPanel({ projectId }: { projectId: string }) {
     <Card className="lg:col-span-2">
       <CardHeader title="Research agents" icon={<Bot className="h-4 w-4" />}
         subtitle="The same agents work on every product. Each run is saved with this product, with its sources and cost." />
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
-          <tbody className="divide-y divide-slate-100">
-            {AGENTS.map((a) => {
-              const last = runs.data?.find((r) => r.kind === a.kind);
-              return (
-                <tr key={a.kind}>
-                  <td className="px-5 py-2.5 align-top">
-                    <div className="font-semibold text-ink">{a.name}</div>
-                    <div className="text-xs text-slate-500">{a.does}</div>
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2.5 align-top text-xs text-slate-600">
-                    {last ? <><RunStatusBadge status={last.status} /> <span className="ml-1">{ago(last.created_at)} · {fmtCost(last.cost_usd)}</span></> : <span className="text-slate-400">Not run yet</span>}
-                  </td>
-                  <td className="px-5 py-2.5 text-right align-top">
-                    <a href={`#${a.section}`} className="text-xs font-semibold text-primary-700 hover:underline">{last ? "Open" : "Run"} →</a>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {/* A list rather than a table, so on a phone the status and link wrap under the agent instead of scrolling sideways. */}
+      <ul className="divide-y divide-slate-100 text-sm">
+        {AGENTS.map((a) => {
+          const last = runs.data?.find((r) => r.kind === a.kind);
+          return (
+            <li key={a.kind} className="flex flex-col gap-1.5 px-5 py-2.5 sm:flex-row sm:items-start sm:gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold text-ink">{a.name}</div>
+                <div className="text-xs text-slate-500">{a.does}</div>
+              </div>
+              <div className="flex items-center justify-between gap-3 text-xs text-slate-600 sm:justify-end">
+                <span className="whitespace-nowrap">
+                  {last ? <><RunStatusBadge status={last.status} /> <span className="ml-1">{ago(last.created_at)} · {fmtCost(last.cost_usd)}</span></> : <span className="text-slate-400">Not run yet</span>}
+                </span>
+                <a href={`#${a.section}`} className="whitespace-nowrap font-semibold text-primary-700 hover:underline">{last ? "Open" : "Run"} →</a>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </Card>
   );
 }

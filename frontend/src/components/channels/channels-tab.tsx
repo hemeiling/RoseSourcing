@@ -7,7 +7,7 @@ import { Bar, BarChart, CartesianGrid, Cell, ReferenceLine, ResponsiveContainer,
 import { Alert, Badge, Button, Card, CardBody, CardHeader, EmptyState, Field, Input, Modal, Select, Spinner, Td, Textarea, Th } from "@/components/ui";
 import { del, errorText, post, put } from "@/lib/api";
 import { money, pct, titleCase } from "@/lib/format";
-import { useApi } from "@/lib/hooks";
+import { useApi, useNarrow, truncate } from "@/lib/hooks";
 import type { ChannelEconomicsRow, SalesChannel, Scenario } from "@/lib/types";
 import { CHANNEL_STATUS_TONE, CHANNEL_TYPE_LABEL, FeeBasisBadge } from "./meta";
 
@@ -160,7 +160,8 @@ export function ChannelsTab({ projectId, version }: { projectId: string; version
   const byId = Object.fromEntries((channels.data ?? []).map((c) => [c.id, c]));
   const existing = new Set((channels.data ?? []).map((c) => c.name.toLowerCase()));
   const rows = econ.data?.rows ?? [];
-  const chart = rows.map((r) => ({ name: r.name.length > 18 ? r.name.slice(0, 17) + "…" : r.name, value: r.contribution_margin_after_monthly_fee ?? r.contribution_margin }));
+  const narrow = useNarrow();
+  const chart = rows.map((r) => ({ name: r.name, value: r.contribution_margin_after_monthly_fee ?? r.contribution_margin }));
 
   return (
     <div className="space-y-5">
@@ -177,15 +178,17 @@ export function ChannelsTab({ projectId, version }: { projectId: string; version
           </CardBody>
         ) : (
           <CardBody className="space-y-4">
-            <div className="h-52">
+            {/* Horizontal bars: channel names sit on the left, so they never overlap however many channels there are. */}
+            <div style={{ height: Math.max(140, chart.length * 30 + 36) }}>
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chart} margin={{ left: 0, right: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" fontSize={11} interval={0} />
-                  <YAxis tickFormatter={(v) => `$${v}`} fontSize={11} />
-                  <ReferenceLine y={0} stroke="#94a3b8" />
+                <BarChart data={chart} layout="vertical" margin={{ left: 0, right: 16, top: 4, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                  <XAxis type="number" tickFormatter={(v) => `$${Number(v).toFixed(2)}`} fontSize={11} />
+                  <YAxis type="category" dataKey="name" width={narrow ? 112 : 200} fontSize={11} interval={0}
+                    tickFormatter={(s: string) => truncate(s, narrow ? 17 : 32)} />
+                  <ReferenceLine x={0} stroke="#94a3b8" />
                   <Tooltip formatter={(v) => [money(Number(v)), "Contribution / unit"]} />
-                  <Bar dataKey="value" radius={[3, 3, 0, 0]}>{chart.map((d) => <Cell key={d.name} fill={d.value >= 0 ? "#4e2a84" : "#dc2626"} />)}</Bar>
+                  <Bar dataKey="value" barSize={16} radius={[0, 3, 3, 0]}>{chart.map((d) => <Cell key={d.name} fill={d.value >= 0 ? "#4e2a84" : "#dc2626"} />)}</Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>

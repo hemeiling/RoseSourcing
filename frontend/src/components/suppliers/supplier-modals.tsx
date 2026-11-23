@@ -444,10 +444,12 @@ function QuotesTab({ supplier, projectId, products, onChanged }: { supplier: Sup
               {supplier.quotes.map((q) => (
                 <tr key={q.id}>
                   <Td className="font-medium text-slate-900">
-                    {q.product_name}
+                    {q.source_url ? <ExternalLink href={q.source_url}>{q.product_name}</ExternalLink> : q.product_name}
                     <div className="text-[11px] font-normal text-slate-400">
                       {titleCase(q.source)}
-                      {q.notes ? ` · ${q.notes}` : ""}
+                      {q.source_url && <> · listing on {domainOf(q.source_url)}</>}
+                      {/* The listing link is shown above, so the "Source: <url>" tail of research notes is dropped. */}
+                      {q.notes ? ` · ${q.source_url ? q.notes.replace(/\s*Source: \S+$/, "") : q.notes}` : ""}
                     </div>
                   </Td>
                   <Td className="whitespace-nowrap">{fmtMoney(q.unit_price, q.currency)}</Td>

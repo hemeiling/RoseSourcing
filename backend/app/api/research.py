@@ -114,7 +114,23 @@ def latest_snapshot(kind: Literal["price_tiers", "compliance_checklist"], projec
     """The latest price-tier breakdown or compliance checklist for a product (null if none yet)."""
     snap = db.scalars(select(AnalysisSnapshot).where(AnalysisSnapshot.project_id == project.id, AnalysisSnapshot.kind == kind)
                       .order_by(AnalysisSnapshot.created_at.desc())).first()
-    return {"id": str(snap.id), "kind": snap.kind, "content": snap.content, "created_at": snap.created_at} if snap else None
+    if not snap:
+        return None
+    content = snap.content
+    if kind == "compliance_checklist":
+        # Each checklist item links to the pages its findings came from, so the claim can be checked at the source.
+        ids = {uuid.UUID(i) for item in content.get("items", []) for i in item.get("finding_ids", [])}
+        findings = {str(f.id): f for f in db.scalars(select(ResearchFinding).where(ResearchFinding.id.in_(ids)))} if ids else {}
+        items = []
+        for item in content.get("items", []):
+            sources: dict[str, str] = {}
+            for fid in item.get("finding_ids", []):
+                for link in findings[fid].evidence_links if fid in findings else []:
+                    if link.source.url:
+                        sources.setdefault(link.source.url, link.source.title or link.source.url)
+            items.append({**item, "sources": [{"url": u, "title": t} for u, t in sources.items()]})
+        content = {**content, "items": items}
+    return {"id": str(snap.id), "kind": snap.kind, "content": content, "created_at": snap.created_at}
 
 
 @router.get("/projects/{project_id}/findings", response_model=list[FindingOut])

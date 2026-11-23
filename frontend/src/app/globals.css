@@ -182,6 +182,14 @@ body {
   color: var(--color-ink);
 }
 
+/* Grid cells may shrink below their content's width, so a wide table or chart scrolls inside its card
+   instead of pushing the whole page wider than a phone screen. Utilities (e.g. min-w-max) still win. */
+@layer base {
+  .grid > * {
+    min-width: 0;
+  }
+}
+
 h1,
 h2,
 .font-display {

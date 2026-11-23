@@ -152,26 +152,29 @@ function MarketPage({ projectId }: { projectId: string }) {
             </Card>
           )}
           {reports.data && reports.data.length > 0 && selectedReport && (
-            <div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
-              <nav aria-label="Reports" className="space-y-2">
+            // Report picker sits above the report (only when there is more than one), so the report keeps the full width.
+            <div className="space-y-4">
+              {reports.data.length > 1 && (
+              <nav aria-label="Reports" className="flex gap-2 overflow-x-auto pb-1">
                 {reports.data.map((r) => {
                   const active = r.id === selectedReport.id;
                   return (
                     <button
                       key={r.id}
                       onClick={() => openReport(r.id)}
-                      className={`w-full rounded-lg border px-3 py-2.5 text-left transition-colors ${active ? "border-brand-300 bg-brand-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
+                      className={`w-60 shrink-0 rounded-lg border px-3 py-2 text-left transition-colors ${active ? "border-primary-600 bg-primary-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
                       aria-current={active ? "true" : undefined}
                     >
                       <div className="truncate text-sm font-medium text-slate-900">{r.title}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         <AttractivenessBadge value={r.attractiveness} />
+                        <span className="text-[11px] text-slate-500">{date(r.created_at)}</span>
                       </div>
-                      <div className="mt-1 text-[11px] text-slate-500">{date(r.created_at)}</div>
                     </button>
                   );
                 })}
               </nav>
+              )}
               <ReportView
                 key={selectedReport.id}
                 projectId={projectId}

@@ -5,8 +5,8 @@ import { useEffect } from "react";
 import { errorText } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type { ComparisonRow } from "@/lib/types";
-import { date, money, num, titleCase } from "@/lib/format";
-import { Alert, Badge, Card, CardBody, CardHeader, EmptyState, Spinner, Td, Th } from "@/components/ui";
+import { date, domainOf, money, num, titleCase } from "@/lib/format";
+import { Alert, Badge, Card, CardBody, CardHeader, EmptyState, ExternalLink, Spinner, Td, Th } from "@/components/ui";
 import { QualityStars, SupplierVerificationBadge, fmtMoney } from "./supplier-modals";
 
 const PARTS: [string, string][] = [
@@ -66,7 +66,9 @@ export function SupplierComparison({ projectId, labels, version }: { projectId: 
                   return (
                     <tr key={r.quote_id} className={r.quote_id === lowestId ? "bg-slate-50" : undefined}>
                       <Td>
-                        <div className="font-medium text-slate-900">{r.supplier_name}</div>
+                        <div className="font-medium text-slate-900">
+                          {r.website ? <ExternalLink href={r.website}>{r.supplier_name}</ExternalLink> : r.supplier_name}
+                        </div>
                         <div className="mt-0.5 flex flex-wrap items-center gap-1">
                           <SupplierVerificationBadge status={r.verification_status} labels={labels} />
                           <QualityStars rating={r.quality_rating} />
@@ -74,7 +76,8 @@ export function SupplierComparison({ projectId, labels, version }: { projectId: 
                         <div className="text-[11px] text-slate-400">{[r.country, r.platform ? titleCase(r.platform) : null].filter(Boolean).join(" · ")}</div>
                       </Td>
                       <Td>
-                        {r.product_name}
+                        {r.source_url ? <ExternalLink href={r.source_url}>{r.product_name}</ExternalLink> : r.product_name}
+                        {r.source_url && <div className="text-[11px] text-slate-400">listing on {domainOf(r.source_url)}</div>}
                         {r.quote_date && <div className="text-[11px] text-slate-400">quoted {date(r.quote_date)}</div>}
                       </Td>
                       <Td className="whitespace-nowrap">{fmtMoney(r.unit_price, r.currency)}</Td>

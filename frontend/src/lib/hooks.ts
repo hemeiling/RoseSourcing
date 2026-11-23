@@ -71,3 +71,19 @@ export function useAction() {
   }, []);
   return { busy, error, setError, run };
 }
+
+
+/** True on phone-width screens (below Tailwind's sm breakpoint); for charts that need fewer pixels for labels. */
+export function useNarrow(breakpoint = 640): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+    const update = () => setNarrow(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, [breakpoint]);
+  return narrow;
+}
+
+export const truncate = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);

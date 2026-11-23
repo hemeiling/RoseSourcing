@@ -205,7 +205,7 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
           }
         >
           {results && !results.error && (
-            <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard label="Contribution margin / unit" value={money(results.contribution_margin)} hint="after marketing, returns and fees" />
               <StatCard label="Contribution margin %" value={pct(results.contribution_margin_pct)} hint="of revenue after returns" />
               <StatCard label="Break-even CAC" value={money(results.breakeven_cac)} hint="max marketing spend per order" />
