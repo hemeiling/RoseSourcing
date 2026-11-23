@@ -123,7 +123,7 @@ function ChannelForm({ projectId, editing, preset, onSaved, onCancel }: {
 
 export function ChannelsTab({ projectId, version }: { projectId: string; version: number }) {
   const channels = useApi<SalesChannel[]>(`/api/projects/${projectId}/channels`);
-  const econ = useApi<{ base_scenario: string; rows: ChannelEconomicsRow[] }>(`/api/projects/${projectId}/channels/compare`);
+  const econ = useApi<{ base_scenario: string; base_price: number; rows: ChannelEconomicsRow[] }>(`/api/projects/${projectId}/channels/compare`);
   const [editing, setEditing] = useState<SalesChannel | null>(null);
   const [preset, setPreset] = useState<Partial<SalesChannel> | null>(null);
   const [open, setOpen] = useState(false);
@@ -168,7 +168,7 @@ export function ChannelsTab({ projectId, version }: { projectId: string; version
       {error && <Alert tone="red">{error}</Alert>}
       <Card>
         <CardHeader title="Channel economics" icon={<Store className="h-4 w-4" />}
-          subtitle={econ.data ? `Per-unit contribution on each channel. Blank channel fields use your latest cost scenario ('${econ.data.base_scenario}').` : undefined}
+          subtitle={econ.data ? `Per-unit contribution on each channel at ${money(econ.data.base_price)} retail. Price and blank channel fields come from your latest saved cost scenario ('${econ.data.base_scenario}') - change them in Unit economics and save.` : undefined}
           actions={<Button size="sm" onClick={() => { setEditing(null); setPreset(null); setOpen(true); }}><Plus className="h-3.5 w-3.5" /> Add channel</Button>} />
         {econ.loading && !econ.data ? <CardBody><Spinner /></CardBody> : rows.length === 0 ? (
           <CardBody>

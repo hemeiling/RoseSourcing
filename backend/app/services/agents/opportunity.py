@@ -1386,6 +1386,8 @@ def _run_channel_plan(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
     content["shipping_finding_ids"] = ids(content.pop("shipping_finding_refs"))
     content["research_run_id"] = str(run_id)
     content["generated_by"] = {"model": usage.model or llm.model, "generated_at": datetime.now(timezone.utc).isoformat()}
+    # The plan's prices and margins come from this scenario; the plan view warns when the saved price changes later.
+    content["based_on"] = {"scenario": econ["base_scenario"], "retail_price": econ["base_price"]}
 
     with session_scope() as db:
         snap = AnalysisSnapshot(project_id=project_id, kind="channel_logistics_plan", content=content, agent_execution_id=ex_id)
@@ -1464,6 +1466,22 @@ def _run_compliance_plan(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
         audit.record(db, "compliance_checklist.created", user_id=user_id, project_id=project_id, actor="agent:compliance",
                      entity_type="analysis_snapshot", entity_id=snap.id, details={"supplier_drafts": drafted})
     _update_step(run_id, "compliance_plan", status="completed", finished_at=datetime.now(timezone.utc).isoformat())
+
+
+def refresh_channel_plan(run_id: uuid.UUID) -> None:
+    """Rewrite only the plan of a finished channels run, with today's channels and saved cost scenario (one AI call)."""
+    try:
+        with session_scope() as db:
+            run = db.get(ResearchRun, run_id)
+            ctx = project_context(db.get(BusinessProject, run.project_id), run.params or {})
+        _run_channel_plan(run_id, ctx)
+    except Exception as e:  # noqa: BLE001
+        log.exception("Plan refresh failed")
+        _update_step(run_id, "plan", status="failed", error=f"{type(e).__name__}: {e}"[:1000], finished_at=datetime.now(timezone.utc).isoformat())
+
+
+def submit_plan_refresh(run_id: uuid.UUID) -> None:
+    _executor.submit(refresh_channel_plan, run_id)
 
 
 def recover_interrupted_runs() -> int:

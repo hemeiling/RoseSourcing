@@ -572,7 +572,11 @@ export interface ChannelEconomicsRow {
 export interface ChannelPlan {
   id: string;
   created_at: string;
+  /** The saved cost scenario the other tabs use now; compare with content.based_on to see if the plan is out of date. */
+  current?: { scenario: string; retail_price: number };
+  refreshing?: boolean;
   content: {
+    based_on?: { scenario: string; retail_price: number | null; inferred?: boolean };
     summary: string;
     launch_channels: { channel: string; role: "primary" | "secondary" | "test"; rationale: string; finding_ids: string[] }[];
     channels_to_defer: { channel: string; reason: string }[];

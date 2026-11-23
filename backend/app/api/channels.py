@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 
 from .. import audit
-from ..models import AnalysisSnapshot, CostScenario, ProductConcept, SalesChannel, ShippingOption
+from ..models import AnalysisSnapshot, CostScenario, ProductConcept, ResearchRun, SalesChannel, ShippingOption
 from ..schemas import (
     SalesChannelIn,
     SalesChannelOut,
@@ -18,6 +18,7 @@ from ..schemas import (
     ShippingOptionIn,
     ShippingOptionOut,
 )
+from ..services.agents.opportunity import submit_plan_refresh
 from ..services.agents.sourcing import baseline_inputs
 from ..services.logistics import PackagingSpec, Shipment, channel_economics, channel_inputs, compare_shipping
 from ..services.unit_economics import UnitEconomicsInputs, calculate
@@ -140,10 +141,45 @@ def channels_compare(project: ProjectDep, db: DB, include_rejected: bool = False
 
 @router.get("/projects/{project_id}/channels/plan")
 def latest_plan(project: ProjectDep, db: DB) -> dict | None:
-    snap = db.scalars(select(AnalysisSnapshot).where(AnalysisSnapshot.project_id == project.id,
+    snap = _latest_plan(db, project.id)
+    if not snap:
+        return None
+    based_on = snap.content.get("based_on")
+    if not based_on:
+        # Plans written before this was recorded used the scenario that was the latest one at the time.
+        sc = db.scalars(select(CostScenario).where(CostScenario.project_id == project.id, CostScenario.updated_at <= snap.created_at)
+                        .order_by(CostScenario.updated_at.desc())).first()
+        based_on = ({"scenario": sc.name, "retail_price": (sc.inputs or {}).get("retail_price"), "inferred": True} if sc
+                    else {"scenario": "example defaults", "retail_price": UnitEconomicsInputs().retail_price, "inferred": True})
+    base, base_name, _ = baseline_inputs(db, project)
+    run = db.get(ResearchRun, uuid.UUID(snap.content["research_run_id"])) if snap.content.get("research_run_id") else None
+    refreshing = bool(run and any(s["key"] == "plan" and s["status"] in ("pending", "running") for s in run.steps))
+    return {"id": str(snap.id), "created_at": snap.created_at, "content": {**snap.content, "based_on": based_on},
+            "current": {"scenario": base_name, "retail_price": base.retail_price}, "refreshing": refreshing}
+
+
+def _latest_plan(db, project_id) -> AnalysisSnapshot | None:
+    return db.scalars(select(AnalysisSnapshot).where(AnalysisSnapshot.project_id == project_id,
                                                      AnalysisSnapshot.kind == "channel_logistics_plan")
                       .order_by(AnalysisSnapshot.created_at.desc())).first()
-    return {"id": str(snap.id), "created_at": snap.created_at, "content": snap.content} if snap else None
+
+
+@router.post("/projects/{project_id}/channels/plan/refresh", status_code=202)
+def refresh_plan(project: ProjectDep, db: DB, user: CurrentUser) -> dict:
+    """Rewrite the channel plan with the channels and saved cost scenario as they are now (one AI call, no new searches)."""
+    snap = _latest_plan(db, project.id)
+    run = db.get(ResearchRun, uuid.UUID(snap.content["research_run_id"])) if snap and snap.content.get("research_run_id") else None
+    if run is None:
+        raise HTTPException(404, "No channel plan to refresh - run the Channels & Shipping agent first.")
+    if db.scalars(select(ResearchRun).where(ResearchRun.project_id == project.id, ResearchRun.status.in_(["queued", "running"]))).first():
+        raise HTTPException(409, "A research run is in progress for this product; refresh the plan when it finishes.")
+    if any(s["key"] == "plan" and s["status"] in ("pending", "running") for s in run.steps):
+        raise HTTPException(409, "The plan is already being rewritten.")
+    run.steps = [dict(s, status="pending", error=None) if s["key"] == "plan" else s for s in run.steps]
+    audit.record(db, "channel_plan.refresh_requested", user_id=user.id, project_id=project.id, entity_type="research_run", entity_id=run.id)
+    db.commit()
+    submit_plan_refresh(run.id)
+    return {"refreshing": True}
 
 
 # ----------------------------------------------------------------------------- scenarios from channels / freight

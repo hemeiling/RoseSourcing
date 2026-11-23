@@ -87,6 +87,16 @@ def test_channels_logistics_run(authed, project, fake_llm, monkeypatch):
 
     plan = authed.get(f"/api/projects/{pid}/channels/plan").json()
     assert plan and plan["content"]["research_run_id"] == run["id"]
+    assert plan["content"]["based_on"]["retail_price"] == plan["current"]["retail_price"] and not plan["refreshing"]
+
+    # Saving a new price makes the plan out of date; a refresh rewrites it with the new price.
+    authed.post(f"/api/projects/{pid}/scenarios", json={"name": "My price", "inputs": {"retail_price": 28}})
+    stale = authed.get(f"/api/projects/{pid}/channels/plan").json()
+    assert stale["current"] == {"scenario": "My price", "retail_price": 28} and stale["content"]["based_on"]["retail_price"] != 28
+    monkeypatch.setattr("app.api.channels.submit_plan_refresh", opportunity.refresh_channel_plan)
+    assert authed.post(f"/api/projects/{pid}/channels/plan/refresh").status_code == 202
+    fresh = authed.get(f"/api/projects/{pid}/channels/plan").json()
+    assert fresh["id"] != plan["id"] and fresh["content"]["based_on"] == {"scenario": "My price", "retail_price": 28}
 
     # Deterministic comparisons
     cmp = authed.post(f"/api/projects/{pid}/shipping/compare", json={"units": 100, "product_id":

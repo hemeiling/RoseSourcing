@@ -1,13 +1,13 @@
 "use client";
 
 import { ClipboardCheck, Compass, Play, Ship, Store } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { FindingCard } from "@/components/evidence";
 import { ConfirmModal, SEVERITY_TONE } from "@/components/market/shared";
 import { RunCard } from "@/components/market/runs";
 import { Alert, Badge, Button, Card, CardBody, CardHeader, ConfigNotice, EmptyState, Field, Modal, Spinner, Textarea, type Tone } from "@/components/ui";
 import { ApiError, errorText, post } from "@/lib/api";
-import { date, titleCase } from "@/lib/format";
+import { date, money, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { parseUrls } from "@/lib/agents";
 import type { ChannelPlan, Finding, ProviderStatus, ResearchRun } from "@/lib/types";
@@ -30,14 +30,26 @@ function FindingChips({ ids, findings, onOpen }: { ids: string[]; findings: Reco
   );
 }
 
-function PlanView({ plan, findings, onOpen }: { plan: ChannelPlan; findings: Record<string, Finding>; onOpen: (f: Finding) => void }) {
+function PlanView({ plan, findings, onOpen, onRefresh }: { plan: ChannelPlan; findings: Record<string, Finding>; onOpen: (f: Finding) => void; onRefresh: () => void }) {
   const c = plan.content;
+  const was = c.based_on;
+  const now = plan.current;
+  const stale = !!(was && now && (was.retail_price === null || Math.abs((was.retail_price ?? 0) - now.retail_price) > 0.005));
   return (
     <div className="space-y-5">
       <Card>
         <CardHeader title="Channel & shipping plan" icon={<Compass className="h-4 w-4" />}
-          subtitle={`AI-generated from your stored findings and the calculator's numbers · ${date(plan.created_at)} · ${c.generated_by.model}`} />
+          subtitle={`AI-written ${date(plan.created_at)} from your findings and channel numbers${was ? ` at ${money(was.retail_price)} retail (saved scenario '${was.scenario}')` : ""} · ${c.generated_by.model}`} />
         <CardBody className="space-y-4">
+          {plan.refreshing ? (
+            <Alert tone="blue">Rewriting the plan with your current numbers - this takes about a minute.</Alert>
+          ) : stale && now && (
+            <Alert>
+              This plan was written at <b>{money(was?.retail_price)}</b> retail. Your saved scenario <b>&apos;{now.scenario}&apos;</b> now uses <b>{money(now.retail_price)}</b>, so
+              the risks, channel picks and margins quoted below may be out of date.
+              <div className="mt-2"><Button size="sm" onClick={onRefresh}>Rewrite the plan with {money(now.retail_price)}</Button></div>
+            </Alert>
+          )}
           <p className="text-sm leading-relaxed text-slate-800">{c.summary}</p>
           <div className="grid gap-4 lg:grid-cols-2">
             <div>
@@ -117,6 +129,28 @@ export function PlanTab({ projectId, onDataChanged }: { projectId: string; onDat
   const [error, setError] = useState<string | null>(null);
   const [configMsg, setConfigMsg] = useState<string | null>(null);
   const [open, setOpen] = useState<Finding | null>(null);
+  const [refreshConfirm, setRefreshConfirm] = useState(false);
+  // While the plan is being rewritten, check for the new one every few seconds.
+  useEffect(() => {
+    if (!plan.data?.refreshing) return;
+    const t = setInterval(() => plan.reload(), 4000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan.data?.refreshing]);
+
+  async function refreshPlan() {
+    setBusy(true);
+    setError(null);
+    try {
+      await post(`/api/projects/${projectId}/channels/plan/refresh`);
+      plan.reload();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+      setRefreshConfirm(false);
+    }
+  }
 
   const provider = prov.data?.providers.find((p) => p.name === prov.data?.default);
   const g = prov.data?.guardrails;
@@ -179,7 +213,7 @@ export function PlanTab({ projectId, onDataChanged }: { projectId: string; onDat
       {latestRun && <RunCard run={latestRun} onFinished={finished} onViewReport={() => {}} />}
 
       {plan.loading && !plan.data ? <Spinner /> : plan.data ? (
-        <PlanView plan={plan.data} findings={byId} onOpen={setOpen} />
+        <PlanView plan={plan.data} findings={byId} onOpen={setOpen} onRefresh={() => setRefreshConfirm(true)} />
       ) : (
         <Card>
           <EmptyState icon={<Compass className="h-5 w-5" />} title="No channel & shipping plan yet">
@@ -195,6 +229,11 @@ export function PlanTab({ projectId, onDataChanged }: { projectId: string; onDat
         </Card>
       )}
 
+      <ConfirmModal open={refreshConfirm} title="Rewrite the plan with your current numbers?" confirmLabel="Rewrite plan" busy={busy}
+        onConfirm={refreshPlan} onClose={() => setRefreshConfirm(false)}>
+        <p>This re-runs only the plan step: one AI call (usually well under $1) using the findings already saved, your channels as they are
+          now, and your latest saved cost scenario. No new web searches. The old plan stays in the history.</p>
+      </ConfirmModal>
       <ConfirmModal open={confirm} title="Start channels & shipping research?" confirmLabel="Start research" busy={busy} onConfirm={start} onClose={() => setConfirm(false)}>
         <p>This runs 2 web-research steps and a plan synthesis using {provider?.label ?? "the configured provider"}.</p>
         {g && <p>Up to <strong>{g.max_searches_per_step}</strong> searches per step. The run stops starting new steps once estimated cost reaches <strong>${g.max_research_cost_usd.toFixed(2)}</strong>.</p>}

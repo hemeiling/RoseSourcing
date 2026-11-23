@@ -310,7 +310,7 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
       <Card className="lg:col-span-3">
         <CardHeader
           title={editing ? `Editing: ${editing.name}` : "Unit economics calculator"}
-          subtitle={`${assumptionCount} of ${Object.keys(spec.defaults).length} inputs are assumptions. Tag each input with where the number came from.`}
+          subtitle={`${assumptionCount} of ${Object.keys(spec.defaults).length} inputs are assumptions. Tag each input with where the number came from. Channels, suppliers and plans use your latest saved scenario - save to use these numbers there.`}
           icon={<Calculator className="h-4 w-4" />}
           actions={
             <>

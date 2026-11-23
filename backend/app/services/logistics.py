@@ -176,4 +176,4 @@ def channel_economics(db: Session, project: BusinessProject, channels: list[Sale
             "warnings": warnings,
         })
     rows.sort(key=lambda x: x["contribution_margin"], reverse=True)
-    return {"base_scenario": base_name, "rows": rows}
+    return {"base_scenario": base_name, "base_price": base.retail_price, "rows": rows}
