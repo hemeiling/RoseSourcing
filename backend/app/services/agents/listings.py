@@ -202,6 +202,8 @@ def run_listing_scan(run_id: uuid.UUID, ctx: dict[str, str], keywords: list[str]
                                              product_type=ctx["category"][:100], notes=p.why_comparable[:500])
                     db.add(prod)
                     db.flush()
+                if c.image:
+                    prod.image_url = c.image
                 src = src_for.get(c.line())
                 db.add(PriceObservation(competitor_product_id=prod.id, price=c.price, currency="USD", observed_at=now, source_url=c.url or None,
                                         source_type="api", evidence_source_id=src.id if src else None, verification_status="source_linked",
@@ -209,7 +211,7 @@ def run_listing_scan(run_id: uuid.UUID, ctx: dict[str, str], keywords: list[str]
                                         note=f"Listing Tracker, {now:%Y-%m-%d}: as listed on {c.platform}"))
                 rows.append({"competitor_product_id": str(prod.id), "competitor": comp.name, "platform": c.platform, "title": c.title,
                              "price": c.price, "rating": c.rating, "reviews": c.reviews, "badges": c.badges, "url": c.url,
-                             "seller": c.seller, "asin": c.asin, "page_token": c.page_token, "why": p.why_comparable,
+                             "seller": c.seller, "asin": c.asin, "page_token": c.page_token, "why": p.why_comparable, "image": c.image,
                              "source_id": str(src.id) if src else None})
             by_platform: dict[str, int] = {}
             for r in rows:

@@ -5,7 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { del, errorText, patch, post } from "@/lib/api";
 import type { Competitor, CompetitorProduct } from "@/lib/types";
 import { date, domainOf, money, titleCase } from "@/lib/format";
-import { Alert, Badge, Button, ExternalLink, Field, Input, Modal, Select, Td, Textarea, Th } from "@/components/ui";
+import { Alert, Badge, Button, ExternalLink, Field, Input, Modal, ProductThumb, Select, Td, Textarea, Th } from "@/components/ui";
 import { VerificationBadge } from "@/components/evidence";
 
 export const TIERS = ["budget", "mid", "premium", "luxury"] as const;
@@ -340,13 +340,16 @@ export function CompetitorDetailModal({ competitor, onClose, onChanged }: { comp
           <div className="space-y-3">
             {c.products.map((p) => (
               <div key={p.id} className="rounded-lg border border-slate-200 p-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-slate-900">
-                      {p.url ? <ExternalLink href={p.url}>{p.name}</ExternalLink> : p.name}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {[p.product_type, p.material, p.notes].filter(Boolean).join(" · ") || "No details"}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 gap-3">
+                    {p.image_url && <ProductThumb src={p.image_url} href={p.url} alt={p.name} />}
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-slate-900">
+                        {p.url ? <ExternalLink href={p.url}>{p.name}</ExternalLink> : p.name}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {[p.product_type, p.material, p.notes].filter(Boolean).join(" · ") || "No details"}
+                      </div>
                     </div>
                   </div>
                   <Button size="sm" variant="ghost" onClick={() => remove(`/api/competitor-products/${p.id}`, "product and its price history")} aria-label={`Delete ${p.name}`}>

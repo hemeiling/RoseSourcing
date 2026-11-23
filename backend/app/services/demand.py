@@ -37,6 +37,7 @@ class DemandObservation:
     excerpts: list[str]
     findings: list[DemandFinding] = field(default_factory=list)
     series: list[tuple[str, float]] = field(default_factory=list)  # Google Trends weekly points (date label, 0-100)
+    media: dict[str, dict[str, str | None]] = field(default_factory=dict)  # excerpt line -> the listing's link and picture
 
 
 def configured() -> bool:
@@ -194,6 +195,15 @@ class Listing:
     rating: float | None
     reviews: int | None
     seller: str
+    url: str | None = None
+    image: str | None = None
+
+
+def image_url(v: Any) -> str | None:
+    """A listing's picture as the API returned it: a web address, or a small inline image (some Google results)."""
+    if isinstance(v, str) and (v.startswith("https://") or v.startswith("http://") or (v.startswith("data:image/") and len(v) < 40000)):
+        return v
+    return None
 
 
 def _listing_line(x: Listing) -> str:
@@ -247,7 +257,8 @@ def price_tier_evidence(keywords: list[str], geo: str = "US", max_calls: int = 4
                         rows = [r for r in (data.get("organic_results") or []) if not r.get("sponsored")]
                         found = [Listing(str(r.get("title") or "")[:200], float(r["extracted_price"]),
                                          float(r["rating"]) if isinstance(r.get("rating"), (int, float)) else None,
-                                         int(r["reviews"]) if isinstance(r.get("reviews"), (int, float)) else None, "Amazon")
+                                         int(r["reviews"]) if isinstance(r.get("reviews"), (int, float)) else None, "Amazon",
+                                         r.get("link_clean") or r.get("link"), image_url(r.get("thumbnail")))
                                  for r in rows if isinstance(r.get("extracted_price"), (int, float)) and r.get("title")]
                         url, title = f"https://www.amazon.com/s?k={quote_plus(kw)}", f"Amazon listings: {kw}"
                     else:
@@ -255,12 +266,14 @@ def price_tier_evidence(keywords: list[str], geo: str = "US", max_calls: int = 4
                         rows = data.get("shopping_results") or []
                         found = [Listing(str(r.get("title") or "")[:200], float(r["extracted_price"]),
                                          float(r["rating"]) if isinstance(r.get("rating"), (int, float)) else None,
-                                         int(r["reviews"]) if isinstance(r.get("reviews"), (int, float)) else None, str(r.get("source") or "Unknown seller"))
+                                         int(r["reviews"]) if isinstance(r.get("reviews"), (int, float)) else None, str(r.get("source") or "Unknown seller"),
+                                         r.get("product_link") or r.get("link"), image_url(r.get("thumbnail") or r.get("serpapi_thumbnail")))
                                  for r in rows if isinstance(r.get("extracted_price"), (int, float)) and r.get("title")]
                         url, title = f"https://www.google.com/search?tbm=shop&q={quote_plus(kw)}", f"Google Shopping listings: {kw}"
                     if found:
                         listings += found
-                        obs.append(DemandObservation(title=title, url=url, excerpts=[_listing_line(x) for x in found[:40]]))
+                        obs.append(DemandObservation(title=title, url=url, excerpts=[_listing_line(x) for x in found[:40]],
+                                                     media={_listing_line(x): {"url": x.url, "image": x.image} for x in found[:40] if x.url or x.image}))
                 except Exception as e:  # noqa: BLE001
                     log.warning("Price-tier listings failed: %s", e)
                     errors.append(str(e)[:300])
@@ -324,6 +337,7 @@ class Candidate:
     badges: list[str] = field(default_factory=list)
     asin: str | None = None
     page_token: str | None = None  # Google immersive product token (store listings with reviews)
+    image: str | None = None
 
     def line(self) -> str:
         bits = [f"{self.title[:140]} - ${self.price:.2f} on {self.platform}"]
@@ -363,7 +377,8 @@ def _amazon_candidates(data: dict[str, Any]) -> list[Candidate]:
         rv = _num(r.get("reviews"))
         out.append(Candidate(platform="Amazon", title=str(r["title"])[:300], price=price, url=str(r.get("link_clean") or r.get("link") or ""),
                              brand=str(r["brand"])[:120] if r.get("brand") else None, rating=_num(r.get("rating")),
-                             reviews=int(rv) if rv is not None else None, badges=badges[:5], asin=r.get("asin")))
+                             reviews=int(rv) if rv is not None else None, badges=badges[:5], asin=r.get("asin"),
+                             image=image_url(r.get("thumbnail"))))
     return out
 
 
@@ -383,7 +398,7 @@ def _shopping_candidates(data: dict[str, Any]) -> list[Candidate]:
         out.append(Candidate(platform=platform, title=str(r["title"])[:300], price=price, seller=source,
                              url=str(r.get("product_link") or r.get("link") or ""), rating=_num(r.get("rating")),
                              reviews=int(rv) if rv is not None else None, badges=badges[:4],
-                             page_token=r.get("immersive_product_page_token")))
+                             page_token=r.get("immersive_product_page_token"), image=image_url(r.get("thumbnail") or r.get("serpapi_thumbnail"))))
     return out
 
 
@@ -408,7 +423,7 @@ def _etsy_candidates(data: dict[str, Any]) -> list[Candidate]:
             continue
         rv = _num(det.get("reviews"))
         out.append(Candidate(platform="Etsy", title=re.sub(r"\s*[-|]\s*Etsy.*$", "", title)[:300], price=price, url=link.split("?")[0],
-                             rating=_num(det.get("rating")), reviews=int(rv) if rv is not None else None))
+                             rating=_num(det.get("rating")), reviews=int(rv) if rv is not None else None, image=image_url(r.get("thumbnail"))))
     return out
 
 

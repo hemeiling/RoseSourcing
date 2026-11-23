@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import { AlertTriangle, Info, KeyRound, Loader2, X } from "lucide-react";
 import Link from "next/link";
-import { createContext, useContext, useEffect, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { createContext, useContext, useEffect, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md";
@@ -281,4 +281,15 @@ export function ExternalLink({ href, children, className }: { href: string; chil
       {children}
     </a>
   );
+}
+
+/** A listing's picture as the marketplace showed it (loaded from the marketplace), linking to the listing. */
+export function ProductThumb({ src, href, alt, size = 56 }: { src?: string | null; href?: string | null; alt: string; size?: number }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed)
+    return <div aria-hidden className="shrink-0 rounded-md border border-dashed border-line bg-canvas" style={{ width: size, height: size }} />;
+  // eslint-disable-next-line @next/next/no-img-element
+  const img = <img src={src} alt={alt} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)}
+    className="shrink-0 rounded-md border border-line bg-white object-contain" style={{ width: size, height: size }} />;
+  return href ? <a href={href} target="_blank" rel="noopener noreferrer" className="shrink-0" title={alt}>{img}</a> : img;
 }

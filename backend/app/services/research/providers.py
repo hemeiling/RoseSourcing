@@ -49,6 +49,7 @@ class EvidenceBundle:
     queries: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     usage: LLMUsage = field(default_factory=LLMUsage)
+    media: dict[str, dict[str, str | None]] = field(default_factory=dict)  # marketplace excerpt line -> listing link and picture
 
     def by_ref(self) -> dict[str, SourceDoc]:
         return {s.ref: s for s in self.sources}

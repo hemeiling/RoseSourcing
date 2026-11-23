@@ -18,10 +18,16 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [signup, setSignup] = useState<{ signup_open: boolean; first_user: boolean; google_enabled: boolean } | null>(null);
 
   useEffect(() => {
-    get<{ signup_open: boolean; first_user: boolean; google_enabled: boolean }>("/api/auth/signup-status").then(setSignup).catch(() => {});
+    // Retry: a sleeping server can take a while to answer, and the Google button depends on this.
+    let stopped = false;
+    const load = (attempt: number) =>
+      get<{ signup_open: boolean; first_user: boolean; google_enabled: boolean }>("/api/auth/signup-status").then((s) => { if (!stopped) setSignup(s); })
+        .catch(() => { if (!stopped && attempt < 5) setTimeout(() => load(attempt + 1), 2000 * attempt); });
+    load(1);
     // Google sign-in failures come back as /login?error=...
     const err = new URLSearchParams(window.location.search).get("error");
     if (err) setError(err);
+    return () => { stopped = true; };
   }, []);
 
   async function submit(e: FormEvent) {

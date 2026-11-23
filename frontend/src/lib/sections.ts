@@ -1,12 +1,13 @@
 // Sections of a product report, in review order. `route` is the old standalone page, which now opens this section.
 
-export type SectionId = "review" | "overview" | "market" | "pricing" | "listings" | "reviews" | "competitors" | "sizing" | "suppliers" | "outreach"
+export type SectionId = "review" | "overview" | "market" | "trends" | "pricing" | "listings" | "reviews" | "competitors" | "sizing" | "suppliers" | "outreach"
   | "compliance" | "channels" | "economics" | "brand" | "commerce";
 
 export const SECTIONS: { id: SectionId; title: string; route?: string; description?: string }[] = [
   { id: "review", title: "What to improve", description: "A quick read of what is missing or weak. Each item jumps to the section to fix it." },
   { id: "overview", title: "Overview & decision", route: "/dashboard", description: "Your go / no-go decision, key numbers, open recommendations and recent activity." },
   { id: "market", title: "Market research", route: "/market", description: "Demand, market size, customers, competitors, sourcing and risks - every finding linked to its source." },
+  { id: "trends", title: "Search trends", description: "Google Trends: compare up to 5 search phrases over time, see where each is searched most, and the related searches and topics that are rising." },
   { id: "pricing", title: "Price tiers & needs", description: "Budget to luxury: prices, quality differences, and what buyers in each tier want and complain about." },
   { id: "listings", title: "Listing tracker", description: "Google Trends interest and 15-20 directly comparable listings on Amazon, Etsy and brand sites, with price, rating, review count and badges." },
   { id: "reviews", title: "Low-star reviews", description: "Complaints in 1-3 star reviews of the leading listings, tagged for comfort, fit and durability - each quote checked against its source." },

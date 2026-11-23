@@ -2,7 +2,7 @@
 
 import { AlertTriangle, CheckCircle2, CircleHelp, ThumbsDown, ThumbsUp } from "lucide-react";
 import { ResearchRunStarter } from "@/components/research-run-starter";
-import { Badge, Card, CardBody, ExternalLink, Spinner, type Tone } from "@/components/ui";
+import { Badge, Card, CardBody, ExternalLink, ProductThumb, Spinner, type Tone } from "@/components/ui";
 import { date, domainOf, money, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 
@@ -18,7 +18,7 @@ type Tier = {
   buyer_profile: string | null;
   customer_needs: string[];
   complaints: string[];
-  examples: { product: string; price: number; currency: string; url: string | null }[];
+  examples: { product: string; price: number; currency: string; url: string | null; image?: string | null }[];
   evidence_type: "sourced" | "ai_inference";
   sources: { url: string; title: string | null }[];
 };
@@ -72,9 +72,10 @@ export function PriceTiersSection({ projectId }: { projectId: string }) {
                   )}
                   {t.examples.length > 0 && (
                     <div><div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Examples</div>
-                      <ul className="space-y-1">{t.examples.map((e) => (
-                        <li key={`${e.product}-${e.price}`} className="flex justify-between gap-2">
-                          {e.url ? <ExternalLink href={e.url} className="min-w-0 truncate">{e.product}</ExternalLink> : <span className="min-w-0 truncate">{e.product}</span>}
+                      <ul className="space-y-2">{t.examples.map((e) => (
+                        <li key={`${e.product}-${e.price}`} className="flex items-start gap-2.5">
+                          <ProductThumb src={e.image} href={e.url} alt={e.product} size={44} />
+                          <span className="min-w-0 flex-1">{e.url ? <ExternalLink href={e.url}>{e.product}</ExternalLink> : e.product}</span>
                           <span className="shrink-0 tabular-nums text-slate-700">{money(e.price, e.currency === "USD" ? {} : { currency: e.currency })}</span>
                         </li>
                       ))}</ul></div>

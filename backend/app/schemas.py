@@ -250,6 +250,7 @@ class CompetitorProductOut(ORM):
     product_type: str | None
     material: str | None
     notes: str | None
+    image_url: str | None = None
     price_observations: list[PriceObservationOut]
 
 

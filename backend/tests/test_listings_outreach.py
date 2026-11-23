@@ -19,7 +19,7 @@ def fake_serpapi(http, params):
         return {"organic_results": [
             {"asin": f"B0{i}", "title": f"Knotted Headband Style {i}", "extracted_price": 9.99 + i, "rating": 4.3, "reviews": 1200 - i * 100,
              "badges": ["Best Seller"] if i == 1 else [], "bought_last_month": "1K+ bought in past month" if i == 2 else None,
-             "link_clean": f"https://www.amazon.com/dp/B0{i}"} for i in range(1, 9)
+             "link_clean": f"https://www.amazon.com/dp/B0{i}", "thumbnail": f"https://m.media-amazon.com/images/I/{i}.jpg"} for i in range(1, 9)
         ] + [{"asin": "B0X", "title": "Sweatband for running", "extracted_price": 5, "reviews": 9000, "link_clean": "https://www.amazon.com/dp/B0X"},
              {"asin": "B0S", "title": "Sponsored knot headband", "extracted_price": 7, "sponsored": True}]}
     if e == "google_shopping":
@@ -27,7 +27,8 @@ def fake_serpapi(http, params):
             {"title": "Tweed Top Knot Headband", "extracted_price": 24.0, "source": "Etsy", "rating": 4.9, "reviews": 310,
              "product_link": "https://www.google.com/shopping/product/1", "immersive_product_page_token": "tok1", "tag": "Sale"},
             {"title": "Lele Sadoughi Knotted Headband", "extracted_price": 65.0, "source": "Lele Sadoughi", "rating": 4.7, "reviews": 85,
-             "product_link": "https://www.google.com/shopping/product/2", "immersive_product_page_token": "tok2"},
+             "product_link": "https://www.google.com/shopping/product/2", "immersive_product_page_token": "tok2",
+             "thumbnail": "javascript:alert(1)"},
             {"title": "Plaid Knot Headband", "extracted_price": 18.0, "source": "Nordstrom", "product_link": "https://www.google.com/shopping/product/3"},
         ] + [{"title": f"Velvet knot headband {i}", "extracted_price": 30.0 + i, "source": f"Boutique {i}",
               "product_link": f"https://www.google.com/shopping/product/b{i}"} for i in range(5)]}
@@ -91,6 +92,10 @@ def test_listing_tracker_logs_prices_reviews_and_badges(authed, project, fake_ll
     best = next(o for c in comps.values() for p in c["products"] for o in p["price_observations"] if "Best Seller" in o["badges"])
     assert best["platform"] == "Amazon" and best["rating"] == 4.3
     assert "Unbranded Amazon listings" in comps
+    pictures = {r["title"]: r["image"] for r in snap["listings"]}
+    assert pictures["Knotted Headband Style 1"] == "https://m.media-amazon.com/images/I/1.jpg"
+    assert pictures["Lele Sadoughi Knotted Headband"] is None  # only web or inline image addresses are kept
+    assert any(p["image_url"] == "https://m.media-amazon.com/images/I/1.jpg" for c in comps.values() for p in c["products"])
     assert authed.get(f"/api/projects/{pid}/dashboard").json()["counts"]["listing_reports"] == 1
 
 
@@ -157,3 +162,44 @@ def test_spec_sheet_rfqs_quotes_and_samples(authed, project, fake_llm):
     counts = authed.get(f"/api/projects/{pid}/dashboard").json()["counts"]
     assert counts["spec_sheets"] == 1 and counts["rfqs_sent"] == 1 and counts["rfq_quotes"] == 3 and counts["sample_orders"] == 1
     assert authed.delete(f"/api/samples/{s['id']}").status_code == 204
+
+
+def trends_serpapi(http, params):
+    assert params["engine"] == "google_trends" and params["date"] == "today 5-y" and params["geo"] == "US"
+    terms = params["q"].split(",")
+    kind = params["data_type"]
+    if kind == "TIMESERIES":
+        return {"interest_over_time": {
+            "timeline_data": [{"date": f"Week {i}", "partial_data": i == 4,
+                               "values": [{"query": t, "extracted_value": (i + 1) * (j + 1)} for j, t in enumerate(terms)]} for i in range(5)],
+            "averages": [{"query": t, "value": 10 * (j + 1)} for j, t in enumerate(terms)]}}
+    if kind == "GEO_MAP":
+        return {"compared_breakdown_by_region": [
+            {"location": "Texas", "geo": "US-TX", "values": [{"query": t, "extracted_value": [60, 40][j]} for j, t in enumerate(terms)]}]}
+    if kind == "RELATED_QUERIES":
+        return {"related_queries": {"top": [{"query": "headband for women", "value": "100", "extracted_value": 100}],
+                                    "rising": [{"query": "knot headband", "value": "Breakout", "extracted_value": 5000}]}}
+    if kind == "RELATED_TOPICS":
+        return {"related_topics": {"top": [{"topic": {"title": "Hairband", "type": "Topic"}, "value": "100", "extracted_value": 100}],
+                                   "rising": []}}
+    raise AssertionError(kind)
+
+
+def test_trends_explorer_compares_phrases_regions_and_related(authed, project, monkeypatch):
+    pid = project["id"]
+    monkeypatch.setattr(demand, "configured", lambda: True)
+    monkeypatch.setattr(demand, "_get", trends_serpapi)
+    monkeypatch.setattr("app.services.trends._get", trends_serpapi)
+    assert authed.get(f"/api/projects/{pid}/trends").json()["snapshot"] is None
+    r = authed.post(f"/api/projects/{pid}/trends", json={"terms": ["headband", " yoga sock ", "headband"], "date": "today 5-y", "geo": "us"})
+    assert r.status_code == 201, r.text
+    c = r.json()["content"]
+    assert c["terms"] == ["headband", "yoga sock"] and c["series"]["yoga sock"] == [2, 4, 6, 8, 10] and c["partial"][-1] is True
+    assert c["averages"] == {"headband": 10, "yoga sock": 20} and c["region_mode"] == "share"
+    assert c["regions"] == [{"location": "Texas", "geo": "US-TX", "values": {"headband": 60, "yoga sock": 40}}]
+    assert "date=today%205-y" in c["url"] and "q=headband%2Cyoga%20sock" in c["url"]
+    rel = authed.post(f"/api/projects/{pid}/trends/related", json={"term": "headband"}).json()["content"]["related"]["headband"]
+    assert rel["queries"]["rising"][0] == {"name": "knot headband", "type": None, "value": "Breakout", "score": 5000, "link": None}
+    assert rel["topics"]["top"][0]["name"] == "Hairband"
+    assert authed.post(f"/api/projects/{pid}/trends/related", json={"term": "facial mask"}).status_code == 404
+    assert authed.post(f"/api/projects/{pid}/trends", json={"terms": ["a", "b", "c", "d", "e", "f"]}).status_code == 422

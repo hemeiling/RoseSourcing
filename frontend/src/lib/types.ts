@@ -191,6 +191,7 @@ export interface CompetitorProduct {
   product_type: string | null;
   material: string | null;
   notes: string | null;
+  image_url: string | null;
   price_observations: PriceObservation[];
 }
 

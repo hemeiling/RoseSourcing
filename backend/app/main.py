@@ -28,6 +28,7 @@ from .api import (
     suppliers,
     system,
     tokens,
+    trends,
 )
 from .config import get_settings
 from .mcp_server import MCPMiddleware, session_manager
@@ -79,7 +80,7 @@ async def _llm_error(_: Request, exc: LLMError) -> JSONResponse:
 
 
 for r in (auth, projects, research, competitors, brand, suppliers, channels, commerce, analytics, copilot, system,
-          connectors_api, scans, decisions, tokens, sizing, outreach):
+          connectors_api, scans, decisions, tokens, sizing, outreach, trends):
     app.include_router(r.router)
 app.add_middleware(MCPMiddleware)
 

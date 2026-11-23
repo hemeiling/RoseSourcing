@@ -776,6 +776,12 @@ def _shopper_keywords(run_id: uuid.UUID, ctx: dict[str, str], llm, usage: LLMUsa
     return kws
 
 
+def _same_product(name: str, listing_line: str) -> bool:
+    """The example names the listing: its first words match the start of the listing title."""
+    n, line = _norm(name)[:50].rstrip(" .,-"), _norm(listing_line)
+    return len(n) >= 12 and line.startswith(n)
+
+
 def _persist_price_tiers(db, run: ResearchRun, bundle: EvidenceBundle, ext: StepExtraction) -> int:
     """Save the price-tier breakdown. Example prices are kept only when they appear in the cited excerpt; a tier's range is
     kept when its numbers appear in the tier's sources, otherwise it is derived from the kept examples."""
@@ -789,8 +795,10 @@ def _persist_price_tiers(db, run: ResearchRun, bundle: EvidenceBundle, ext: Step
         for e in t.examples:
             src = refs.get(e.source_ref)
             if src and _price_in_excerpts(e.price, src.excerpts):
+                # A marketplace listing line for this product carries its own link and picture.
+                media = next((bundle.media[x] for x in src.excerpts if x in bundle.media and _same_product(e.product_name, x)), {})
                 examples.append({"product": e.product_name, "price": e.price, "currency": e.currency.upper()[:8],
-                                 "url": e.product_url or src.url, "source_url": src.url})
+                                 "url": e.product_url or media.get("url") or src.url, "source_url": src.url, "image": media.get("image")})
             else:
                 dropped += 1
         srcs = [refs[r] for r in t.source_refs if r in refs]
@@ -1084,6 +1092,7 @@ def execute_run(run_id: uuid.UUID) -> None:
                     for i, o in enumerate(obs, 1):
                         bundle.sources.append(SourceDoc(ref=f"S{nxt + i}", url=o.url, title=o.title, page_age="retrieved via SerpApi",
                                                         excerpts=o.excerpts, provider="serpapi"))
+                        bundle.media.update(o.media)
                     bundle.errors += errs
                     api_meta = {**api_meta, "serpapi_calls": calls}
                 if key == "supplier_listings" and demand.configured():

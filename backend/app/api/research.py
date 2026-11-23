@@ -130,7 +130,29 @@ def latest_snapshot(kind: Literal["price_tiers", "compliance_checklist", "listin
                         sources.setdefault(link.source.url, link.source.title or link.source.url)
             items.append({**item, "sources": [{"url": u, "title": t} for u, t in sources.items()]})
         content = {**content, "items": items}
+    if kind == "price_tiers":
+        content = _with_listing_pictures(db, project.id, content)
     return {"id": str(snap.id), "kind": snap.kind, "content": content, "created_at": snap.created_at}
+
+
+def _with_listing_pictures(db, project_id: uuid.UUID, content: dict) -> dict:
+    """Tier examples saved before pictures were kept borrow the picture of the same tracked listing (same link or title)."""
+    tracker = db.scalars(select(AnalysisSnapshot).where(AnalysisSnapshot.project_id == project_id, AnalysisSnapshot.kind == "listing_tracker")
+                         .order_by(AnalysisSnapshot.created_at.desc())).first()
+    rows = [r for r in (tracker.content.get("listings") or []) if r.get("image")] if tracker else []
+    if not rows:
+        return content
+    by_url = {r["url"]: r for r in rows if r.get("url")}
+    norm = lambda s: " ".join(str(s).lower().split())[:60]  # noqa: E731
+    by_title = {norm(r["title"]): r for r in rows}
+    tiers = []
+    for t in content.get("tiers") or []:
+        examples = []
+        for e in t.get("examples") or []:
+            hit = None if e.get("image") else by_url.get(e.get("url") or "") or by_title.get(norm(e.get("product") or ""))
+            examples.append({**e, "image": hit["image"], "url": e.get("url") or hit.get("url")} if hit else e)
+        tiers.append({**t, "examples": examples})
+    return {**content, "tiers": tiers}
 
 
 @router.get("/projects/{project_id}/findings", response_model=list[FindingOut])

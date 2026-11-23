@@ -7,6 +7,8 @@ const apiDev = process.env.API_DEV_URL ?? "http://localhost:8000";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // No Next.js "N" badge on local dev pages; the app shows only its own logo.
+  devIndicators: false,
   images: { unoptimized: true },
   turbopack: { root: process.cwd() },
   ...(isExport

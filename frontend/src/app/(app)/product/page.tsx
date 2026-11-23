@@ -9,6 +9,7 @@ import { DecisionBadge } from "@/components/decision";
 import { RunStatusBadge, fmtCost } from "@/components/market/shared";
 import { ListingTrackerSection, ReviewInsightsSection } from "@/components/listing-insights";
 import { OutreachSection } from "@/components/outreach";
+import { TrendsExplorer } from "@/components/trends-explorer";
 import { ComplianceSection, PriceTiersSection } from "@/components/product-insights";
 import { ResearchRunStarter } from "@/components/research-run-starter";
 import { useProjects } from "@/components/providers";
@@ -31,7 +32,7 @@ import SizingPage from "../sizing/page";
 import SuppliersPage from "../suppliers/page";
 
 const CUSTOM: Partial<Record<SectionId, (p: { projectId: string }) => ReactNode>> = {
-  pricing: PriceTiersSection, listings: ListingTrackerSection, reviews: ReviewInsightsSection, outreach: OutreachSection, compliance: ComplianceSection,
+  trends: TrendsExplorer, pricing: PriceTiersSection, listings: ListingTrackerSection, reviews: ReviewInsightsSection, outreach: OutreachSection, compliance: ComplianceSection,
 };
 const FOLD_KEY = "136sourcing.foldedSections";
 

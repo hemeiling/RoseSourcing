@@ -262,6 +262,7 @@ class CompetitorProduct(IdMixin, TimestampMixin, Base):
     url: Mapped[str | None] = mapped_column(Text)
     product_type: Mapped[str | None] = mapped_column(String(100))  # e.g. latin dress, practice skirt
     material: Mapped[str | None] = mapped_column(String(200))
+    image_url: Mapped[str | None] = mapped_column(Text)  # the listing's picture, as the marketplace showed it
     notes: Mapped[str | None] = mapped_column(Text)
 
     competitor: Mapped[Competitor] = relationship(back_populates="products")

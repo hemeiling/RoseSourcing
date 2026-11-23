@@ -4,7 +4,7 @@ import { Star, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ResearchRunStarter } from "@/components/research-run-starter";
-import { Badge, Card, CardBody, CardHeader, ExternalLink, Spinner, type Tone } from "@/components/ui";
+import { Badge, Card, CardBody, CardHeader, ExternalLink, ProductThumb, Spinner, type Tone } from "@/components/ui";
 import { date, domainOf, money, num, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 
@@ -22,6 +22,7 @@ type Listing = {
   url: string;
   seller: string | null;
   why: string;
+  image?: string | null;
 };
 
 type Tracker = {
@@ -139,7 +140,8 @@ export function ListingTrackerSection({ projectId, onLogged }: { projectId: stri
               </div>
               <ul className="divide-y divide-slate-100 rounded-lg border border-line">
                 {rows.map((r) => (
-                  <li key={r.competitor_product_id + r.url} className="grid gap-1 px-3 py-2.5 text-sm sm:grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_8rem] sm:items-start sm:gap-3">
+                  <li key={r.competitor_product_id + r.url} className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 px-3 py-2.5 text-sm sm:grid-cols-[auto_minmax(0,1fr)_6.5rem_5.5rem_8rem] sm:items-start">
+                    <div className="row-span-4 sm:row-span-1"><ProductThumb src={r.image} href={r.url} alt={r.title} size={64} /></div>
                     <div className="min-w-0">
                       {r.url ? <ExternalLink href={r.url} className="font-medium">{r.title}</ExternalLink> : <span className="font-medium text-ink">{r.title}</span>}
                       <div className="text-xs text-slate-500">{r.competitor}{r.seller && r.seller !== r.competitor ? ` · sold by ${r.seller}` : ""}</div>
