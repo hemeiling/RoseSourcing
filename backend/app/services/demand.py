@@ -7,6 +7,7 @@ the source lists those same numbers, so findings are source-linked without any m
 from __future__ import annotations
 
 import logging
+import re
 import statistics
 from dataclasses import dataclass, field
 from typing import Any
@@ -35,6 +36,7 @@ class DemandObservation:
     url: str
     excerpts: list[str]
     findings: list[DemandFinding] = field(default_factory=list)
+    series: list[tuple[str, float]] = field(default_factory=list)  # Google Trends weekly points (date label, 0-100)
 
 
 def configured() -> bool:
@@ -58,11 +60,13 @@ def _median(xs: list[float]) -> float | None:
 
 def trends(http: httpx2.Client, kw: str, geo: str) -> DemandObservation | None:
     data = _get(http, {"engine": "google_trends", "q": kw, "geo": geo, "date": "today 12-m", "data_type": "TIMESERIES"})
-    points = []
+    points: list[float] = []
+    series: list[tuple[str, float]] = []
     for row in (data.get("interest_over_time") or {}).get("timeline_data") or []:
-        for v in row.get("values") or []:
+        for v in (row.get("values") or [])[:1]:
             if isinstance(v.get("extracted_value"), (int, float)):
                 points.append(float(v["extracted_value"]))
+                series.append((str(row.get("date") or ""), float(v["extracted_value"])))
     if not points:
         return None
     avg = sum(points) / len(points)
@@ -76,7 +80,7 @@ def trends(http: httpx2.Client, kw: str, geo: str) -> DemandObservation | None:
                + (f" ({change:+.0f}%)." if change is not None else "."))
     trend_word = "rising" if change is not None and change > 15 else "falling" if change is not None and change < -15 else "steady"
     return DemandObservation(
-        title=f"Google Trends: {kw} ({geo})", url=url, excerpts=[excerpt],
+        title=f"Google Trends: {kw} ({geo})", url=url, excerpts=[excerpt], series=series,
         findings=[DemandFinding(
             claim=f"Google search interest for '{kw}' in {geo} is {trend_word}: last 13 weeks average {r_avg:.0f}/100 vs {p_avg:.0f}/100 before"
                   + (f" ({change:+.0f}%)." if change is not None else "."),
@@ -293,3 +297,208 @@ def b2b_listing_evidence(keywords: list[str], max_calls: int = 3) -> tuple[list[
                 log.warning("B2B listing search failed: %s", e)
                 errors.append(str(e)[:300])
     return obs, errors, calls
+
+
+# ----------------------------------------------------------------------------- comparable listings and reviews
+
+
+@dataclass
+class Candidate:
+    """One retail listing as the marketplace API returned it. Every field is copied from the response."""
+    platform: str  # Amazon | Etsy | Walmart | the store's name for brand sites
+    title: str
+    price: float
+    url: str
+    seller: str | None = None
+    brand: str | None = None
+    rating: float | None = None
+    reviews: int | None = None
+    badges: list[str] = field(default_factory=list)
+    asin: str | None = None
+    page_token: str | None = None  # Google immersive product token (store listings with reviews)
+
+    def line(self) -> str:
+        bits = [f"{self.title[:140]} - ${self.price:.2f} on {self.platform}"]
+        if self.seller and self.seller != self.platform:
+            bits.append(f"sold by {self.seller}")
+        if self.rating is not None:
+            bits.append(f"{self.rating:g} stars" + (f" ({self.reviews:,} reviews)" if self.reviews is not None else ""))
+        if self.badges:
+            bits.append("badges: " + "; ".join(self.badges))
+        return " - ".join(bits)
+
+
+def _num(v: Any) -> float | None:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+
+def _badge_text(b: Any) -> str | None:
+    if isinstance(b, str):
+        return b.strip() or None
+    if isinstance(b, dict):
+        return next((str(b[k]).strip() for k in ("text", "label", "title", "name") if b.get(k)), None)
+    return None
+
+
+def _amazon_candidates(data: dict[str, Any]) -> list[Candidate]:
+    out = []
+    for r in data.get("organic_results") or []:
+        price = _num(r.get("extracted_price"))
+        if r.get("sponsored") or price is None or not r.get("title"):
+            continue
+        badges = [t for t in (_badge_text(b) for b in (r.get("badges") or [])) if t]
+        for key, label in (("best_seller", "Best Seller"), ("amazons_choice", "Amazon's Choice"), ("amazon_choice", "Amazon's Choice")):
+            if r.get(key) is True and label not in badges:
+                badges.append(label)
+        if r.get("bought_last_month"):
+            badges.append(str(r["bought_last_month"]))
+        rv = _num(r.get("reviews"))
+        out.append(Candidate(platform="Amazon", title=str(r["title"])[:300], price=price, url=str(r.get("link_clean") or r.get("link") or ""),
+                             brand=str(r["brand"])[:120] if r.get("brand") else None, rating=_num(r.get("rating")),
+                             reviews=int(rv) if rv is not None else None, badges=badges[:5], asin=r.get("asin")))
+    return out
+
+
+_PLATFORM_SOURCES = {"etsy": "Etsy", "amazon": "Amazon", "walmart": "Walmart", "ebay": "eBay", "target": "Target", "temu": "Temu"}
+
+
+def _shopping_candidates(data: dict[str, Any]) -> list[Candidate]:
+    out = []
+    for r in data.get("shopping_results") or []:
+        price = _num(r.get("extracted_price"))
+        if price is None or not r.get("title"):
+            continue
+        source = str(r.get("source") or "Unknown store")
+        platform = next((v for k, v in _PLATFORM_SOURCES.items() if k in source.lower()), source)
+        badges = [str(x) for x in (r.get("badge"), r.get("tag")) if x]
+        rv = _num(r.get("reviews"))
+        out.append(Candidate(platform=platform, title=str(r["title"])[:300], price=price, seller=source,
+                             url=str(r.get("product_link") or r.get("link") or ""), rating=_num(r.get("rating")),
+                             reviews=int(rv) if rv is not None else None, badges=badges[:4],
+                             page_token=r.get("immersive_product_page_token")))
+    return out
+
+
+def _etsy_candidates(data: dict[str, Any]) -> list[Candidate]:
+    """Etsy listing pages from Google results; Google's rich snippet shows the listing's rating, review count and price."""
+    out = []
+    for r in data.get("organic_results") or []:
+        link, title = str(r.get("link") or ""), str(r.get("title") or "")
+        if "etsy.com" not in link or "/listing/" not in link or not title:
+            continue
+        rich = (r.get("rich_snippet") or {})
+        det: dict[str, Any] = {}
+        texts: list[str] = []
+        for part in (rich.get("top") or {}, rich.get("bottom") or {}):
+            det.update(part.get("detected_extensions") or {})
+            texts += [str(x) for x in part.get("extensions") or []]
+        price = _num(det.get("price"))
+        if price is None:
+            m = re.search(r"\$\s?(\d+(?:\.\d{1,2})?)", " ".join(texts + [str(r.get("snippet") or "")]))
+            price = float(m.group(1)) if m else None
+        if price is None:
+            continue
+        rv = _num(det.get("reviews"))
+        out.append(Candidate(platform="Etsy", title=re.sub(r"\s*[-|]\s*Etsy.*$", "", title)[:300], price=price, url=link.split("?")[0],
+                             rating=_num(det.get("rating")), reviews=int(rv) if rv is not None else None))
+    return out
+
+
+def comparable_candidates(keywords: list[str], geo: str = "US", max_calls: int = 5) -> tuple[list[Candidate], list[DemandObservation], list[str], int]:
+    """Retail listings for the keywords from Amazon search, Google Shopping (brand sites, Etsy, Walmart...) and Etsy via
+    Google. Returns the de-duplicated candidates, one source per query (its excerpt lines list every candidate), errors, calls."""
+    kws = [k for k in dict.fromkeys(k.strip() for k in keywords) if k][:2]
+    plan: list[tuple[str, str]] = []
+    if kws:
+        plan = [("amazon", kws[0]), ("google_shopping", kws[0]), ("etsy", kws[0])]
+        if len(kws) > 1:
+            plan += [("amazon", kws[1]), ("google_shopping", kws[1])]
+    cands: list[Candidate] = []
+    obs: list[DemandObservation] = []
+    errors: list[str] = []
+    calls = 0
+    with httpx2.Client(timeout=40) as http:
+        for engine, kw in plan[:max_calls]:
+            calls += 1
+            try:
+                if engine == "amazon":
+                    found = _amazon_candidates(_get(http, {"engine": "amazon", "k": kw, "amazon_domain": "amazon.com"}))
+                    title, url = f"Amazon search: {kw}", f"https://www.amazon.com/s?k={quote_plus(kw)}"
+                elif engine == "google_shopping":
+                    found = _shopping_candidates(_get(http, {"engine": "google_shopping", "q": kw, "gl": geo.lower(), "hl": "en"}))
+                    title, url = f"Google Shopping: {kw}", f"https://www.google.com/search?tbm=shop&q={quote_plus(kw)}"
+                else:
+                    found = _etsy_candidates(_get(http, {"engine": "google", "q": f"site:etsy.com/listing {kw}", "gl": "us", "hl": "en", "num": 20}))
+                    title, url = f"Etsy listings via Google: {kw}", f"https://www.etsy.com/search?q={quote_plus(kw)}"
+                if found:
+                    cands += found
+                    obs.append(DemandObservation(title=title, url=url, excerpts=[c.line() for c in found[:60]]))
+            except Exception as e:  # noqa: BLE001
+                log.warning("Listing search failed: %s", e)
+                errors.append(str(e)[:300])
+    seen: dict[str, Candidate] = {}
+    for c in cands:
+        seen.setdefault(c.asin or c.url or c.title.lower()[:90], c)
+    return list(seen.values()), obs, errors, calls
+
+
+@dataclass
+class ListingReviews:
+    title: str
+    url: str
+    platform: str
+    star_counts: dict[int, int] = field(default_factory=dict)  # stars -> count, or percent on Amazon
+    star_unit: str = "reviews"
+    low_star: list[dict[str, Any]] = field(default_factory=list)  # {stars, title, text, date, source}
+    insights: list[str] = field(default_factory=list)  # Amazon "customers say" themes with negative or mixed sentiment
+
+
+def _walk_reviews(obj: Any, found: list[dict[str, Any]]) -> None:
+    """Any object in the response that looks like one review (a star rating plus text)."""
+    if isinstance(obj, dict):
+        stars, text = _num(obj.get("rating")), obj.get("text") or obj.get("content") or obj.get("snippet") or obj.get("body")
+        if stars is not None and 1 <= stars <= 5 and isinstance(text, str) and len(text) > 15:
+            found.append({"stars": int(stars), "title": str(obj.get("title") or "")[:200], "text": text[:1500],
+                          "date": str(obj.get("date") or obj.get("review_submission_time") or "")[:40],
+                          "source": str(obj.get("source") or "")[:80]})
+            return
+        for v in obj.values():
+            _walk_reviews(v, found)
+    elif isinstance(obj, list):
+        for v in obj:
+            _walk_reviews(v, found)
+
+
+def listing_reviews(c: dict[str, Any], http: httpx2.Client) -> ListingReviews | None:
+    """Low-star reviews for one tracked listing: Google's product panel (reviews from the stores selling it) or Amazon's
+    product page (star breakdown and the review themes Amazon summarises)."""
+    out = ListingReviews(title=str(c.get("title") or ""), url=str(c.get("url") or ""), platform=str(c.get("platform") or ""))
+    if c.get("page_token"):
+        data = _get(http, {"engine": "google_immersive_product", "page_token": c["page_token"]})
+        pr = data.get("product_results") or {}
+        for r in pr.get("ratings") or []:
+            if _num(r.get("stars")) is not None and _num(r.get("amount")) is not None:
+                out.star_counts[int(r["stars"])] = int(r["amount"])
+        reviews: list[dict[str, Any]] = []
+        _walk_reviews(pr.get("user_reviews") or [], reviews)
+        out.low_star = [r for r in reviews if r["stars"] <= 3]
+    elif c.get("asin"):
+        data = _get(http, {"engine": "amazon_product", "asin": c["asin"], "amazon_domain": "amazon.com"})
+        info = data.get("reviews_information") or {}
+        summary = info.get("summary") or {}
+        for label, v in (summary.get("customer_reviews") or {}).items():
+            m = re.match(r"(\d)", str(label))
+            if m and _num(v) is not None:
+                out.star_counts[int(m.group(1))] = int(v)
+        out.star_unit = "percent"
+        for ins in summary.get("insights") or []:
+            if str(ins.get("sentiment") or "").lower() in ("negative", "mixed"):
+                ex = "; ".join(f'"{e.get("snippet")}"' for e in (ins.get("examples") or [])[:3] if e.get("snippet"))
+                out.insights.append(f"{ins.get('title')} ({ins.get('sentiment')}, {ins.get('mentions') or '?'} mentions): "
+                                    f"{ins.get('summary') or ''} {ex}".strip())
+        reviews = []
+        _walk_reviews({k: v for k, v in info.items() if k != "summary"}, reviews)
+        out.low_star = [r for r in reviews if r["stars"] <= 3]
+    else:
+        return None
+    return out

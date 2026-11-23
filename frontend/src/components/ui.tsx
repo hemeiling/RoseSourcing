@@ -125,19 +125,14 @@ export const useEmbedded = () => useContext(EmbedContext);
 
 export function PageHeader({ title, description, actions, badge }: { title: string; description?: ReactNode; actions?: ReactNode; badge?: ReactNode }) {
   const embed = useEmbedded();
+  // Inside a product report the section heading (title, description, fold toggle) is drawn by the report itself.
   if (embed)
-    return (
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-line pb-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-2xl font-semibold leading-tight text-ink">{embed.title}</h2>
-            {badge}
-          </div>
-          {(embed.description ?? description) && <p className="mt-1 max-w-3xl text-sm text-slate-600">{embed.description ?? description}</p>}
-        </div>
+    return badge || actions ? (
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">{badge}</div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </div>
-    );
+    ) : null;
   return (
     <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">

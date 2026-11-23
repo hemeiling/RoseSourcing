@@ -336,6 +336,24 @@ STEP_DEFS["uflpa"] = {
     ],
 }
 
+STEP_DEFS["review_web"] = {
+    "label": "Low-star reviews on the web",
+    "sections": ["customer_segments", "unmet_needs", "competitors"],
+    "question": (
+        "What do unhappy buyers of {category} say? Find 1-3 star reviews and complaints on Etsy listings, brand and boutique "
+        "store pages, Amazon review snippets, Reddit and review articles. Quote reviewers' own words and note the product, store "
+        "and star rating each time. Look especially for comfort (headaches, pressure behind the ears, itching), fit (too tight, "
+        "too loose, slipping off, one size not fitting) and durability (knot coming undone, fabric fraying or pilling, losing "
+        "shape or stretch) problems. {focus}"
+    ),
+    "hints": [
+        "{category} review uncomfortable headache",
+        "{category} too tight slips off review",
+        "{category} fell apart fraying review",
+        "{category} reddit worth it",
+    ],
+}
+
 RUN_STEPS = {
     "market_opportunity": ["demand_signals", "market_size", "customers", "competitors", "sourcing", "risks", "synthesis"],
     "channels_logistics": ["channels", "logistics", "plan"],
@@ -344,17 +362,25 @@ RUN_STEPS = {
     "price_tiers": ["price_tiers"],
     "supplier_listings": ["supplier_listings"],
     "compliance": ["design_ip", "labeling", "uflpa", "compliance_plan"],
+    "listing_tracker": ["listing_scan"],
+    "review_mining": ["review_collect", "review_web", "review_tags"],
 }
+# Steps that run their own code (marketplace APIs) instead of a web research question.
+CUSTOM_STEPS = ("listing_scan", "review_collect")
 
 STEP_LABELS = {k: v["label"] for k, v in STEP_DEFS.items()} | {
     "synthesis": "Opportunity report synthesis",
     "plan": "Channel & logistics plan",
     "compliance_plan": "Compliance checklist & supplier questions",
+    "listing_scan": "Google Trends & comparable listings",
+    "review_collect": "Low-star reviews of leading listings",
+    "review_tags": "Complaint tags & themes",
 }
-SYNTHESIS_STEP = {"market_opportunity": "synthesis", "channels_logistics": "plan", "compliance": "compliance_plan"}
+SYNTHESIS_STEP = {"market_opportunity": "synthesis", "channels_logistics": "plan", "compliance": "compliance_plan", "review_mining": "review_tags"}
 STEP_AGENT = {"competitors": "competitor_intelligence", "channels": "commerce", "logistics": "sourcing", "demand_signals": "analytics",
               "fit_charts": "fit", "fit_experience": "fit", "price_tiers": "price_tier",
-              "design_ip": "compliance", "labeling": "compliance", "uflpa": "compliance", "supplier_listings": "supplier_sourcing"}
+              "design_ip": "compliance", "labeling": "compliance", "uflpa": "compliance", "supplier_listings": "supplier_sourcing",
+              "review_web": "review_insights"}
 
 
 # Each step asks for findings, gaps and only the record list it fills, with its own section choices. One schema with
@@ -1014,6 +1040,10 @@ def execute_run(run_id: uuid.UUID) -> None:
         def do_step() -> dict[str, int]:
             attempts["n"] += 1
             _update_step(run_id, key, attempts=attempts["n"])
+            if key in CUSTOM_STEPS:
+                from . import listings
+
+                return {"listing_scan": listings.run_listing_scan, "review_collect": listings.run_review_collect}[key](run_id, ctx, keywords, cc)
             step = STEP_DEFS[key]
             question = step["question"].format(**ctx)
             hints = [h.format(**ctx) for h in step["hints"]]
@@ -1036,8 +1066,15 @@ def execute_run(run_id: uuid.UUID) -> None:
                             api_findings, api_meta = _persist_demand(db, run, kws, cc or "US")
                             run.params = {**(run.params or {}), "demand_collected_for": kws}
                     hints = [f"{k} best sellers" for k in kws[:2]] + hints
+                step_urls, passages = read_urls, None
+                if key == "review_web":
+                    from . import listings
+
+                    with session_scope() as db:
+                        step_urls = list(dict.fromkeys(read_urls + listings.tracked_page_urls(db, project_id)))[:8]
+                    passages = listings.REVIEW_PASSAGES
                 bundle = provider.gather(question=question, context=context_block(ctx), query_hints=hints, country_code=cc,
-                                         read_urls=read_urls)
+                                         read_urls=step_urls, **({"passage_pattern": passages} if passages else {}))
                 usage.add(bundle.usage)
                 _add_run_usage(run_id, bundle.usage)  # searches are paid for even if extraction fails below
                 if key == "price_tiers" and demand.configured():
@@ -1099,7 +1136,10 @@ def execute_run(run_id: uuid.UUID) -> None:
 
     synth_key = SYNTHESIS_STEP.get(kind)
     if fatal is None and synth_key and _step_status(run_id, synth_key) == "pending" and _run_status(run_id) != "cancelled":
-        {"synthesis": _run_synthesis, "plan": _run_channel_plan, "compliance_plan": _run_compliance_plan}[synth_key](run_id, ctx)
+        from .listings import run_review_tags
+
+        {"synthesis": _run_synthesis, "plan": _run_channel_plan, "compliance_plan": _run_compliance_plan,
+         "review_tags": run_review_tags}[synth_key](run_id, ctx)
 
     with session_scope() as db:
         run = db.get(ResearchRun, run_id)

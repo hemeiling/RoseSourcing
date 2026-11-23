@@ -95,7 +95,8 @@ class ListRecsIn(BaseModel):
 
 
 class StartResearchIn(BaseModel):
-    kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics", "fit_sizing", "price_tiers", "compliance", "supplier_listings"] = "market_opportunity"
+    kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics", "fit_sizing", "price_tiers", "compliance", "supplier_listings",
+                  "listing_tracker", "review_mining"] = "market_opportunity"
     focus: str | None = Field(None, description="What to pay special attention to")
     keywords: list[str] = Field(default_factory=list, description="Shopper search phrases for demand signals (max 3)")
     source_urls: list[str] = Field(default_factory=list, description="Pages the founder wants the agent to read in full (max 8)")

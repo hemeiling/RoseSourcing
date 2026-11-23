@@ -20,6 +20,7 @@ from .api import (
     connectors_api,
     copilot,
     decisions,
+    outreach,
     projects,
     research,
     scans,
@@ -78,7 +79,7 @@ async def _llm_error(_: Request, exc: LLMError) -> JSONResponse:
 
 
 for r in (auth, projects, research, competitors, brand, suppliers, channels, commerce, analytics, copilot, system,
-          connectors_api, scans, decisions, tokens, sizing):
+          connectors_api, scans, decisions, tokens, sizing, outreach):
     app.include_router(r.router)
 app.add_middleware(MCPMiddleware)
 

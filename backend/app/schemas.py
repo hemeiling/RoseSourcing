@@ -101,13 +101,20 @@ class ProjectOut(ORM):
 
 
 class ResearchStartIn(BaseModel):
-    kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics", "fit_sizing", "price_tiers", "compliance", "supplier_listings"] = "market_opportunity"
+    kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics", "fit_sizing", "price_tiers", "compliance", "supplier_listings",
+                  "listing_tracker", "review_mining"] = "market_opportunity"
     category: str | None = None
     geography: str | None = None
     budget_usd: float | None = Field(None, ge=0)
     focus: str | None = Field(None, max_length=1000)
     source_urls: list[str] = Field(default_factory=list, max_length=8, description="Pages the agent should read in full")
+    keywords: list[str] = Field(default_factory=list, max_length=3, description="Shopper search phrases for marketplace and Trends data")
     provider: str | None = None
+
+    @field_validator("keywords")
+    @classmethod
+    def _clean_keywords(cls, kws: list[str]) -> list[str]:
+        return [k.strip()[:80] for k in kws if k.strip()]
 
     @field_validator("source_urls")
     @classmethod
@@ -221,6 +228,10 @@ class PriceObservationOut(ORM):
     source_type: str
     verification_status: str
     note: str | None
+    platform: str | None = None
+    rating: float | None = None
+    review_count: int | None = None
+    badges: list[str] = []
 
 
 class CompetitorProductIn(BaseModel):

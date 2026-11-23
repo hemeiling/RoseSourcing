@@ -110,8 +110,8 @@ def resume_run(run_id: uuid.UUID, db: DB, user: CurrentUser) -> ResearchRun:
 
 
 @router.get("/projects/{project_id}/snapshots/{kind}")
-def latest_snapshot(kind: Literal["price_tiers", "compliance_checklist"], project: ProjectDep, db: DB) -> dict | None:
-    """The latest price-tier breakdown or compliance checklist for a product (null if none yet)."""
+def latest_snapshot(kind: Literal["price_tiers", "compliance_checklist", "listing_tracker", "review_insights"], project: ProjectDep, db: DB) -> dict | None:
+    """The latest price tiers, compliance checklist, listing tracker or review insights for a product (null if none yet)."""
     snap = db.scalars(select(AnalysisSnapshot).where(AnalysisSnapshot.project_id == project.id, AnalysisSnapshot.kind == kind)
                       .order_by(AnalysisSnapshot.created_at.desc())).first()
     if not snap:

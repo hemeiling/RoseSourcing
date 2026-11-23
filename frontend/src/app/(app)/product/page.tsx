@@ -1,12 +1,14 @@
 "use client";
 
 import clsx from "clsx";
-import { AlertTriangle, ArrowRight, Bot, ListChecks, Pencil } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bot, ChevronDown, ChevronsDownUp, ChevronsUpDown, ListChecks, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { DecisionBadge } from "@/components/decision";
 import { RunStatusBadge, fmtCost } from "@/components/market/shared";
+import { ListingTrackerSection, ReviewInsightsSection } from "@/components/listing-insights";
+import { OutreachSection } from "@/components/outreach";
 import { ComplianceSection, PriceTiersSection } from "@/components/product-insights";
 import { ResearchRunStarter } from "@/components/research-run-starter";
 import { useProjects } from "@/components/providers";
@@ -28,7 +30,10 @@ import MarketPage from "../market/page";
 import SizingPage from "../sizing/page";
 import SuppliersPage from "../suppliers/page";
 
-const CUSTOM: Partial<Record<SectionId, (p: { projectId: string }) => ReactNode>> = { pricing: PriceTiersSection, compliance: ComplianceSection };
+const CUSTOM: Partial<Record<SectionId, (p: { projectId: string }) => ReactNode>> = {
+  pricing: PriceTiersSection, listings: ListingTrackerSection, reviews: ReviewInsightsSection, outreach: OutreachSection, compliance: ComplianceSection,
+};
+const FOLD_KEY = "136sourcing.foldedSections";
 
 const PAGES: Partial<Record<SectionId, () => ReactNode>> = {
   overview: DashboardPage, market: MarketPage, competitors: CompetitorsPage, sizing: SizingPage, suppliers: SuppliersPage,
@@ -95,6 +100,13 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
   if (!c.scenarios) todos.push({ text: "No unit economics yet", detail: "Model cost, price and margin.", section: "economics", tone: "slate" });
   if (!c.price_tier_reports) todos.push({ text: "Price tiers not researched", detail: "See what budget, mid, premium and luxury buyers each want before you pick a price.", section: "pricing", tone: "slate" });
   if (!c.compliance_checks) todos.push({ text: "No compliance check yet", detail: "Design patents, labelling and UFLPA forced-labour rules - and questions for your supplier.", section: "compliance", tone: "amber" });
+  if (!c.listing_reports) todos.push({ text: "Comparable listings not tracked", detail: "Log Google Trends plus price, rating, review count and badges for 15-20 directly comparable listings.", section: "listings", tone: "slate" });
+  if (!c.review_reports) todos.push({ text: "Low-star reviews not tagged", detail: "Find the comfort, fit and durability complaints in competitors' 1-3 star reviews.", section: "reviews", tone: "slate" });
+  if (c.suppliers && !c.spec_sheets) todos.push({ text: "No spec sheet yet", detail: "Draft the spec sheet suppliers will quote against.", section: "outreach", tone: "amber" });
+  if (c.suppliers && c.rfqs_sent < 5)
+    todos.push({ text: c.rfqs_sent ? `Only ${c.rfqs_sent} supplier${c.rfqs_sent === 1 ? "" : "s"} asked for quotes` : "No supplier asked for quotes yet",
+      detail: "Send the spec sheet to 5+ suppliers for prices at 100 / 300 / 500 units.", section: "outreach", tone: "amber" });
+  if (c.rfq_quotes && c.sample_orders < 2) todos.push({ text: "Order 2-3 samples", detail: "Pick the best quotes and track each sample until you have scored it.", section: "outreach", tone: "slate" });
   if (unavailable) todos.push({ text: `${unavailable} research questions had no reliable data`, detail: "Listed as 'data unavailable' findings - these are your evidence gaps.", section: "market", tone: "slate" });
   if (decision === "undecided") todos.push({ text: "Record your go / no-go decision", detail: "Your decision is saved with a snapshot of the evidence.", section: "overview", tone: "slate" });
 
@@ -173,6 +185,23 @@ function ProductReport({ id }: { id: string }) {
   };
   const [active, setActive] = useState("review");
   const userScrolled = useRef(false);
+  // Folded sections are remembered in this browser, for every product.
+  const [folded, setFolded] = useState<Set<string>>(new Set());
+  const foldedRef = useRef(folded);
+  foldedRef.current = folded;
+  useEffect(() => {
+    try { setFolded(new Set(JSON.parse(localStorage.getItem(FOLD_KEY) || "[]") as string[])); } catch { /* storage unavailable */ }
+  }, []);
+  const saveFolded = useCallback((next: Set<string>) => {
+    setFolded(next);
+    try { localStorage.setItem(FOLD_KEY, JSON.stringify([...next])); } catch { /* storage unavailable */ }
+  }, []);
+  const toggle = (sid: string) => {
+    const next = new Set(folded);
+    if (next.has(sid)) next.delete(sid); else next.add(sid);
+    saveFolded(next);
+  };
+  const allFolded = SECTIONS.every((s) => folded.has(s.id));
   const exists = projects.some((p) => p.id === id);
 
   useEffect(() => {
@@ -180,10 +209,15 @@ function ProductReport({ id }: { id: string }) {
   }, [exists, project?.id, id, select]);
 
   const jump = useCallback((section: string, smooth = true) => {
-    document.getElementById(section)?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+    if (foldedRef.current.has(section)) {
+      const next = new Set(foldedRef.current);
+      next.delete(section);
+      saveFolded(next);
+    }
+    requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" }));
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${section}`);
     setActive(section);
-  }, []);
+  }, [saveFolded]);
 
   // Deep links (#market): sections above load their data asynchronously, so re-align a few times unless the user scrolls.
   const ready = project?.id === id;
@@ -210,7 +244,7 @@ function ProductReport({ id }: { id: string }) {
     const obs = new IntersectionObserver((entries) => {
       const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
       if (visible) setActive(visible.target.id);
-    }, { rootMargin: "-130px 0px -55% 0px" });
+    }, { rootMargin: "-170px 0px -55% 0px" });
     SECTIONS.forEach((s) => { const el = document.getElementById(s.id); if (el) obs.observe(el); });
     return () => obs.disconnect();
   }, [ready]);
@@ -254,10 +288,11 @@ function ProductReport({ id }: { id: string }) {
         </div>
       </div>
 
-      <nav aria-label="Report sections" className="sticky top-14 z-10 -mx-4 mb-6 border-b border-line bg-canvas/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
-        <ul className="flex gap-1.5 overflow-x-auto">
+      <nav aria-label="Report sections" className="z-10 -mx-4 mb-6 border-b border-line bg-canvas/95 px-4 py-2 backdrop-blur sm:sticky sm:top-14 sm:-mx-6 sm:px-6">
+        {/* Chips wrap onto more rows rather than scrolling out of view. */}
+        <ul className="flex flex-wrap gap-1.5">
           {SECTIONS.map((s) => (
-            <li key={s.id} className="shrink-0">
+            <li key={s.id}>
               <a href={`#${s.id}`} onClick={(e) => { e.preventDefault(); jump(s.id); }} aria-current={active === s.id ? "true" : undefined}
                 className={clsx("block rounded-full border px-3 py-1 text-xs font-semibold transition-colors",
                   active === s.id ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-700 hover:border-primary-300 hover:text-primary-700")}>
@@ -265,23 +300,37 @@ function ProductReport({ id }: { id: string }) {
               </a>
             </li>
           ))}
+          <li className="ml-auto">
+            <button type="button" onClick={() => saveFolded(allFolded ? new Set() : new Set(SECTIONS.map((s) => s.id)))}
+              className="flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-50">
+              {allFolded ? <ChevronsUpDown className="h-3.5 w-3.5" aria-hidden /> : <ChevronsDownUp className="h-3.5 w-3.5" aria-hidden />}
+              {allFolded ? "Unfold all" : "Fold all"}
+            </button>
+          </li>
         </ul>
       </nav>
 
-      <div className="space-y-12">
+      <div className="space-y-8">
         {SECTIONS.map((s) => {
           const Page = PAGES[s.id];
           const Custom = CUSTOM[s.id];
+          const isFolded = folded.has(s.id);
           return (
-          <section key={s.id} id={s.id} className="scroll-mt-32" aria-label={s.title}>
+          <section key={s.id} id={s.id} className="scroll-mt-20 sm:scroll-mt-44" aria-label={s.title}>
+            <div className={clsx("border-b border-line pb-3", !isFolded && "mb-4")}>
+              <h2 className="text-2xl font-semibold leading-tight text-ink">
+                <button type="button" onClick={() => toggle(s.id)} aria-expanded={!isFolded} aria-controls={`${s.id}-body`}
+                  className="group flex items-start gap-2 text-left hover:text-primary-700">
+                  <ChevronDown className={clsx("mt-1 h-6 w-6 shrink-0 text-slate-400 transition-transform group-hover:text-primary-700", isFolded && "-rotate-90")} aria-hidden />
+                  <span>{s.title}</span>
+                </button>
+              </h2>
+              {s.description && !isFolded && <p className="ml-8 mt-1 max-w-3xl text-sm text-slate-600">{s.description}</p>}
+            </div>
+            {!isFolded && (
+            <div id={`${s.id}-body`}>
             {Custom ? (
-              <>
-                <div className="mb-4 border-b border-line pb-3">
-                  <h2 className="text-2xl font-semibold leading-tight text-ink">{s.title}</h2>
-                  {s.description && <p className="mt-1 max-w-3xl text-sm text-slate-600">{s.description}</p>}
-                </div>
-                <Custom projectId={id} />
-              </>
+              <Custom projectId={id} />
             ) : Page ? (
               <EmbedContext.Provider value={{ id: s.id, title: s.title, description: s.description }}>
                 {s.id === "suppliers" && (
@@ -303,13 +352,9 @@ function ProductReport({ id }: { id: string }) {
                 <Page key={s.id === "suppliers" ? suppliersVersion : s.id === "competitors" ? competitorsVersion : undefined} />
               </EmbedContext.Provider>
             ) : (
-              <>
-                <div className="mb-4 border-b border-line pb-3">
-                  <h2 className="text-2xl font-semibold leading-tight text-ink">{s.title}</h2>
-                  <p className="mt-1 text-sm text-slate-600">A quick read of what is missing or weak. Each item jumps to the section to fix it.</p>
-                </div>
-                <Review projectId={id} decision={project.decision} />
-              </>
+              <Review projectId={id} decision={project.decision} />
+            )}
+            </div>
             )}
           </section>
           );

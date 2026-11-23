@@ -284,6 +284,11 @@ class PriceObservation(IdMixin, TimestampMixin, Base):
     evidence_source_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("evidence_sources.id", ondelete="SET NULL"))
     verification_status: Mapped[str] = mapped_column(String(32), default="unverified")
     note: Mapped[str | None] = mapped_column(Text)
+    # What the listing showed at the same moment (from the marketplace API, not the AI).
+    platform: Mapped[str | None] = mapped_column(String(48))  # Amazon | Etsy | Walmart | brand site name
+    rating: Mapped[Decimal | None] = mapped_column(Numeric(3, 2))
+    review_count: Mapped[int | None] = mapped_column(Integer)
+    badges: Mapped[list[str]] = mapped_column(JSONB, default=list)
 
     product: Mapped[CompetitorProduct] = relationship(back_populates="price_observations")
 
@@ -411,6 +416,29 @@ class SupplierCommunication(IdMixin, TimestampMixin, Base):
     next_action: Mapped[str | None] = mapped_column(Text)
 
     supplier: Mapped[Supplier] = relationship(back_populates="communications")
+
+
+class SampleOrder(IdMixin, TimestampMixin, Base):
+    """A sample requested from a supplier. The order and payment happen on the supplier's platform; this tracks it."""
+
+    __tablename__ = "sample_orders"
+
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("business_projects.id", ondelete="CASCADE"), index=True)
+    supplier_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("suppliers.id", ondelete="CASCADE"), index=True)
+    quantity: Mapped[int] = mapped_column(Integer, default=1)
+    variant: Mapped[str | None] = mapped_column(Text)  # colour / fabric / size requested
+    unit_cost: Mapped[Decimal | None] = mapped_column(Money)
+    shipping_cost: Mapped[Decimal | None] = mapped_column(Money)
+    currency: Mapped[str] = mapped_column(String(8), default="USD")
+    # requested | ordered | shipped | received | approved | rejected
+    status: Mapped[str] = mapped_column(String(16), default="requested")
+    ordered_on: Mapped[date | None] = mapped_column(Date)
+    received_on: Mapped[date | None] = mapped_column(Date)
+    tracking: Mapped[str | None] = mapped_column(Text)
+    scores: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)  # {comfort, fit, durability, look}: 1-5, the user's evaluation
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    supplier: Mapped[Supplier] = relationship(lazy="joined")
 
 
 # --------------------------------------------------------------------------- product, commerce

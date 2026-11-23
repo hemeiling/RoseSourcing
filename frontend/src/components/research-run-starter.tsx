@@ -11,18 +11,21 @@ import { useApi } from "@/lib/hooks";
 import type { ResearchRun } from "@/lib/types";
 
 /** Start one kind of research run for a product, with spend approval, and follow its progress. */
-export function ResearchRunStarter({ projectId, kind, label, approval, focusPlaceholder, onFinished }: {
+export function ResearchRunStarter({ projectId, kind, label, approval, focusPlaceholder, keywordsPlaceholder, onFinished }: {
   projectId: string;
   kind: ResearchRun["kind"];
   label: string;
   approval: string;
   focusPlaceholder?: string;
+  /** Shows a "search phrases" field: what shoppers type, used for marketplace and Google Trends searches. */
+  keywordsPlaceholder?: string;
   onFinished: () => void;
 }) {
   const { status } = useStatus();
   const runs = useApi<ResearchRun[]>(`/api/projects/${projectId}/research-runs`);
   const [focus, setFocus] = useState("");
   const [pages, setPages] = useState("");
+  const [keywords, setKeywords] = useState("");
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +49,10 @@ export function ResearchRunStarter({ projectId, kind, label, approval, focusPlac
     setBusy(true);
     setError(null);
     try {
-      await post(`/api/projects/${projectId}/research-runs`, { kind, focus: focus.trim() || undefined, source_urls: parseUrls(pages) });
+      await post(`/api/projects/${projectId}/research-runs`, {
+        kind, focus: focus.trim() || undefined, source_urls: parseUrls(pages),
+        keywords: keywords.split(/[,\n]/).map((k) => k.trim()).filter(Boolean).slice(0, 3),
+      });
       setPages("");
       runs.reload();
     } catch (e) {
@@ -61,7 +67,12 @@ export function ResearchRunStarter({ projectId, kind, label, approval, focusPlac
     <div className="space-y-3 rounded-lg border border-line bg-white p-4">
       {status && !status.ai.configured && <ConfigNotice message={status.ai.requirement} />}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <div className="grid flex-1 gap-3 md:grid-cols-2">
+        <div className={`grid flex-1 gap-3 ${keywordsPlaceholder ? "md:grid-cols-3" : "md:grid-cols-2"}`}>
+          {keywordsPlaceholder && (
+            <Field label="Search phrases (optional)">
+              <Textarea rows={1} value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder={keywordsPlaceholder} />
+            </Field>
+          )}
           <Field label="Focus (optional)">
             <Textarea rows={1} value={focus} onChange={(e) => setFocus(e.target.value)} placeholder={focusPlaceholder} />
           </Field>

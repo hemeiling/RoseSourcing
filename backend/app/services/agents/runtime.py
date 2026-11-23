@@ -30,6 +30,9 @@ AGENTS = {
     "price_tier": "Price Tier Agent",
     "supplier_sourcing": "Supplier Sourcing Agent",
     "compliance": "Compliance & IP Agent",
+    "listing_tracker": "Listing Tracker Agent",
+    "review_insights": "Review Insights Agent",
+    "supplier_outreach": "Supplier Outreach Agent",
     "supervisor": "Supervisor / Orchestration Agent",
     "copilot": "AI Business Copilot",
 }

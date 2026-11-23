@@ -197,6 +197,25 @@ class FakeLLM:
                 evidence_gaps=[GapItem(gap="Market size", why_it_matters="Sizing", how_to_close="Survey")],
                 next_steps=[NextStep(action="Run a landing page test", rationale="Cheap", priority="high")],
             ), usage
+        if output_model.__name__ == "ListingPick":
+            # Every candidate except unrelated sweatbands; the brand only for the first one.
+            idx = [int(m.group(1)) for m in re.finditer(r"^\[(\d+)\] (?!.*[Ss]weatband)", prompt, re.M)]
+            return output_model(picked=[{"index": i, "brand": "Lele Sadoughi" if n == 0 else None, "why_comparable": "Knotted fabric headband"}
+                                        for n, i in enumerate(idx)] + [{"index": 999, "brand": None, "why_comparable": "Out of range"}],
+                                left_out="Sweatbands."), usage
+        if output_model.__name__ == "ReviewTagging":
+            ref = re.search(r"\[(S\d+)\] Low-star reviews:", prompt).group(1)
+            return output_model(summary="Knots loosen and bands pinch.", themes=[
+                {"tag": "durability", "summary": "Knots come undone.", "fix": "Stitch the knot closed."},
+                {"tag": "comfort", "summary": "Pressure behind the ears.", "fix": "Use a padded, softer band."},
+            ], reviews=[
+                {"source_ref": ref, "product": "Knot headband", "stars": 2, "quote": "The knot came undone after two wears",
+                 "tags": ["durability"], "problem": "knot comes undone"},
+                {"source_ref": ref, "product": "Knot headband", "stars": 1, "quote": "gives me a headache within an hour",
+                 "tags": ["comfort"], "problem": "headache"},
+                {"source_ref": ref, "product": "Knot headband", "stars": 1, "quote": "An invented complaint nobody wrote",
+                 "tags": ["fit"], "problem": "invented"},
+            ]), usage
         if output_model.__name__ == "ProductIdentification":
             self.images = images
             return output_model(

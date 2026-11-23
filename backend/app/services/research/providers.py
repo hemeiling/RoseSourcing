@@ -78,7 +78,7 @@ class ResearchProvider(Protocol):
     def config_requirement(self) -> str | None: ...
 
     def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None,
-               read_urls: list[str] | None = None) -> EvidenceBundle: ...
+               read_urls: list[str] | None = None, passage_pattern: str | None = None) -> EvidenceBundle: ...
 
 
 class _SourceCollector:
@@ -112,14 +112,14 @@ Search the web and report only what sources actually say. Rules:
 - When a page is likely to state the exact figures you need - fee schedules, price lists, size charts, minimum order quantities, return policies, review summaries - open it with web_fetch and report the figures exactly as written. Prefer official pages (the platform's own fee page, the brand's size guide)."""
 
 
-def page_passages(text: str, max_chars: int = 6000, max_passages: int = 14) -> list[str]:
-    """Passages of a fetched page that carry figures (prices, %, sizes, quantities), in page order.
-    These become the source's excerpts, so numbers can be checked against what the page actually says."""
+def page_passages(text: str, max_chars: int = 6000, max_passages: int = 14, pattern: str = r"\d") -> list[str]:
+    """Passages of a fetched page that carry figures (prices, %, sizes, quantities), in page order - or, with another
+    pattern, that match it (e.g. review wording). These become the source's excerpts, so what the page says can be checked."""
     blocks = [b.strip() for b in re.split(r"\n\s*\n|\n(?=[#*|-])", text) if b.strip()]
     keep: list[str] = []
     used = 0
     for b in blocks:
-        if not re.search(r"\d", b):
+        if not re.search(pattern, b):
             continue
         b = re.sub(r"\s+", " ", b)
         for i in range(0, len(b), 700):
@@ -144,7 +144,7 @@ class AnthropicWebSearchProvider:
         return "Set ANTHROPIC_API_KEY. Web search must also be enabled for your organization in the Anthropic Console."
 
     def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None,
-               read_urls: list[str] | None = None) -> EvidenceBundle:
+               read_urls: list[str] | None = None, passage_pattern: str | None = None) -> EvidenceBundle:
         settings = get_settings()
         hints = "\n".join(f"- {h}" for h in query_hints)
         must_read = "\n".join(f"- {u}" for u in (read_urls or []))
@@ -172,7 +172,7 @@ class AnthropicWebSearchProvider:
         # Pages read in full: their figure-bearing passages become verbatim excerpts.
         for page in raw.pages:
             doc = collector.add(page.url, page.title, page_age=f"read in full {page.retrieved_at[:10]}" if page.retrieved_at else "read in full")
-            for passage in page_passages(page.text):
+            for passage in page_passages(page.text, pattern=passage_pattern or r"\d"):
                 collector.add(page.url, None, excerpt=passage, max_excerpts=20)
             if not doc.excerpts:
                 collector.add(page.url, None, excerpt=re.sub(r"\s+", " ", page.text)[:700], max_excerpts=20)
@@ -206,7 +206,7 @@ class TavilyProvider:
         return f"Set {', '.join(missing)}." if missing else None
 
     def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None,
-               read_urls: list[str] | None = None) -> EvidenceBundle:
+               read_urls: list[str] | None = None, passage_pattern: str | None = None) -> EvidenceBundle:
         key = connectors.get_value("tavily", "api_key")
         if not key:
             raise LLMNotConfigured("TAVILY_API_KEY is not set.")
@@ -252,7 +252,7 @@ class BraveSearchProvider:
         return f"Set {', '.join(missing)}." if missing else None
 
     def gather(self, *, question: str, context: str, query_hints: list[str], country_code: str | None,
-               read_urls: list[str] | None = None) -> EvidenceBundle:
+               read_urls: list[str] | None = None, passage_pattern: str | None = None) -> EvidenceBundle:
         key = connectors.get_value("brave", "api_key")
         if not key:
             raise LLMNotConfigured("BRAVE_SEARCH_API_KEY is not set.")

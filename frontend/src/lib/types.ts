@@ -56,7 +56,8 @@ export interface RunStep {
 export interface ResearchRun {
   id: string;
   project_id: string;
-  kind: "market_opportunity" | "competitor_discovery" | "channels_logistics" | "fit_sizing" | "price_tiers" | "compliance" | "supplier_listings";
+  kind: "market_opportunity" | "competitor_discovery" | "channels_logistics" | "fit_sizing" | "price_tiers" | "compliance" | "supplier_listings"
+    | "listing_tracker" | "review_mining";
   status: "queued" | "running" | "completed" | "completed_with_errors" | "failed" | "interrupted" | "cancelled";
   provider: string;
   model: string;
@@ -177,6 +178,10 @@ export interface PriceObservation {
   source_type: string;
   verification_status: string;
   note: string | null;
+  platform: string | null;
+  rating: number | null;
+  review_count: number | null;
+  badges: string[];
 }
 
 export interface CompetitorProduct {
