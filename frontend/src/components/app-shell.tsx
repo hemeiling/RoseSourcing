@@ -28,7 +28,7 @@ export function BrandMark({ light }: { light?: boolean }) {
   return (
     <div className="flex items-center gap-3">
       <svg viewBox="0 0 36 36" className="h-9 w-9 shrink-0" aria-hidden>
-        <rect width="36" height="36" rx="8" fill={light ? "#ffffff" : "#4e2a84"} />
+        <rect width="36" height="36" rx="5" fill={light ? "#ffffff" : "#4e2a84"} />
         <path d="M9 27 L18 8 L27 27" fill="none" stroke={light ? "#4e2a84" : "#ffffff"} strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
         <rect x="12.5" y="20" width="11" height="3" rx="1.5" fill="#e05329" />
       </svg>

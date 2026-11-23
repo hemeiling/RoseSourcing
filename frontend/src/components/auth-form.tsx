@@ -59,7 +59,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
             ))}
           </ul>
         </div>
-        <div aria-hidden className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rotate-12 rounded-[48px] border-[28px] border-white/5" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rotate-12 rounded-[28px] border-[28px] border-white/5" />
       </aside>
       <div className="flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-sm">
