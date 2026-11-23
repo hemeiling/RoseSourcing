@@ -3,7 +3,7 @@
 import { AlertTriangle, Calculator, FlaskConical, Gauge, Pencil, Plus, Save, Trash2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { RequireProject } from "@/components/app-shell";
 import { BASIS_META, BasisBadge } from "@/components/evidence";
 import { useProjects } from "@/components/providers";
@@ -13,11 +13,22 @@ import {
 import { del, errorText, post, put } from "@/lib/api";
 import { date, money, num, pct, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import type { AgentExecution, Experiment, ModelSpec, Scenario, UEResults } from "@/lib/types";
+import type { AgentExecution, Experiment, ModelSpec, PriceTarget, Scenario, UEResults } from "@/lib/types";
+
+/** The amount at the end of each bar (left of the bar when it is negative). */
+function BarValue(props: { x?: unknown; y?: unknown; width?: unknown; height?: unknown; value?: unknown }) {
+  const x = Number(props.x ?? 0), y = Number(props.y ?? 0), w = Number(props.width ?? 0), h = Number(props.height ?? 0), v = Number(props.value ?? 0);
+  const neg = v < 0;
+  return (
+    <text x={neg ? x + w - 4 : x + w + 4} y={y + h / 2} dy={4} fontSize={11} fill="#334155" textAnchor={neg ? "end" : "start"}>
+      {money(v, { decimals: 2 })}
+    </text>
+  );
+}
 
 const GROUPS: { title: string; fields: string[] }[] = [
   { title: "Pricing", fields: ["retail_price", "avg_discount_pct"] },
-  { title: "Product & landed cost", fields: ["factory_cost", "freight_per_unit", "duty_rate_pct", "import_clearance_per_unit", "packaging_per_unit"] },
+  { title: "Product & landed cost", fields: ["factory_cost", "freight_per_unit", "shipment_fixed_costs", "units_per_shipment", "duty_rate_pct", "import_clearance_per_unit", "packaging_per_unit"] },
   { title: "Fulfillment, payments & channel fees", fields: ["fulfillment_per_unit", "payment_fee_pct", "payment_fee_fixed", "channel_commission_pct", "channel_fee_per_order", "units_per_order"] },
   { title: "Marketing & returns", fields: ["marketing_cac", "return_rate_pct", "return_cost_per_unit", "unsellable_return_pct"] },
   { title: "Budget & fixed costs", fields: ["initial_investment", "monthly_fixed_costs", "moq", "sample_costs"] },
@@ -25,21 +36,122 @@ const GROUPS: { title: string; fields: string[] }[] = [
 
 const SCENARIO_TYPES = ["hypothetical", "quote_based", "actual", "research_estimate"] as const;
 
-function ResultsPanel({ r }: { r: UEResults | null }) {
+/** A number box that can be cleared and retyped: it keeps what you type and reports the number (empty = 0). */
+function NumberInput({ id, value, onValue }: { id: string; value: number; onValue: (v: number) => void }) {
+  const [text, setText] = useState(Number.isFinite(value) ? String(value) : "");
+  // Follow outside changes (a loaded scenario, "Use this price") without fighting what is being typed.
+  useEffect(() => {
+    setText((t) => (Number(t || 0) === value ? t : String(value)));
+  }, [value]);
+  return (
+    <Input id={id} type="number" step="any" min={0} inputMode="decimal" className="min-w-0 flex-1" value={text}
+      onFocus={(e) => e.target.select()}
+      onChange={(e) => { setText(e.target.value); const n = Number(e.target.value); onValue(e.target.value === "" || !Number.isFinite(n) ? 0 : n); }} />
+  );
+}
+
+const TARGETS = [10, 20, 30, 40, 50];
+
+function PriceTargets({ r, inputs, onUsePrice }: { r: UEResults; inputs: Record<string, number>; onUsePrice: (p: number) => void }) {
+  const [custom, setCustom] = useState("");
+  const [customRow, setCustomRow] = useState<PriceTarget | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    const t = Number(custom);
+    if (custom === "" || !Number.isFinite(t)) { setCustomRow(null); setErr(null); return; }
+    const timer = setTimeout(() => {
+      post<PriceTarget>("/api/analytics/price-for-margin", { inputs, target_margin_pct: t })
+        .then((row) => { setCustomRow(row); setErr(null); }).catch((e) => { setCustomRow(null); setErr(errorText(e)); });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [custom, inputs]);
+  const rows = [...(r.price_targets ?? []).filter((x) => TARGETS.includes(x.target_pct)), ...(customRow ? [customRow] : [])];
+  const cell = (p: number | null, note?: string | null) => p === null
+    ? <span className="text-xs text-slate-500" title={note ?? undefined}>Not reachable</span>
+    : <button className="font-semibold tabular-nums text-primary-700 hover:underline" title="Use this retail price" onClick={() => onUsePrice(p)}>{money(p)}</button>;
+  return (
+    <div>
+      <div className="mb-1 text-xs font-medium text-slate-600">Retail price for a target margin</div>
+      <p className="mb-2 text-xs text-slate-500">
+        Gross margin = (price after discount - landed cost) / price after discount. Contribution margin also takes off fulfillment,
+        fees, returns and marketing. Click a price to use it.
+      </p>
+      <table className="w-full text-sm">
+        <thead><tr className="text-left text-xs text-slate-500"><th className="py-1 font-medium">Target</th><th className="py-1 font-medium">Gross margin</th><th className="py-1 font-medium">Contribution margin</th></tr></thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((x, i) => (
+            <tr key={`${x.target_pct}-${i}`}>
+              <td className="py-1.5 text-slate-700">{x.target_pct}%</td>
+              <td className="py-1.5">{cell(x.gross_margin_price)}</td>
+              <td className="py-1.5">{cell(x.contribution_margin_price, x.contribution_note)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
+        Custom target
+        <Input type="number" min={0} max={99} step="any" inputMode="decimal" value={custom} onChange={(e) => setCustom(e.target.value)} className="w-24" placeholder="e.g. 35" />
+        %
+      </label>
+      {err && <p className="mt-1 text-xs text-red-700">{err}</p>}
+      {rows.some((x) => x.contribution_margin_price === null && x.contribution_note) && (
+        <p className="mt-1 text-xs text-slate-500">{rows.find((x) => x.contribution_margin_price === null && x.contribution_note)?.contribution_note}</p>
+      )}
+    </div>
+  );
+}
+
+function ShipmentSizes({ r, onUse }: { r: UEResults; onUse: (units: number) => void }) {
+  if (!r.by_shipment_size?.length) return null;
+  return (
+    <div>
+      <div className="mb-1 text-xs font-medium text-slate-600">Per-unit cost by shipment size</div>
+      <p className="mb-2 text-xs text-slate-500">
+        The fixed cost per shipment (broker, customs entry, documents, delivery, minimum charges) is shared by every unit, so
+        bigger shipments cost less per unit. Carriers also charge less per kg above weight breaks, and sea freight becomes
+        worth it at larger volumes - enter that quote&apos;s freight per unit to see it. Bigger orders need more cash up front.
+      </p>
+      <table className="w-full text-sm">
+        <thead><tr className="text-left text-xs text-slate-500">
+          <th className="py-1 font-medium">Units</th><th className="py-1 font-medium">Shipping / unit</th><th className="py-1 font-medium">Landed / unit</th>
+          <th className="py-1 font-medium">Contribution</th><th className="py-1 font-medium">Order cost</th>
+        </tr></thead>
+        <tbody className="divide-y divide-slate-100">
+          {r.by_shipment_size.map((s) => (
+            <tr key={s.units} className={s.current ? "bg-slate-50 font-semibold" : undefined}>
+              <td className="py-1.5">
+                {s.current ? <span>{num(s.units)} (now)</span>
+                  : <button className="text-primary-700 hover:underline" title="Use this shipment size" onClick={() => onUse(s.units)}>{num(s.units)}</button>}
+              </td>
+              <td className="py-1.5 tabular-nums">{money(s.shipping_per_unit)}</td>
+              <td className="py-1.5 tabular-nums">{money(s.landed_cost)}</td>
+              <td className={`py-1.5 tabular-nums ${s.contribution_margin < 0 ? "text-red-700" : ""}`}>{money(s.contribution_margin)}</td>
+              <td className="py-1.5 tabular-nums">{money(s.order_cost, { decimals: 0 })}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Record<string, number>; onSet: (k: string, v: number) => void }) {
   if (!r) return <Spinner label="Calculating..." />;
   const pu = r.per_unit;
   const lc = r.landed_cost_breakdown;
+  // Costs are grey; only the result carries meaning (green = each sale earns, red = each sale loses).
+  const COST = "#94a3b8";
   const waterfall = [
-    { name: "Factory", value: lc.factory_cost, color: "#261343" },
-    { name: "Freight", value: lc.freight, color: "#371d5c" },
-    { name: "Duty", value: lc.duty, color: "#4e2a84" },
-    { name: "Clearance+pkg", value: (lc.clearance ?? 0) + (lc.packaging ?? 0), color: "#6a48a3" },
-    { name: "Fulfillment", value: pu.fulfillment, color: "#8a6bbd" },
-    { name: "Payment fees", value: pu.payment_fees, color: "#ae97d4" },
-    { name: "Channel fees", value: pu.channel_fees ?? 0, color: "#cfc1e6" },
-    { name: "Returns", value: (pu.return_handling ?? 0) + (pu.unsellable_loss ?? 0), color: "#e8e1f3" },
-    { name: "Marketing", value: pu.marketing, color: "#f4f1fa" },
-    { name: "Contribution", value: r.contribution_margin, color: r.contribution_margin >= 0 ? "#43246f" : "#dc2626" },
+    { name: "Factory", value: lc.factory_cost, color: COST },
+    { name: "Freight", value: (lc.freight ?? 0) + (lc.shipment_fees ?? 0), color: COST },
+    { name: "Duty", value: lc.duty, color: COST },
+    { name: "Clearance+pkg", value: (lc.clearance ?? 0) + (lc.packaging ?? 0), color: COST },
+    { name: "Fulfillment", value: pu.fulfillment, color: COST },
+    { name: "Payment fees", value: pu.payment_fees, color: COST },
+    { name: "Channel fees", value: pu.channel_fees ?? 0, color: COST },
+    { name: "Returns", value: (pu.return_handling ?? 0) + (pu.unsellable_loss ?? 0), color: COST },
+    { name: "Marketing", value: pu.marketing, color: COST },
+    { name: "Contribution", value: r.contribution_margin, color: r.contribution_margin >= 0 ? "#15803d" : "#dc2626" },
   ];
   return (
     <div className="space-y-4">
@@ -71,20 +183,24 @@ function ResultsPanel({ r }: { r: UEResults | null }) {
       )}
       <div>
         <div className="mb-1 text-xs font-medium text-slate-600">Where each sale&apos;s revenue goes (per unit)</div>
-        <div className="h-56">
+        <div style={{ height: waterfall.length * 28 + 30 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={waterfall} layout="vertical" margin={{ left: 10, right: 20 }}>
+            <BarChart data={waterfall} layout="vertical" margin={{ left: 4, right: 4, top: 4, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-              <XAxis type="number" tickFormatter={(v) => `$${v}`} fontSize={11} />
-              <YAxis type="category" dataKey="name" width={92} fontSize={11} />
+              <XAxis type="number" tickFormatter={(v) => `$${v}`} fontSize={11} domain={[(min: number) => Math.min(0, min * 1.35), (max: number) => Math.max(0, max * 1.35)]} />
+              <YAxis type="category" dataKey="name" width={92} fontSize={11} interval={0} />
+              <ReferenceLine x={0} stroke="#64748b" />
               <Tooltip formatter={(v) => money(Number(v))} />
-              <Bar dataKey="value" radius={[0, 3, 3, 0]}>
+              <Bar dataKey="value" radius={[3, 3, 3, 3]} barSize={16}>
                 {waterfall.map((d) => <Cell key={d.name} fill={d.color} />)}
+                <LabelList dataKey="value" content={BarValue} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
       </div>
+      <PriceTargets r={r} inputs={inputs} onUsePrice={(p) => onSet("retail_price", p)} />
+      <ShipmentSizes r={r} onUse={(n) => onSet("units_per_shipment", n)} />
       <div>
         <div className="mb-1 text-xs font-medium text-slate-600">Price sensitivity: contribution per unit</div>
         <div className="h-44">
@@ -199,8 +315,7 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
                       {spec.labels[k] ?? titleCase(k)}
                     </label>
                     <div className="flex gap-1.5">
-                      <Input id={`in-${k}`} type="number" step="any" min={0} className="min-w-0 flex-1" value={Number.isFinite(inputs[k]) ? inputs[k] : ""}
-                        onChange={(e) => setInputs((cur) => ({ ...cur, [k]: e.target.value === "" ? 0 : Number(e.target.value) }))} />
+                      <NumberInput id={`in-${k}`} value={inputs[k]} onValue={(v) => setInputs((cur) => ({ ...cur, [k]: v }))} />
                       <select aria-label={`Source of ${spec.labels[k]}`} title="Where this number came from" value={basis[k] ?? "assumption"}
                         onChange={(e) => setBasis((b) => ({ ...b, [k]: e.target.value }))}
                         className="w-[7.5rem] shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-1.5 text-[11px] text-slate-600">
@@ -216,7 +331,8 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
       </Card>
       <Card className="lg:col-span-2 lg:sticky lg:top-20 lg:self-start">
         <CardHeader title="Results" subtitle="Deterministic model - same math the AI copilot uses" icon={<Gauge className="h-4 w-4" />} />
-        <CardBody>{calcError ? <Alert tone="red">{calcError}</Alert> : <ResultsPanel r={results} />}</CardBody>
+        <CardBody>{calcError ? <Alert tone="red">{calcError}</Alert>
+          : <ResultsPanel r={results} inputs={inputs} onSet={(k, v) => setInputs((cur) => ({ ...cur, [k]: v }))} />}</CardBody>
       </Card>
 
       <Modal open={saveOpen} onClose={() => setSaveOpen(false)} title={editing ? "Save scenario" : "Save new scenario"}>

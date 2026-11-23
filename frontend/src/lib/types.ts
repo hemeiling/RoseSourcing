@@ -123,6 +123,13 @@ export interface UEInputDetail {
   note: string;
 }
 
+export interface PriceTarget {
+  target_pct: number;
+  gross_margin_price: number | null;
+  contribution_margin_price: number | null;
+  contribution_note: string | null;
+}
+
 export interface UEResults {
   landed_cost_breakdown: Record<string, number>;
   per_unit: Record<string, number>;
@@ -135,6 +142,9 @@ export interface UEResults {
   affordable_units_with_budget: number | null;
   units_to_recover_investment: number | null;
   price_sensitivity: { price: number; contribution_margin: number; margin_pct: number | null }[];
+  price_targets?: PriceTarget[];
+  shipment_units?: number;
+  by_shipment_size?: { units: number; shipping_per_unit: number; landed_cost: number; contribution_margin: number; order_cost: number; current: boolean }[];
   warnings: string[];
   error?: string;
 }

@@ -230,3 +230,25 @@ def test_match_listing_ignores_store_suffix_and_finds_tier_pictures(authed, proj
     ex = authed.get(f"/api/projects/{project['id']}/snapshots/price_tiers").json()["content"]["tiers"][0]["examples"]
     assert ex[0]["image"] == "https://img.example/boon.jpg" and ex[0]["url"] == "https://www.google.com/shopping/product/9"
     assert not ex[1].get("image")
+
+
+def test_price_for_margin_and_shipment_size():
+    from app.services.unit_economics import UnitEconomicsInputs, calculate, price_for_margin
+
+    i = UnitEconomicsInputs(retail_price=20, avg_discount_pct=10, factory_cost=4, freight_per_unit=1, shipment_fixed_costs=300,
+                            units_per_shipment=0, moq=300, duty_rate_pct=0, import_clearance_per_unit=0, packaging_per_unit=0)
+    r = calculate(i)
+    assert r["landed_cost_breakdown"]["shipment_fees"] == 1.0 and r["landed_cost_breakdown"]["landed_cost"] == 6.0
+    sizes = {s["units"]: s for s in r["by_shipment_size"]}
+    assert sizes[100]["shipping_per_unit"] == 4.0 and sizes[1000]["shipping_per_unit"] == 1.3 and sizes[300]["current"]
+    assert sizes[100]["contribution_margin"] < sizes[1000]["contribution_margin"]
+
+    p = price_for_margin(i, 20)
+    assert p["gross_margin_price"] == round(6 / 0.8 / 0.9, 2)
+    at = calculate(i.model_copy(update={"retail_price": p["gross_margin_price"]}))
+    assert abs(at["gross_margin_pct"] - 20) < 0.1
+    at = calculate(i.model_copy(update={"retail_price": p["contribution_margin_price"]}))
+    assert abs(at["contribution_margin_pct"] - 20) < 0.1
+    impossible = price_for_margin(i.model_copy(update={"channel_commission_pct": 60, "payment_fee_pct": 30}), 20)
+    assert impossible["contribution_margin_price"] is None and "no price reaches" in impossible["contribution_note"]
+    assert [t["target_pct"] for t in r["price_targets"]] == [10, 20, 30, 40, 50]

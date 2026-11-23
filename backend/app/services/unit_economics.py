@@ -11,9 +11,13 @@ class UnitEconomicsInputs(BaseModel):
     retail_price: float = Field(69.0, ge=0, description="List price per unit (USD)")
     avg_discount_pct: float = Field(0.0, ge=0, le=100, description="Average promo discount off list price")
     factory_cost: float = Field(18.0, ge=0, description="Unit cost from supplier (FOB/EXW)")
-    freight_per_unit: float = Field(3.0, ge=0, description="International freight allocated per unit")
+    freight_per_unit: float = Field(3.0, ge=0, description="International freight per unit: the carrier's rate times each unit's weight or volume")
+    shipment_fixed_costs: float = Field(0.0, ge=0, description="Paid once per shipment however many units it carries: customs broker and entry, "
+                                        "documents, pickup, delivery to your warehouse, the carrier's minimum charge")
+    units_per_shipment: int = Field(0, ge=0, description="Units in each shipment; 0 = the supplier MOQ")
     duty_rate_pct: float = Field(0.0, ge=0, le=200, description="Customs duty as % of customs value (factory cost)")
-    import_clearance_per_unit: float = Field(0.5, ge=0, description="Broker, MPF/HMF and clearance fees per unit")
+    import_clearance_per_unit: float = Field(0.5, ge=0, description="Clearance fees that grow with each unit's value (e.g. MPF, HMF); "
+                                             "per-shipment broker fees go in 'Fixed cost per shipment'")
     packaging_per_unit: float = Field(1.5, ge=0)
     fulfillment_per_unit: float = Field(6.0, ge=0, description="Domestic pick/pack/ship per order unit")
     payment_fee_pct: float = Field(2.9, ge=0, le=100)
@@ -36,6 +40,8 @@ INPUT_LABELS: dict[str, str] = {
     "avg_discount_pct": "Average discount %",
     "factory_cost": "Factory cost",
     "freight_per_unit": "International freight / unit",
+    "shipment_fixed_costs": "Fixed cost per shipment",
+    "units_per_shipment": "Units per shipment (0 = MOQ)",
     "duty_rate_pct": "Customs duty %",
     "import_clearance_per_unit": "Import clearance / unit",
     "packaging_per_unit": "Packaging / unit",
@@ -60,17 +66,47 @@ def _r(x: float) -> float:
     return round(x, 2)
 
 
+def shipment_units(i: UnitEconomicsInputs) -> int:
+    return i.units_per_shipment or i.moq or 1
+
+
 def landed_cost(i: UnitEconomicsInputs) -> dict[str, float]:
     duty = i.factory_cost * i.duty_rate_pct / 100
-    total = i.factory_cost + i.freight_per_unit + duty + i.import_clearance_per_unit + i.packaging_per_unit
+    # Per-shipment costs are shared by every unit in the shipment, so bigger shipments carry less of them per unit.
+    shipment_share = i.shipment_fixed_costs / shipment_units(i)
+    total = i.factory_cost + i.freight_per_unit + shipment_share + duty + i.import_clearance_per_unit + i.packaging_per_unit
     return {
         "factory_cost": _r(i.factory_cost),
         "freight": _r(i.freight_per_unit),
+        "shipment_fees": _r(shipment_share),
         "duty": _r(duty),
         "clearance": _r(i.import_clearance_per_unit),
         "packaging": _r(i.packaging_per_unit),
         "landed_cost": _r(total),
     }
+
+
+def price_for_margin(i: UnitEconomicsInputs, target_pct: float) -> dict[str, Any]:
+    """The retail price that gives a target margin, both ways the calculator reports margin:
+    gross = (net price - landed cost) / net price; contribution = contribution / net revenue after returns."""
+    m = target_pct / 100
+    keep = 1 - i.avg_discount_pct / 100
+    lc = landed_cost(i)["landed_cost"]
+    gross = round(lc / (1 - m) / keep, 2) if m < 1 and keep > 0 else None
+    # Contribution and revenue are both straight lines in the price; read them off the model and solve where they meet.
+    c0, c1 = _contribution(i, 0.0), _contribution(i, 1.0)
+    slope = c1["contribution_margin"] - c0["contribution_margin"]
+    revenue_per_dollar = c1["revenue_after_returns"]
+    room = slope - m * revenue_per_dollar
+    contribution = round(-c0["contribution_margin"] / room, 2) if room > 0 and c0["contribution_margin"] < 0 else None
+    reason = None
+    if contribution is None:
+        reason = (f"Fees, returns and discounts take {100 * (1 - slope / revenue_per_dollar):.0f}% of net revenue, so no price reaches "
+                  f"a {target_pct:g}% contribution margin." if room <= 0 else "Any price above $0 already reaches this margin.")
+    return {"target_pct": target_pct, "gross_margin_price": gross, "contribution_margin_price": contribution, "contribution_note": reason}
+
+
+SHIPMENT_SIZES = (100, 300, 500, 1000)
 
 
 def _contribution(i: UnitEconomicsInputs, price: float) -> dict[str, float]:
@@ -127,6 +163,16 @@ def calculate(i: UnitEconomicsInputs) -> dict[str, Any]:
             }
         )
 
+    # How much shipment size matters: the same inputs at other shipment sizes (only the per-shipment costs change).
+    sizes = sorted({*SHIPMENT_SIZES, shipment_units(i)})
+    by_shipment = []
+    for n in sizes:
+        si = i.model_copy(update={"units_per_shipment": n})
+        slc = landed_cost(si)
+        by_shipment.append({"units": n, "shipping_per_unit": _r(slc["freight"] + slc["shipment_fees"]), "landed_cost": slc["landed_cost"],
+                            "contribution_margin": _r(_contribution(si, i.retail_price)["contribution_margin"]),
+                            "order_cost": _r(n * slc["landed_cost"]), "current": n == shipment_units(i)})
+
     # Break-even CAC: the most you can pay per order and still break even per unit.
     breakeven_cac = c["cm_before_marketing"] * i.units_per_order
 
@@ -158,5 +204,8 @@ def calculate(i: UnitEconomicsInputs) -> dict[str, Any]:
         "affordable_units_with_budget": affordable_units,
         "units_to_recover_investment": _r(units_to_recover_investment) if units_to_recover_investment is not None else None,
         "price_sensitivity": sensitivity,
+        "price_targets": [price_for_margin(i, t) for t in (10, 20, 30, 40, 50)],
+        "shipment_units": shipment_units(i),
+        "by_shipment_size": by_shipment,
         "warnings": warnings,
     }

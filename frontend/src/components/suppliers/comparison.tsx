@@ -13,6 +13,7 @@ const PARTS: [string, string][] = [
   ["factory_cost", "Factory"],
   ["freight", "Freight"],
   ["duty", "Duty"],
+  ["shipment_fees", "Shipment fees"],
   ["clearance", "Clearance"],
   ["packaging", "Packaging"],
 ];

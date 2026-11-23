@@ -16,7 +16,7 @@ from ..schemas import (
     ScenarioOut,
 )
 from ..services.agents.sourcing import baseline_inputs
-from ..services.unit_economics import INPUT_LABELS, UnitEconomicsInputs, calculate
+from ..services.unit_economics import INPUT_LABELS, UnitEconomicsInputs, calculate, price_for_margin
 from .deps import DB, CurrentUser, ProjectDep, owned
 
 router = APIRouter(prefix="/api", tags=["analytics"])
@@ -43,6 +43,18 @@ def model_spec(user: CurrentUser) -> dict:
 @router.post("/analytics/calculate")
 def calc(inputs: dict, user: CurrentUser) -> dict:
     return calculate(_validated(inputs))
+
+
+@router.post("/analytics/price-for-margin")
+def price_for_target_margin(body: dict, user: CurrentUser) -> dict:
+    """Retail price for any target margin (gross, and contribution after fees, returns and marketing) at these inputs."""
+    try:
+        target = float(body.get("target_margin_pct"))
+    except (TypeError, ValueError):
+        raise HTTPException(422, "target_margin_pct must be a number") from None
+    if not 0 <= target < 100:
+        raise HTTPException(422, "Target margin must be at least 0% and below 100%.")
+    return price_for_margin(_validated(body.get("inputs") or {}), target)
 
 
 @router.get("/projects/{project_id}/scenarios", response_model=list[ScenarioOut])
