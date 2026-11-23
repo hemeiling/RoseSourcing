@@ -263,7 +263,7 @@ function ChartCard({ c, unit, onEdit, onChanged, onTry }: { c: SizeChart; unit: 
       {publicUrl && (
         <div className="flex flex-wrap items-center gap-2 rounded-md bg-canvas px-3 py-2 text-xs">
           <span className="text-slate-600">Customer fit finder:</span>
-          <a href={publicUrl} target="_blank" rel="noreferrer" className="min-w-0 truncate font-semibold text-primary-600 hover:text-primary-800">{publicUrl} <ExtIcon className="inline h-3 w-3" /></a>
+          <a href={publicUrl} target="_blank" rel="noreferrer" className="min-w-0 break-all font-semibold text-primary-600 hover:text-primary-800">{publicUrl} <ExtIcon className="inline h-3 w-3" /></a>
           <Button size="sm" variant="ghost" onClick={() => { navigator.clipboard.writeText(publicUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>
             <Copy className="h-3.5 w-3.5" /> {copied ? "Copied" : "Copy link"}
           </Button>

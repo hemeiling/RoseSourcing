@@ -40,7 +40,7 @@ function AuditLog({ projectId }: { projectId: string }) {
               <Td className="whitespace-nowrap text-xs text-slate-500">{dateTime(e.created_at)}</Td>
               <Td><Badge tone={e.actor.startsWith("agent:") ? "violet" : "slate"}>{e.actor.startsWith("agent:") ? titleCase(e.actor.slice(6)) : titleCase(e.actor)}</Badge></Td>
               <Td className="text-xs">{e.action}</Td>
-              <Td className="max-w-md truncate text-xs text-slate-500" >{Object.keys(e.details).length ? JSON.stringify(e.details) : ""}</Td>
+              <Td className="max-w-md break-all text-xs text-slate-500" >{Object.keys(e.details).length ? JSON.stringify(e.details) : ""}</Td>
             </tr>
           ))}
         </tbody>

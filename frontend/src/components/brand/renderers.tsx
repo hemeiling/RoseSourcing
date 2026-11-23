@@ -219,7 +219,7 @@ function PalettesView({ c }: { c: Obj }) {
                   <span className="h-4 w-4 shrink-0 rounded ring-1 ring-slate-200" style={{ backgroundColor: HEX.test(hex) ? hex : "#e2e8f0" }} />
                   <span className="font-medium text-slate-800">{asStr(s.name)}</span>
                   <code className="text-slate-500">{hex}</code>
-                  <span className="min-w-0 flex-1 truncate text-slate-500" title={asStr(s.usage)}>{asStr(s.usage)}</span>
+                  <span className="min-w-0 flex-1 break-words text-slate-500" title={asStr(s.usage)}>{asStr(s.usage)}</span>
                   <CopyButton text={hex} label="Hex" />
                 </li>
               );

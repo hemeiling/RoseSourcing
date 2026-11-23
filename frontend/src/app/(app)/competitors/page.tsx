@@ -176,7 +176,7 @@ function Competitors({ projectId }: { projectId: string }) {
                                 <ExternalLink href={c.website}>{domainOf(c.website)}</ExternalLink>
                               </div>
                             )}
-                            {c.positioning && <div className="mt-0.5 line-clamp-2 max-w-xs text-xs text-slate-500">{c.positioning}</div>}
+                            {c.positioning && <div className="mt-0.5 max-w-xs text-xs text-slate-500">{c.positioning}</div>}
                           </Td>
                           <Td>{c.price_tier ? <Badge tone="blue">{titleCase(c.price_tier)}</Badge> : <span className="text-xs text-slate-400">Unknown</span>}</Td>
                           <Td className="max-w-[12rem] text-xs text-slate-600">{c.channels.length ? c.channels.join(", ") : <span className="text-slate-400">-</span>}</Td>

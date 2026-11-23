@@ -165,7 +165,7 @@ function MarketPage({ projectId }: { projectId: string }) {
                       className={`w-60 shrink-0 rounded-lg border px-3 py-2 text-left transition-colors ${active ? "border-primary-600 bg-primary-50" : "border-slate-200 bg-white hover:bg-slate-50"}`}
                       aria-current={active ? "true" : undefined}
                     >
-                      <div className="truncate text-sm font-medium text-slate-900">{r.title}</div>
+                      <div className="break-words text-sm font-medium text-slate-900">{r.title}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         <AttractivenessBadge value={r.attractiveness} />
                         <span className="text-[11px] text-slate-500">{date(r.created_at)}</span>

@@ -94,11 +94,11 @@ export function RunCard({
             <Badge tone="slate">{KIND_LABEL[run.kind] ?? titleCase(run.kind)}</Badge>
             <span className="text-xs text-slate-500">{dateTime(run.created_at)}</span>
           </div>
-          <p className="mt-1 truncate text-sm font-medium text-slate-900">
+          <p className="mt-1 break-words text-sm font-medium text-slate-900">
             {params.category ?? "Project category"} · {params.geography ?? "Project market"}
             {params.budget_usd !== undefined ? ` · $${num(params.budget_usd)}` : ""}
           </p>
-          {params.focus && <p className="mt-0.5 line-clamp-1 text-xs text-slate-500">Focus: {params.focus}</p>}
+          {params.focus && <p className="mt-0.5 text-xs text-slate-500">Focus: {params.focus}</p>}
           <p className="mt-1 text-[11px] text-slate-500">
             {done}/{run.steps.length} steps · {num(run.search_requests)} searches · {num(run.input_tokens + run.output_tokens)} tokens · est.{" "}
             {fmtCost(run.cost_usd)}

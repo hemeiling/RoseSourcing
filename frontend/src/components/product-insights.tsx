@@ -159,7 +159,7 @@ export function ComplianceSection({ projectId }: { projectId: string }) {
                           <div className="text-slate-600">{i.what_to_do}</div>
                           {!!i.sources?.length && (
                             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs">
-                              {i.sources.slice(0, 4).map((s) => <ExternalLink key={s.url} href={s.url} className="max-w-full truncate">{domainOf(s.url)}</ExternalLink>)}
+                              {i.sources.slice(0, 4).map((s) => <ExternalLink key={s.url} href={s.url} className="max-w-full break-all">{domainOf(s.url)}</ExternalLink>)}
                             </div>
                           )}
                         </div>

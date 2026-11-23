@@ -146,7 +146,7 @@ function Suppliers({ projectId }: { projectId: string }) {
                               <ExternalLink href={s.website}>{domainOf(s.website)}</ExternalLink>
                             </div>
                           )}
-                          {s.capabilities.length > 0 && <div className="mt-0.5 max-w-xs truncate text-xs text-slate-500">{s.capabilities.join(", ")}</div>}
+                          {s.capabilities.length > 0 && <div className="mt-0.5 max-w-xs break-words text-xs text-slate-500">{s.capabilities.join(", ")}</div>}
                         </Td>
                         <Td className="text-xs">{[s.city, s.country].filter(Boolean).join(", ") || "-"}</Td>
                         <Td className="text-xs">{platformLabel(s.platform)}</Td>

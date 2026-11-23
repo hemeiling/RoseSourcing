@@ -74,8 +74,8 @@ export default function ProductsPage() {
                     <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-400"><ImageIcon className="h-6 w-6" /></div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <button onClick={() => open(p)} className="block truncate text-left font-serif text-lg font-semibold text-primary-700 hover:underline">{p.name}</button>
-                    <p className="truncate text-xs text-slate-500">{p.category} · {p.target_country}</p>
+                    <button onClick={() => open(p)} className="block break-words text-left font-serif text-lg font-semibold text-primary-700 hover:underline">{p.name}</button>
+                    <p className="break-words text-xs text-slate-500">{p.category} · {p.target_country}</p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       <DecisionBadge decision={p.decision} />
                       {rec && <Badge tone={rec.tone}>{rec.label}</Badge>}

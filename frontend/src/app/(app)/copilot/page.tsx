@@ -173,7 +173,7 @@ function CopilotView({ projectId }: { projectId: string }) {
               <li key={t.id} className="group flex items-center">
                 <button onClick={() => openThread(t.id)}
                   className={clsx("min-w-0 flex-1 rounded-md px-2.5 py-2 text-left", t.id === threadId ? "bg-brand-50 text-brand-800" : "text-slate-700 hover:bg-slate-50")}>
-                  <div className="truncate text-[13px] font-medium">{t.title}</div>
+                  <div className="break-words text-[13px] font-medium">{t.title}</div>
                   <div className="text-[11px] text-slate-400">{ago(t.updated_at)}</div>
                 </button>
                 <button onClick={() => removeThread(t.id)} aria-label="Delete conversation" className="rounded p-1.5 text-slate-300 opacity-0 hover:text-red-600 group-hover:opacity-100 focus:opacity-100">

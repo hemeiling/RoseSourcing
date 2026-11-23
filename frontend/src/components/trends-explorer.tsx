@@ -169,7 +169,7 @@ export function TrendsExplorer({ projectId }: { projectId: string }) {
                   <ul className="space-y-1.5 text-sm">
                     {shownRegions.map((r) => (
                       <li key={r.geo || r.location} className="grid grid-cols-[8rem_minmax(0,1fr)] items-center gap-3 sm:grid-cols-[10rem_minmax(0,1fr)_auto]">
-                        <span className="truncate text-ink" title={r.location}>{r.location}</span>
+                        <span className="break-words text-ink">{r.location}</span>
                         <div className="flex h-3 overflow-hidden rounded bg-slate-100" role="img"
                           aria-label={data.terms.map((t) => `${t} ${r.values[t] ?? 0}`).join(", ")}>
                           {data.terms.map((t, i) => {

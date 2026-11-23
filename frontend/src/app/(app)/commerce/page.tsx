@@ -202,12 +202,12 @@ function ProductCard({ product: p, onEdit, onDeleted, onOpenListing }: { product
           </Button>
         </div>
       </div>
-      {p.description && <p className="mt-2 line-clamp-3 text-[13px] text-slate-600">{p.description}</p>}
+      {p.description && <p className="mt-2 text-[13px] text-slate-600">{p.description}</p>}
       <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
         <dt className="text-slate-500">Target price</dt>
         <dd className="text-slate-800">{p.target_price !== null ? money(p.target_price) : "-"}</dd>
         <dt className="text-slate-500">Materials</dt>
-        <dd className="truncate text-slate-800" title={p.materials ?? ""}>{p.materials || "-"}</dd>
+        <dd className="break-words text-slate-800" title={p.materials ?? ""}>{p.materials || "-"}</dd>
         <dt className="text-slate-500">Sizes</dt>
         <dd className="text-slate-800">{p.sizes.length ? p.sizes.join(", ") : "-"}</dd>
         <dt className="text-slate-500">On hand / reorder at</dt>

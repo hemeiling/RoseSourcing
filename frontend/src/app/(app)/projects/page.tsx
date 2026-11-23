@@ -238,7 +238,7 @@ function ProjectsInner() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <h2 className="truncate text-base font-semibold text-slate-900">{p.name}</h2>
+                      <h2 className="break-words text-base font-semibold text-slate-900">{p.name}</h2>
                       {p.id === current?.id && <Badge tone="blue">Current</Badge>}
                       {p.status === "archived" && <Badge>Archived</Badge>}
                     </div>
