@@ -25,7 +25,9 @@ export function Button({
         "inline-flex items-center justify-center gap-1.5 rounded-md transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50",
         variant !== "ghost" && "font-semibold",
         variant === "ghost" && "font-medium",
-        size === "sm" ? "min-h-8 px-3 py-1.5 text-[11px]" : "min-h-10 px-4 py-2 text-[13px]",
+        // One height and text size for every button; "sm" only trims the side padding.
+        "h-9 py-1.5 text-xs",
+        size === "sm" ? "px-3" : "px-4",
         // Every variant has the same 1px border so all buttons are the same thickness and height.
         "border",
         variant === "primary" && "border-primary-600 bg-primary-600 text-white hover:border-primary-700 hover:bg-primary-700",

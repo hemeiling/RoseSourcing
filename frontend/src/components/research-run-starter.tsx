@@ -80,7 +80,7 @@ export function ResearchRunStarter({ projectId, kind, label, approval, focusPlac
             <Input className="h-9 py-1.5" value={pages} onChange={(e) => setPages(e.target.value)} placeholder="Paste links, separated by spaces (up to 8)" />
           </Field>
         </div>
-        <Button className="h-9" onClick={() => setConfirm(true)} disabled={!!anyActive || (status ? !status.ai.configured : false)}
+        <Button onClick={() => setConfirm(true)} disabled={!!anyActive || (status ? !status.ai.configured : false)}
           title={anyActive ? "A research run is already in progress for this product" : undefined}>
           <Play className="h-4 w-4" /> {latest ? `Run again` : label}
         </Button>
