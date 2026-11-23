@@ -170,3 +170,91 @@ def collect(keywords: list[str], geo: str = "US") -> tuple[list[DemandObservatio
                     log.warning("Demand signal failed: %s", e)
                     errors.append(str(e)[:300])
     return obs, errors, calls
+
+
+# ----------------------------------------------------------------------------- price tiers
+
+
+@dataclass
+class Listing:
+    title: str
+    price: float
+    rating: float | None
+    reviews: int | None
+    seller: str
+
+
+def _listing_line(x: Listing) -> str:
+    bits = [f"{x.title[:110]} - ${x.price:.2f}"]
+    if x.rating is not None:
+        bits.append(f"{x.rating:g} stars" + (f" ({x.reviews:,} ratings)" if x.reviews is not None else ""))
+    bits.append(x.seller)
+    return " - ".join(bits)
+
+
+def _tier_lines(listings: list[Listing]) -> list[str]:
+    """Split listings into four price tiers by quartile and describe each with exact numbers."""
+    prices = sorted(x.price for x in listings)
+    q1, q2, q3 = statistics.quantiles(prices, n=4, method="inclusive")
+    bands = [("Budget tier (lowest 25% of prices)", lambda p: p <= q1), ("Mid tier", lambda p: q1 < p <= q2),
+             ("Premium tier", lambda p: q2 < p <= q3), ("Luxury tier (highest 25% of prices)", lambda p: p > q3)]
+    lines = [f"Price tiers across {len(listings)} US marketplace listings: quartile boundaries ${q1:.2f}, ${q2:.2f}, ${q3:.2f}."]
+    for name, inside in bands:
+        tier = [x for x in listings if inside(x.price)]
+        if not tier:
+            continue
+        ratings = [x.rating for x in tier if x.rating is not None]
+        counts = [x.reviews for x in tier if x.reviews is not None]
+        sellers = sorted({x.seller for x in tier})
+        top = sorted(tier, key=lambda x: x.reviews or 0, reverse=True)[:3]
+        lines.append(
+            f"{name}: {len(tier)} listings priced ${min(x.price for x in tier):.2f} to ${max(x.price for x in tier):.2f}"
+            + (f", median rating {statistics.median(ratings):.1f} stars" if ratings else "")
+            + (f", median {statistics.median(counts):,.0f} ratings" if counts else "")
+            + f"; sellers include {', '.join(sellers[:5])}; most-reviewed: "
+            + "; ".join(f"{x.title[:60]} (${x.price:.2f})" for x in top) + "."
+        )
+    return lines
+
+
+def price_tier_evidence(keywords: list[str], geo: str = "US", max_calls: int = 4) -> tuple[list[DemandObservation], list[str], int]:
+    """Amazon and Google Shopping listings for the keywords, plus a quartile price-tier summary - every number from the API."""
+    listings: list[Listing] = []
+    obs: list[DemandObservation] = []
+    errors: list[str] = []
+    calls = 0
+    with httpx2.Client(timeout=40) as http:
+        for kw in [k for k in dict.fromkeys(k.strip() for k in keywords) if k][:2]:
+            for engine in ("amazon", "google_shopping"):
+                if calls >= max_calls:
+                    break
+                calls += 1
+                try:
+                    if engine == "amazon":
+                        data = _get(http, {"engine": "amazon", "k": kw, "amazon_domain": "amazon.com"})
+                        rows = [r for r in (data.get("organic_results") or []) if not r.get("sponsored")]
+                        found = [Listing(str(r.get("title") or "")[:200], float(r["extracted_price"]),
+                                         float(r["rating"]) if isinstance(r.get("rating"), (int, float)) else None,
+                                         int(r["reviews"]) if isinstance(r.get("reviews"), (int, float)) else None, "Amazon")
+                                 for r in rows if isinstance(r.get("extracted_price"), (int, float)) and r.get("title")]
+                        url, title = f"https://www.amazon.com/s?k={quote_plus(kw)}", f"Amazon listings: {kw}"
+                    else:
+                        data = _get(http, {"engine": "google_shopping", "q": kw, "gl": geo.lower(), "hl": "en"})
+                        rows = data.get("shopping_results") or []
+                        found = [Listing(str(r.get("title") or "")[:200], float(r["extracted_price"]),
+                                         float(r["rating"]) if isinstance(r.get("rating"), (int, float)) else None,
+                                         int(r["reviews"]) if isinstance(r.get("reviews"), (int, float)) else None, str(r.get("source") or "Unknown seller"))
+                                 for r in rows if isinstance(r.get("extracted_price"), (int, float)) and r.get("title")]
+                        url, title = f"https://www.google.com/search?tbm=shop&q={quote_plus(kw)}", f"Google Shopping listings: {kw}"
+                    if found:
+                        listings += found
+                        obs.append(DemandObservation(title=title, url=url, excerpts=[_listing_line(x) for x in found[:40]]))
+                except Exception as e:  # noqa: BLE001
+                    log.warning("Price-tier listings failed: %s", e)
+                    errors.append(str(e)[:300])
+    unique = list({(x.title.lower()[:80], round(x.price, 2)): x for x in listings if x.price > 0}.values())
+    if len(unique) >= 8:
+        kw0 = next(iter(dict.fromkeys(k.strip() for k in keywords if k.strip())), "")
+        obs.insert(0, DemandObservation(title=f"Price tiers from {len(unique)} marketplace listings",
+                                        url=f"https://www.google.com/search?tbm=shop&q={quote_plus(kw0)}", excerpts=_tier_lines(unique)))
+    return obs, errors, calls

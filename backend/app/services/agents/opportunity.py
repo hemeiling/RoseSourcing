@@ -48,7 +48,7 @@ from .. import demand
 from ..llm.anthropic_provider import get_llm
 from ..logistics import PackagingSpec, Shipment, channel_economics, compare_shipping
 from ..llm.base import LLMError, LLMNotConfigured, LLMRefusal, LLMUsage
-from ..research.providers import EvidenceBundle, get_research_provider
+from ..research.providers import EvidenceBundle, SourceDoc, get_research_provider
 from ..unit_economics import UnitEconomicsInputs, calculate
 from .research_schemas import ChannelLogisticsPlan, CompliancePlan, ExtractedFinding, OpportunitySynthesis, StepExtraction
 from .size_chart import chart_fields, rows_from_extraction
@@ -479,8 +479,8 @@ def _persist_sources(db, run: ResearchRun, bundle: EvidenceBundle) -> dict[str, 
             url=s.url,
             title=s.title,
             domain=s.domain,
-            source_type="web_search" if bundle.provider == "anthropic_web_search" else "api",
-            provider=bundle.provider,
+            source_type="api" if s.provider else "web_search" if bundle.provider == "anthropic_web_search" else "api",
+            provider=s.provider or bundle.provider,
             retrieved_at=now,
             published_hint=s.page_age,
             excerpts=s.excerpts,
@@ -826,7 +826,10 @@ def _extraction_prompt(step_key: str, ctx: dict[str, str], bundle: EvidenceBundl
         "channels": "Populate channels with each selling channel; fill fee fields only with numbers stated in the fee_source_ref excerpt, otherwise null.",
         "shipping_benchmarks": "Populate shipping_benchmarks only with rates stated in an excerpt, with that excerpt as source_ref.",
         "size_charts": "Populate size_charts with each size chart visible in an excerpt, copying every measurement exactly as printed, with that excerpt as source_ref.",
-        "price_tiers": "Populate price_tiers with one entry per tier the evidence supports; give example prices only when visible in the cited excerpt.",
+        "price_tiers": ("Populate price_tiers with one entry per tier the evidence supports. When a 'Price tiers from N marketplace listings' "
+                        "source is present, copy each tier's price range from it and pick examples from the marketplace listing sources; "
+                        "describe quality and buyer needs from listing titles, reviews and the other sources. Give example prices only when "
+                        "visible in the cited excerpt."),
     }
     rec = STEP_RECORDS.get(step_key)
     return (
@@ -955,6 +958,15 @@ def execute_run(run_id: uuid.UUID) -> None:
                 bundle = provider.gather(question=question, context=context_block(ctx), query_hints=hints, country_code=cc)
                 usage.add(bundle.usage)
                 _add_run_usage(run_id, bundle.usage)  # searches are paid for even if extraction fails below
+                if key == "price_tiers" and demand.configured():
+                    # Real marketplace listings (prices, ratings, sellers) so tiers rest on actual prices, not page titles.
+                    obs, errs, calls = demand.price_tier_evidence(keywords or _shopper_keywords(run_id, ctx, llm, usage), cc or "US")
+                    nxt = max([int(s.ref[1:]) for s in bundle.sources if s.ref[1:].isdigit()] or [0])
+                    for i, o in enumerate(obs, 1):
+                        bundle.sources.append(SourceDoc(ref=f"S{nxt + i}", url=o.url, title=o.title, page_age="retrieved via SerpApi",
+                                                        excerpts=o.excerpts, provider="serpapi"))
+                    bundle.errors += errs
+                    api_meta = {**api_meta, "serpapi_calls": calls}
                 if not bundle.sources:
                     ext = to_step_extraction(step_output_model(key)(findings=[], evidence_gaps=[f"No sources were retrieved for: {question}"],
                                                                     **({STEP_RECORDS[key]: []} if key in STEP_RECORDS else {})))

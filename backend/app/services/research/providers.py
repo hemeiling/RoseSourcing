@@ -29,6 +29,7 @@ class SourceDoc:
     title: str | None
     page_age: str | None
     excerpts: list[str] = field(default_factory=list)
+    provider: str | None = None  # set when the doc came from another API (e.g. SerpApi listings) rather than the bundle's provider
 
     @property
     def domain(self) -> str | None:

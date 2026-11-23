@@ -173,3 +173,23 @@ def test_compliance_run_drafts_supplier_questions(authed, project, fake_llm, mon
     comms = authed.get(f"/api/suppliers/{sup['id']}").json()["communications"]
     assert comms[0]["direction"] == "draft" and "Which mill spun the cotton?" in comms[0]["summary"]
     assert authed.get(f"/api/projects/{project['id']}/snapshots/price_tiers").json() is None
+
+
+def test_price_tier_evidence_from_marketplace_listings(monkeypatch):
+    from app.services import demand
+
+    def fake_get(http, params):
+        if params["engine"] == "amazon":
+            return {"organic_results": [{"title": f"Knot headband {i}", "extracted_price": 8 + i, "rating": 4.0 + i / 20, "reviews": 100 * i}
+                                        for i in range(1, 9)] + [{"title": "Ad", "extracted_price": 5, "sponsored": True}]}
+        return {"shopping_results": [{"title": f"Silk headband {i}", "extracted_price": 40 + 10 * i, "source": "Boutique"} for i in range(1, 5)]}
+
+    monkeypatch.setattr(demand, "_get", fake_get)
+    obs, errors, calls = demand.price_tier_evidence(["top knot headband"])
+    assert calls == 2 and not errors
+    summary = obs[0]
+    assert summary.title == "Price tiers from 12 marketplace listings"
+    assert summary.excerpts[1].startswith("Budget tier (lowest 25% of prices): 3 listings priced $9.00 to $11.00")
+    assert "Luxury tier (highest 25% of prices): 3 listings priced $60.00 to $80.00" in " ".join(summary.excerpts)
+    assert "Ad" not in " ".join(obs[1].excerpts)  # sponsored results excluded
+    assert obs[1].excerpts[0] == "Knot headband 1 - $9.00 - 4.05 stars (100 ratings) - Amazon"
