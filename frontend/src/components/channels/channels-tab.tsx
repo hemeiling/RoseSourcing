@@ -185,7 +185,7 @@ export function ChannelsTab({ projectId, version }: { projectId: string; version
                   <YAxis tickFormatter={(v) => `$${v}`} fontSize={11} />
                   <ReferenceLine y={0} stroke="#94a3b8" />
                   <Tooltip formatter={(v) => [money(Number(v)), "Contribution / unit"]} />
-                  <Bar dataKey="value" radius={[3, 3, 0, 0]}>{chart.map((d) => <Cell key={d.name} fill={d.value >= 0 ? "#10b981" : "#ef4444"} />)}</Bar>
+                  <Bar dataKey="value" radius={[3, 3, 0, 0]}>{chart.map((d) => <Cell key={d.name} fill={d.value >= 0 ? "#2e7d5b" : "#ef4444"} />)}</Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>

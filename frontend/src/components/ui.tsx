@@ -22,12 +22,14 @@ export function Button({
       {...rest}
       disabled={disabled || loading}
       className={clsx(
-        "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50",
-        size === "sm" ? "px-2.5 py-1.5 text-xs" : "px-3.5 py-2 text-sm",
-        variant === "primary" && "bg-brand-600 text-white hover:bg-brand-700",
-        variant === "secondary" && "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50",
-        variant === "ghost" && "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-        variant === "danger" && "border border-red-200 bg-white text-red-700 hover:bg-red-50",
+        "inline-flex items-center justify-center gap-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50",
+        variant !== "ghost" && "font-bold uppercase tracking-[0.05em]",
+        variant === "ghost" && "font-medium",
+        size === "sm" ? "min-h-8 px-3 py-1.5 text-[11px]" : "min-h-10 px-4 py-2 text-[13px]",
+        variant === "primary" && "bg-accent-600 text-white hover:bg-accent-700",
+        variant === "secondary" && "border-2 border-brand-600 bg-white text-brand-700 hover:bg-brand-600 hover:text-white",
+        variant === "ghost" && "text-slate-600 hover:bg-brand-50 hover:text-brand-700",
+        variant === "danger" && "border-2 border-red-700 bg-white text-red-700 hover:bg-red-700 hover:text-white",
         className,
       )}
     >
@@ -38,16 +40,16 @@ export function Button({
 }
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <div className={clsx("rounded-xl border border-slate-200 bg-white shadow-sm", className)}>{children}</div>;
+  return <div className={clsx("border border-line bg-white", className)}>{children}</div>;
 }
 
 export function CardHeader({ title, subtitle, actions, icon }: { title: ReactNode; subtitle?: ReactNode; actions?: ReactNode; icon?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
       <div className="flex min-w-0 items-start gap-2.5">
-        {icon && <div className="mt-0.5 text-slate-500">{icon}</div>}
+        {icon && <div className="mt-1 text-brand-600">{icon}</div>}
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+          <h2 className="text-lg font-semibold leading-snug text-ink">{title}</h2>
           {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
         </div>
       </div>
@@ -94,7 +96,7 @@ export function Field({ label, hint, children, className }: { label: string; hin
 }
 
 const inputCls =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50";
+  "w-full rounded-md border border-slate-400/70 bg-white px-3 py-2 text-sm text-ink placeholder:text-slate-400 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-canvas";
 
 export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={clsx(inputCls, props.className)} />;
@@ -119,13 +121,14 @@ export function Spinner({ label }: { label?: string }) {
 
 export function PageHeader({ title, description, actions, badge }: { title: string; description?: ReactNode; actions?: ReactNode; badge?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
+        <div className="mb-3 h-1 w-12 bg-accent-600" aria-hidden />
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-semibold leading-tight text-brand-700 sm:text-[2.15rem]">{title}</h1>
           {badge}
         </div>
-        {description && <p className="mt-1 max-w-3xl text-sm text-slate-600">{description}</p>}
+        {description && <p className="mt-2 max-w-3xl text-[15px] leading-relaxed text-slate-700">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -135,8 +138,8 @@ export function PageHeader({ title, description, actions, badge }: { title: stri
 export function EmptyState({ icon, title, children, action }: { icon?: ReactNode; title: string; children?: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
-      {icon && <div className="mb-3 rounded-full bg-slate-100 p-3 text-slate-500">{icon}</div>}
-      <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+      {icon && <div className="mb-3 rounded-full bg-brand-50 p-3 text-brand-600">{icon}</div>}
+      <h3 className="font-serif text-lg font-semibold text-ink">{title}</h3>
       {children && <div className="mt-1 max-w-md text-sm text-slate-500">{children}</div>}
       {action && <div className="mt-4">{action}</div>}
     </div>
@@ -173,7 +176,7 @@ export function ErrorText({ error }: { error: string | null | undefined }) {
 /** Shown wherever an AI feature is unavailable because the server lacks credentials. */
 export function ConfigNotice({ message }: { message?: string | null }) {
   return (
-    <div className="flex gap-2.5 rounded-lg border border-slate-300 border-dashed bg-slate-50 px-3.5 py-3 text-sm text-slate-700">
+    <div className="flex gap-2.5 border border-l-4 border-line border-l-accent-600 bg-white px-3.5 py-3 text-sm text-slate-700">
       <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
       <div>
         <div className="font-medium text-slate-900">Configuration required</div>
@@ -197,16 +200,16 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 pt-[8vh]" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-brand-900/50 p-4 pt-[8vh]" onMouseDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={clsx("w-full rounded-xl bg-white shadow-xl", wide ? "max-w-3xl" : "max-w-lg")}
+        className={clsx("w-full border-t-4 border-brand-600 bg-white shadow-2xl", wide ? "max-w-3xl" : "max-w-lg")}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
-          <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+        <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
+          <h2 className="text-xl font-semibold text-ink">{title}</h2>
           <button onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close">
             <X className="h-4 w-4" />
           </button>
@@ -219,7 +222,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
 
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { value: T; label: ReactNode }[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="mb-4 flex gap-1 overflow-x-auto border-b border-slate-200" role="tablist">
+    <div className="mb-5 flex gap-1 overflow-x-auto border-b border-line" role="tablist">
       {tabs.map((t) => (
         <button
           key={t.value}
@@ -227,8 +230,8 @@ export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { valu
           aria-selected={value === t.value}
           onClick={() => onChange(t.value)}
           className={clsx(
-            "-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-            value === t.value ? "border-brand-600 text-brand-700" : "border-transparent text-slate-500 hover:text-slate-800",
+            "-mb-px whitespace-nowrap border-b-[3px] px-3.5 py-2.5 text-[13px] font-bold uppercase tracking-[0.05em] transition-colors",
+            value === t.value ? "border-brand-600 text-brand-700" : "border-transparent text-slate-500 hover:text-brand-700",
           )}
         >
           {t.label}
@@ -240,19 +243,19 @@ export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { valu
 
 export function StatCard({ label, value, hint, icon }: { label: string; value: ReactNode; hint?: ReactNode; icon?: ReactNode }) {
   return (
-    <Card className="px-4 py-3.5">
+    <Card className="border-t-4 border-t-brand-600 px-4 py-3.5">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-slate-500">{label}</span>
-        {icon && <span className="text-slate-400">{icon}</span>}
+        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-slate-500">{label}</span>
+        {icon && <span className="text-brand-400">{icon}</span>}
       </div>
-      <div className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{value}</div>
+      <div className="mt-1 font-serif text-4xl font-semibold text-brand-700">{value}</div>
       {hint && <div className="mt-0.5 text-[11px] text-slate-500">{hint}</div>}
     </Card>
   );
 }
 
 export function Th({ children, className }: { children?: ReactNode; className?: string }) {
-  return <th className={clsx("whitespace-nowrap px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500", className)}>{children}</th>;
+  return <th className={clsx("whitespace-nowrap px-3 py-2 text-left text-[11px] font-bold uppercase tracking-[0.06em] text-brand-700", className)}>{children}</th>;
 }
 
 export function Td({ children, className }: { children?: ReactNode; className?: string }) {
@@ -261,7 +264,7 @@ export function Td({ children, className }: { children?: ReactNode; className?: 
 
 export function ExternalLink({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={clsx("text-brand-700 underline decoration-brand-200 underline-offset-2 hover:decoration-brand-600", className)}>
+    <a href={href} target="_blank" rel="noopener noreferrer" className={clsx("text-brand-600 underline decoration-brand-300 underline-offset-2 hover:text-accent-600 hover:decoration-accent-600", className)}>
       {children}
     </a>
   );

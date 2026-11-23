@@ -99,7 +99,7 @@ export function PriceComparisonCard({ projectId, version }: { projectId: string;
                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
                     <XAxis type="number" tickFormatter={(v: number) => `$${v}`} tick={{ fontSize: 11 }} domain={[0, "auto"]} />
                     <YAxis type="category" dataKey="label" width={210} tick={{ fontSize: 11 }} interval={0} />
-                    {hyp && <ReferenceArea x1={hyp.min} x2={hyp.max} fill="#3b6cf6" fillOpacity={0.08} stroke="#3b6cf6" strokeOpacity={0.3} />}
+                    {hyp && <ReferenceArea x1={hyp.min} x2={hyp.max} fill="#4e2a84" fillOpacity={0.08} stroke="#4e2a84" strokeOpacity={0.3} />}
                     <Tooltip
                       cursor={{ fill: "#f1f5f9" }}
                       content={({ active, payload }) => {
@@ -191,8 +191,8 @@ type Snapshot = { id: string; created_at: string; content: PositioningContent };
 
 const BASIS: Record<Position["basis"], { label: string; color: string }> = {
   observed_prices: { label: "Observed prices", color: "#059669" },
-  stated_positioning: { label: "Stated positioning", color: "#2550eb" },
-  inference: { label: "AI inference", color: "#7c3aed" },
+  stated_positioning: { label: "Stated positioning", color: "#4e2a84" },
+  inference: { label: "AI inference", color: "#6a48a3" },
 };
 
 export function PositioningCard({ projectId, hasCompetitors }: { projectId: string; hasCompetitors: boolean }) {

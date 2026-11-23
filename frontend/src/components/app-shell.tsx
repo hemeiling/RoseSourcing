@@ -4,7 +4,6 @@ import clsx from "clsx";
 import {
   BarChart3,
   Bot,
-  Briefcase,
   Factory,
   FolderKanban,
   LayoutDashboard,
@@ -23,6 +22,23 @@ import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { useAuth, useProjects, useStatus } from "./providers";
 import { Button, EmptyState, Spinner } from "./ui";
+
+/** Original wordmark: a geometric monogram tile plus the product name set in the display serif. */
+export function BrandMark({ light }: { light?: boolean }) {
+  return (
+    <div className="flex items-center gap-3">
+      <svg viewBox="0 0 36 36" className="h-9 w-9 shrink-0" aria-hidden>
+        <rect width="36" height="36" fill={light ? "#ffffff" : "#4e2a84"} />
+        <path d="M9 27 L18 8 L27 27" fill="none" stroke={light ? "#4e2a84" : "#ffffff"} strokeWidth="3.2" strokeLinejoin="miter" />
+        <rect x="12.5" y="20" width="11" height="3" fill="#e05329" />
+      </svg>
+      <div className="leading-tight">
+        <div className={clsx("font-serif text-[19px] font-semibold", light ? "text-white" : "text-brand-700")}>AI Commerce OS</div>
+        <div className={clsx("text-[10px] font-bold uppercase tracking-[0.14em]", light ? "text-white/70" : "text-slate-500")}>Evidence-led launches</div>
+      </div>
+    </div>
+  );
+}
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -43,16 +59,10 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const { status } = useStatus();
   return (
     <nav className="flex h-full flex-col" aria-label="Main">
-      <div className="flex items-center gap-2 px-4 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
-          <Briefcase className="h-4 w-4" aria-hidden />
-        </div>
-        <div>
-          <div className="text-sm font-semibold text-white">AI Commerce OS</div>
-          <div className="text-[10px] uppercase tracking-wider text-slate-400">Business intelligence</div>
-        </div>
+      <div className="border-b border-white/15 px-5 pb-4 pt-5">
+        <BrandMark light />
       </div>
-      <ul className="flex-1 space-y-0.5 px-2 py-2">
+      <ul className="flex-1 space-y-0.5 py-3">
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname?.startsWith(href + "/");
           return (
@@ -61,8 +71,8 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                 href={href}
                 onClick={onNavigate}
                 className={clsx(
-                  "flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors",
-                  active ? "bg-white/10 text-white" : "text-slate-300 hover:bg-white/5 hover:text-white",
+                  "flex items-center gap-2.5 border-l-4 px-4 py-2 text-[13.5px] transition-colors",
+                  active ? "border-accent-500 bg-white/10 font-semibold text-white" : "border-transparent text-white/80 hover:bg-white/5 hover:text-white",
                 )}
                 aria-current={active ? "page" : undefined}
               >
@@ -73,15 +83,15 @@ function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           );
         })}
       </ul>
-      <div className="border-t border-white/10 px-4 py-3 text-[11px] text-slate-400">
+      <div className="border-t border-white/15 px-5 py-3 text-[11px] text-white/70">
         {status ? (
           status.ai.configured ? (
             <span className="flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> AI connected · {status.ai.model}
             </span>
           ) : (
-            <Link href="/settings" className="flex items-center gap-1.5 text-amber-300 hover:underline">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> AI not configured
+            <Link href="/settings" className="flex items-center gap-1.5 text-accent-100 hover:underline">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent-500" /> AI not configured
             </Link>
           )
         ) : (
@@ -103,11 +113,11 @@ function ProjectSwitcher() {
   }
   return (
     <label className="flex min-w-0 items-center gap-2">
-      <span className="hidden text-xs font-medium text-slate-500 sm:inline">Project</span>
+      <span className="hidden text-[11px] font-bold uppercase tracking-[0.06em] text-brand-700 sm:inline">Project</span>
       <select
         value={project?.id ?? ""}
         onChange={(e) => select(e.target.value)}
-        className="min-w-0 max-w-[16rem] truncate rounded-lg border border-slate-300 bg-white py-1.5 pl-2.5 pr-8 text-sm font-medium text-slate-800 focus:border-brand-500 focus:outline-none"
+        className="min-w-0 max-w-[16rem] truncate rounded-md border border-slate-400/70 bg-white py-1.5 pl-2.5 pr-8 text-sm font-medium text-ink focus:border-brand-600 focus:outline-none"
       >
         {projects.map((p) => (
           <option key={p.id} value={p.id}>
@@ -133,13 +143,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 bg-slate-900 lg:block">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 bg-brand-600 lg:block">
         <Sidebar />
       </aside>
       {open && (
         <div className="fixed inset-0 z-40 lg:hidden">
-          <div className="absolute inset-0 bg-slate-900/50" onClick={() => setOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-64 bg-slate-900">
+          <div className="absolute inset-0 bg-brand-900/50" onClick={() => setOpen(false)} />
+          <aside className="absolute inset-y-0 left-0 w-64 bg-brand-600">
             <button className="absolute right-2 top-3 rounded p-1.5 text-slate-300 hover:bg-white/10" onClick={() => setOpen(false)} aria-label="Close menu">
               <X className="h-4 w-4" />
             </button>
@@ -148,7 +158,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
       <div className="lg:pl-60">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6">
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-white px-4 sm:px-6">
           <button className="rounded p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
             <Menu className="h-5 w-5" />
           </button>
