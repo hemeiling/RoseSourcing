@@ -129,7 +129,7 @@ export function PlanTab({ projectId }: { projectId: string }) {
       ) : (
         <Card>
           <EmptyState icon={<Compass className="h-5 w-5" />} title="No channel & shipping plan yet">
-            Run the Channels &amp; Shipping Agent from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>, or add channels and shipping quotes yourself on the other tabs - the calculators work without AI.
+            Run the Sales &amp; Shipping Planner from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>, or add channels and shipping quotes yourself on the other tabs - the calculators work without AI.
           </EmptyState>
         </Card>
       )}

@@ -49,7 +49,7 @@ export function PriceTiersSection({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       {snap.loading && !snap.data ? <Spinner /> : !snap.data ? (
-        <p className="text-sm text-slate-500">Not researched yet. Run the Price Tier Agent from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>.</p>
+        <p className="text-sm text-slate-500">Not researched yet. Run the Price Range Finder from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>.</p>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-3">
@@ -133,7 +133,7 @@ export function ComplianceSection({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       {snap.loading && !snap.data ? <Spinner /> : !c ? (
-        <p className="text-sm text-slate-500">Not researched yet. Run the Compliance &amp; IP Agent from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>.</p>
+        <p className="text-sm text-slate-500">Not researched yet. Run the Rules &amp; Patent Checker from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>.</p>
       ) : (
         <Card>
           <CardBody className="space-y-4">

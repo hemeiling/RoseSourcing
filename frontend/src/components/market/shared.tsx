@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { Badge, Button, Modal, type Tone } from "@/components/ui";
 import type { ResearchRun } from "@/lib/types";
+import { AGENTS } from "@/lib/agents";
 
 export const isActive = (s: string) => s === "queued" || s === "running";
 export const RESUMABLE_STATUSES = ["interrupted", "failed", "completed_with_errors", "cancelled"];
@@ -22,12 +23,8 @@ export function RunStatusBadge({ status }: { status: ResearchRun["status"] }) {
   return <Badge tone={m.tone}>{m.label}</Badge>;
 }
 
-export const KIND_LABEL: Record<string, string> = {
-  market_opportunity: "Market opportunity",
-  competitor_discovery: "Competitor discovery",
-  channels_logistics: "Channels & shipping",
-  fit_sizing: "Fit & sizing",
-};
+/** A run's agent, by the same name the agents list uses. */
+export const KIND_LABEL: Record<string, string> = Object.fromEntries(AGENTS.map((a) => [a.kind, a.name]));
 
 export const ATTRACTIVENESS_META: Record<string, { label: string; tone: Tone; help: string }> = {
   promising: { label: "Promising", tone: "green", help: "AI judgment based on the linked findings" },

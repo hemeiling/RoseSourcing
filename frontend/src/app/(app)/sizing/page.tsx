@@ -31,7 +31,7 @@ function VerificationBadge({ c }: { c: SizeChart }) {
 
 // ----------------------------------------------------------------------------- fit research
 
-/** What the Fit & Sizing Agent found (run it from the agents list at the top of the report). */
+/** What the Size & Fit Checker found (run it from the agents list at the top of the report). */
 function FitResearch({ projectId }: { projectId: string }) {
   const findings = useApi<Finding[]>(`/api/projects/${projectId}/findings?section=fit`);
   return (
@@ -40,7 +40,7 @@ function FitResearch({ projectId }: { projectId: string }) {
         subtitle="Competitors' published size charts and what customers say about fit, returns and exchanges. Size charts are saved only with numbers that appear on the source page." />
       <CardBody>
         {!findings.data ? <Spinner /> : findings.data.length === 0 ? (
-          <p className="text-sm text-slate-500">No fit research yet. Run the Fit &amp; Sizing Agent from the{" "}
+          <p className="text-sm text-slate-500">No fit research yet. Run the Size &amp; Fit Checker from the{" "}
             <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>.</p>
         ) : (
           <details open className="space-y-2">

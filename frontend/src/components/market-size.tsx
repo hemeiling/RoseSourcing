@@ -51,11 +51,11 @@ export function MarketSizeSection({ projectId }: { projectId: string }) {
     <div className="grid gap-4">
       <Card>
         <CardHeader title="Industry & category size" icon={<Globe2 className="h-4 w-4" />}
-          subtitle="From the Market Research Agent. Each figure says what it covers, its year and who published it." />
+          subtitle="From the Market Analyst. Each figure says what it covers, its year and who published it." />
         <CardBody>
           {figures.length === 0 ? (
             <p className="text-sm text-slate-500">
-              No market-size figures yet. The Market Research Agent looks for them (<a href="#research" className="font-semibold text-primary-700 underline">Market research</a>).
+              No market-size figures yet. The Market Analyst looks for them (<a href="#research" className="font-semibold text-primary-700 underline">Market research</a>).
             </p>
           ) : (
             <ul className="divide-y divide-line">
@@ -87,7 +87,7 @@ export function MarketSizeSection({ projectId }: { projectId: string }) {
       </Card>
       <Card>
         <CardHeader title="Competitor revenue" icon={<Building2 className="h-4 w-4" />}
-          subtitle="From the Competitor Discovery Agent - only a figure a filing, press article or named estimate states." />
+          subtitle="From the Competitor Finder - only a figure a filing, press article or named estimate states." />
         <CardBody>
           {revenues.length === 0 ? (
             <p className="text-sm text-slate-500">

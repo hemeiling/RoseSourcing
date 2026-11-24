@@ -83,7 +83,7 @@ def evidence(db: Session, project: BusinessProject) -> tuple[list[str], dict[str
         if prices:
             add(f"{len(rows)} directly comparable listings: {_money(min(prices))}-{_money(max(prices))}, median {_money(statistics.median(prices))}; "
                 + "; ".join(f"{r['platform']} {_money(r['price'])} {r['title'][:50]}" for r in rows[:8]),
-                "Listing tracker", rows[0].get("url"))
+                "Top Listings Tracker", rows[0].get("url"))
     if (rv := _latest(db, project.id, "review_insights")):
         add("Low-star review complaints: " + "; ".join(f"{t['tag']} ({t['count']}): {t['summary']}" for t in rv.content.get("themes") or []),
             "Low-star reviews", None)

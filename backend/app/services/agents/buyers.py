@@ -141,7 +141,7 @@ def run_style_collect(run_id: uuid.UUID, ctx: dict[str, str], keywords: list[str
     if not leaders:
         with session_scope() as db:
             finish_execution(db.get(AgentExecution, ex_id), error="No tracked listings")
-        raise RuntimeError("No tracked listings yet: run the Listing Tracker Agent first, so this agent knows which leading listings to read.")
+        raise RuntimeError("No tracked listings yet: run the Top Listings Tracker first, so this agent knows which leading listings to read.")
     found, errors = [], []
     sent0 = demand.network_calls()
     with httpx2.Client(timeout=60) as http:
@@ -321,7 +321,7 @@ def run_style_profile(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
                           for f in web if f.section == "customer_segments" and f.created_by != "buyer_style"][:8]
     if not comments:
         _update_step(run_id, "style_profile", status="skipped",
-                     error="Skipped: no customer comments were collected. Run the Listing Tracker first so reviews can be read.")
+                     error="Skipped: no customer comments were collected. Run the Top Listings Tracker first so reviews can be read.")
         return
     _update_step(run_id, "style_profile", status="running", started_at=datetime.now(timezone.utc).isoformat(), attempts=1)
     context = f"Business context:\n{context_block(ctx)}\n\n"

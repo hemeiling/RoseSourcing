@@ -326,7 +326,7 @@ function ProductReport({ id }: { id: string }) {
       const r = await post<{ updated: number; prices_added: number }>(`/api/projects/${id}/competitors/assign-tiers`);
       setTierNote(r.updated || r.prices_added
         ? `Placed ${r.updated} competitor${r.updated === 1 ? "" : "s"} in a price tier; added ${r.prices_added} price${r.prices_added === 1 ? "" : "s"} from marketplace listings.`
-        : "No changes: competitors without prices did not match any listing found by the Price Tier Agent.");
+        : "No changes: competitors without prices did not match any listing found by the Price Range Finder.");
       setCompetitorsVersion((v) => v + 1);
     } catch (e) {
       setTierNote(errorText(e));
@@ -420,7 +420,7 @@ function ProductReport({ id }: { id: string }) {
         )}
         {sid === "brands" && (
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm">
-            <span className="text-slate-600">Place each competitor in the budget / mid / premium / luxury tiers found by the Price Tier Agent, using its prices or matching listings.</span>
+            <span className="text-slate-600">Place each competitor in the budget / mid / premium / luxury tiers found by the Price Range Finder, using its prices or matching listings.</span>
             <Button size="sm" variant="secondary" onClick={assignTiers}>Assign price tiers</Button>
             {tierNote && <span className="w-full text-xs text-slate-500">{tierNote}</span>}
           </div>

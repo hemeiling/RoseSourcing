@@ -123,7 +123,7 @@ def _competitor(db, project_id: uuid.UUID, name: str, platform: str) -> Competit
     comp = db.scalars(select(Competitor).where(Competitor.project_id == project_id, func.lower(Competitor.name) == name.lower())).first()
     if comp is None:
         comp = Competitor(project_id=project_id, name=name[:200], channels=[platform], discovered_by="listing_tracker",
-                          notes="Added by the Listing Tracker Agent from a marketplace listing.")
+                          notes="Added by the Top Listings Tracker from a marketplace listing.")
         db.add(comp)
         db.flush()
     elif platform not in (comp.channels or []):
@@ -136,7 +136,7 @@ def run_listing_scan(run_id: uuid.UUID, ctx: dict[str, str], keywords: list[str]
     from .opportunity import _add_run_usage, _shopper_keywords
 
     if not demand.configured():
-        raise RuntimeError("The Listing Tracker needs SerpApi for Google Trends and marketplace listings: connect it in Settings > Data sources.")
+        raise RuntimeError("The Top Listings Tracker needs SerpApi for Google Trends and marketplace listings: connect it in Settings > Data sources.")
     llm, usage = get_llm(), LLMUsage()
     geo = cc or "US"
     with session_scope() as db:
@@ -209,7 +209,7 @@ def run_listing_scan(run_id: uuid.UUID, ctx: dict[str, str], keywords: list[str]
                 db.add(PriceObservation(competitor_product_id=prod.id, price=c.price, currency="USD", observed_at=now, source_url=c.url or None,
                                         source_type="api", evidence_source_id=src.id if src else None, verification_status="source_linked",
                                         platform=c.platform, rating=c.rating, review_count=c.reviews, badges=c.badges,
-                                        note=f"Listing Tracker, {now:%Y-%m-%d}: as listed on {c.platform}"))
+                                        note=f"Top Listings Tracker, {now:%Y-%m-%d}: as listed on {c.platform}"))
                 rows.append({"competitor_product_id": str(prod.id), "competitor": comp.name, "platform": c.platform, "title": c.title,
                              "price": c.price, "rating": c.rating, "reviews": c.reviews, "badges": c.badges, "url": c.url,
                              "seller": c.seller, "asin": c.asin, "page_token": c.page_token, "why": p.why_comparable, "image": c.image,
@@ -300,7 +300,7 @@ def run_review_collect(run_id: uuid.UUID, ctx: dict[str, str], keywords: list[st
     if not leaders:
         with session_scope() as db:
             finish_execution(db.get(AgentExecution, ex_id), error="No tracked listings")
-        raise RuntimeError("No tracked listings yet: run the Listing Tracker Agent first, so this agent knows which leading listings to read.")
+        raise RuntimeError("No tracked listings yet: run the Top Listings Tracker first, so this agent knows which leading listings to read.")
     errors: list[str] = []
     found: list[demand.ListingReviews] = []
     sent0 = demand.network_calls()

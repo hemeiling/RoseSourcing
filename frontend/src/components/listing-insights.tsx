@@ -71,7 +71,7 @@ export function ReviewInsightsSection({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       {snap.loading && !snap.data ? <Spinner /> : !c ? (
-        <p className="text-sm text-slate-500">No reviews tagged yet. Run the Review Insights Agent from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>, after the Listing Tracker.</p>
+        <p className="text-sm text-slate-500">No reviews tagged yet. Run the Complaint Reader from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>, after the Top Listings Tracker.</p>
       ) : (
         <>
           <Card>

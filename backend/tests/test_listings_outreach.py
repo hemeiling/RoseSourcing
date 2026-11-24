@@ -106,7 +106,7 @@ def test_listing_tracker_logs_prices_reviews_and_badges(authed, project, fake_ll
 def test_review_insights_tags_only_verifiable_quotes(authed, project, fake_llm, serp):
     pid = project["id"]
     before = _run(authed, pid, "review_mining")
-    assert before["steps"][0]["status"] == "failed" and "Listing Tracker" in before["steps"][0]["error"]
+    assert before["steps"][0]["status"] == "failed" and "Top Listings Tracker" in before["steps"][0]["error"]
 
     _run(authed, pid, "listing_tracker")
     run = _run(authed, pid, "review_mining")

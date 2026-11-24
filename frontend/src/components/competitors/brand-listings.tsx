@@ -94,7 +94,7 @@ export function BrandsAndListings({ competitors, tracker, trackedAt, onToggleWat
             {tracker.gaps.length > 0 && <ul className="list-disc space-y-0.5 pl-5 text-xs text-amber-800">{tracker.gaps.map((g) => <li key={g}>{g}</li>)}</ul>}
           </>
         ) : (
-          <p className="text-xs text-slate-500">No comparable listings tracked yet - run the Listing Tracker above to log 15-20 with price, rating, reviews and badges.</p>
+          <p className="text-xs text-slate-500">No comparable listings tracked yet - run the Top Listings Tracker from the agents list at the top to log 15-20 with price, rating, reviews and badges.</p>
         )}
         <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter listings">
           <button onClick={() => setPlatform("all")} aria-pressed={platform === "all"} className={chip(platform === "all")}>All · {listingCount}</button>
@@ -220,7 +220,7 @@ function ListingRow({ r }: { r: Row }) {
         <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-slate-500">
           {r.seller && <span>sold by {r.seller} ·</span>}
           {o ? <span>seen {date(o.observed_at)}{r.count > 1 ? ` · ${r.count} price records` : ""}</span> : <span>no price recorded</span>}
-          {r.tracked && <Badge tone="teal" title="Picked by the Listing Tracker as directly comparable">Comparable</Badge>}
+          {r.tracked && <Badge tone="teal" title="Picked by the Top Listings Tracker as directly comparable">Comparable</Badge>}
         </div>
         {(o?.badges.length ?? 0) > 0 && <div className="mt-1 flex flex-wrap gap-1">{o!.badges.map((b) => <Badge key={b} tone="slate">{b}</Badge>)}</div>}
       </div>

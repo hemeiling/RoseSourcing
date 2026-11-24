@@ -73,7 +73,7 @@ export function BuyerStyleSection({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       {snap.loading && !snap.data ? <Spinner /> : !c ? (
-        <p className="text-sm text-slate-500">No buyer profile yet. Run the Buyer &amp; Style Insights Agent from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>, after the Listing Tracker.</p>
+        <p className="text-sm text-slate-500">No buyer profile yet. Run the Buyer Profiler from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>, after the Top Listings Tracker.</p>
       ) : (
         <>
           <Card>

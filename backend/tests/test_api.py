@@ -145,6 +145,6 @@ def test_account_usage_dashboard(authed, project):
     u = authed.get("/api/usage").json()
     assert u["totals"]["calls"] == 2 and u["totals"]["cost_usd"] == 0.502 and u["totals"]["search_requests"] == 5
     assert u["totals"]["cached_share_pct"] == 68.2  # 3000 of 4400 input tokens came from the cache
-    assert u["by_product"][0]["name"] == "Latin dancewear" and u["by_agent"][0]["label"] == "Price Tier Agent"
+    assert u["by_product"][0]["name"] == "Latin dancewear" and u["by_agent"][0]["label"] == "Price Range Finder"
     assert len(u["by_day"]) == 1 and u["recent"][0]["product"] == "Latin dancewear"
     assert authed.get("/api/usage", params={"project_id": str(uuid.uuid4())}).json()["totals"]["calls"] == 0  # not this account's
