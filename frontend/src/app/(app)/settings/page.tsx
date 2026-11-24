@@ -5,6 +5,7 @@ import { useAuth, useProjects, useStatus } from "@/components/providers";
 import { ClaudeConnectorSection } from "@/components/settings/claude-connector";
 import { ConnectorsSection } from "@/components/settings/connectors";
 import { Badge, Card, CardBody, CardHeader, PageHeader, Spinner, Td, Th } from "@/components/ui";
+import { UsageDashboard } from "@/components/usage-dashboard";
 import { dateTime, money, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { AuditEvent } from "@/lib/types";
@@ -59,6 +60,7 @@ export default function SettingsPage() {
       <PageHeader title="Settings" description="Server configuration, AI providers, guardrails and integrations. Secrets are set as environment variables on the server (Render dashboard) and are never shown here." />
       {!status ? <Spinner /> : (
         <div className="grid gap-5">
+          <UsageDashboard />
           <Card>
             <CardHeader title="AI model" icon={<Server className="h-4 w-4" />} />
             <CardBody className="divide-y divide-slate-100 py-1">

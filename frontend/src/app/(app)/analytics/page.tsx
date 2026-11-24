@@ -14,7 +14,7 @@ import {
 import { del, errorText, post, put } from "@/lib/api";
 import { date, money, num, pct, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import type { AgentExecution, Experiment, ModelSpec, PriceTarget, Scenario, UEResults } from "@/lib/types";
+import type { Experiment, ModelSpec, PriceTarget, Scenario, UEResults } from "@/lib/types";
 
 /** The amount at the end of each bar (left of the bar when it is negative). */
 function BarValue(props: { x?: unknown; y?: unknown; width?: unknown; height?: unknown; value?: unknown }) {
@@ -696,57 +696,7 @@ function ExperimentsTab({ projectId }: { projectId: string }) {
   );
 }
 
-function UsageTab({ projectId }: { projectId: string }) {
-  const usage = useApi<{ by_agent: { agent: string; label: string; calls: number; cost_usd: number; input_tokens: number; output_tokens: number; search_requests: number }[]; total_cost_usd: number; note: string }>(`/api/projects/${projectId}/usage`);
-  const execs = useApi<AgentExecution[]>(`/api/projects/${projectId}/agent-executions?limit=50`);
-  return (
-    <div className="space-y-5">
-      <Card>
-        <CardHeader title="AI usage & cost tracking" subtitle={usage.data?.note} />
-        {!usage.data ? <CardBody><Spinner /></CardBody> : usage.data.by_agent.length === 0 ? (
-          <CardBody><p className="text-sm text-slate-500">No AI calls yet for this project.</p></CardBody>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px]">
-              <thead className="border-b border-slate-100 bg-slate-50"><tr><Th>Agent</Th><Th>Calls</Th><Th>Input tokens</Th><Th>Output tokens</Th><Th>Web searches</Th><Th>Est. cost</Th></tr></thead>
-              <tbody className="divide-y divide-slate-100">
-                {usage.data.by_agent.map((a) => (
-                  <tr key={a.agent}><Td className="font-medium">{a.label}</Td><Td>{a.calls}</Td><Td>{num(a.input_tokens)}</Td><Td>{num(a.output_tokens)}</Td><Td>{a.search_requests}</Td><Td>{money(a.cost_usd, { decimals: 2 })}</Td></tr>
-                ))}
-                <tr className="bg-slate-50"><Td className="font-semibold">Total</Td><Td /><Td /><Td /><Td /><Td className="font-semibold">{money(usage.data.total_cost_usd, { decimals: 2 })}</Td></tr>
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-      <Card>
-        <CardHeader title="Agent execution log" subtitle="Every AI operation is recorded with its model, status, tokens and errors." />
-        {!execs.data ? <CardBody><Spinner /></CardBody> : execs.data.length === 0 ? <CardBody><p className="text-sm text-slate-500">No executions yet.</p></CardBody> : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px]">
-              <thead className="border-b border-slate-100 bg-slate-50"><tr><Th>When</Th><Th>Agent</Th><Th>Operation</Th><Th>Status</Th><Th>Model</Th><Th>Tokens in/out</Th><Th>Cost</Th></tr></thead>
-              <tbody className="divide-y divide-slate-100">
-                {execs.data.map((e) => (
-                  <tr key={e.id} title={e.error ?? e.input_summary ?? ""}>
-                    <Td className="text-xs text-slate-500">{date(e.started_at)}</Td>
-                    <Td>{titleCase(e.agent)}</Td>
-                    <Td className="text-xs">{e.operation}</Td>
-                    <Td><Badge tone={e.status === "succeeded" ? "green" : e.status === "failed" ? "red" : "blue"}>{titleCase(e.status)}</Badge></Td>
-                    <Td className="text-xs">{e.model}</Td>
-                    <Td className="text-xs">{num(e.input_tokens)} / {num(e.output_tokens)}</Td>
-                    <Td className="text-xs">{money(e.cost_usd, { decimals: 3 })}</Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
-    </div>
-  );
-}
-
-type Tab = "calculator" | "compare" | "experiments" | "usage";
+type Tab = "calculator" | "compare" | "experiments";
 
 function AnalyticsView({ projectId }: { projectId: string }) {
   const params = useSearchParams();
@@ -765,7 +715,6 @@ function AnalyticsView({ projectId }: { projectId: string }) {
         { value: "calculator", label: "Unit economics" },
         { value: "compare", label: `Scenarios (${list.length})` },
         { value: "experiments", label: "Experiments" },
-        { value: "usage", label: "AI usage" },
       ]} />
       {!spec.data ? <Spinner /> : (
         <>
@@ -774,7 +723,6 @@ function AnalyticsView({ projectId }: { projectId: string }) {
           </div>
           {tab === "compare" && <CompareTab scenarios={list} spec={spec.data} reload={scenarios.reload} onLoad={(id) => { setLoadId(id); setTab("calculator"); }} />}
           {tab === "experiments" && <ExperimentsTab projectId={projectId} />}
-          {tab === "usage" && <UsageTab projectId={projectId} />}
         </>
       )}
     </>

@@ -138,8 +138,8 @@ function ProjectSwitcher() {
         className="min-w-0 max-w-[16rem] truncate rounded-md border border-slate-400/70 bg-white py-1.5 pl-2.5 pr-8 text-sm font-medium text-ink focus:border-brand-600 focus:outline-none"
       >
         {projects.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.name}
+          <option key={p.id} value={p.id} title={p.name}>
+            {p.short_name || p.name}
           </option>
         ))}
       </select>

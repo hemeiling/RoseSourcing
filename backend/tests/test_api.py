@@ -128,3 +128,23 @@ def test_short_names_for_the_sidebar(authed, monkeypatch):
     assert p["short_name"] == "Dance Practice Wear"  # suggested by the AI once, at creation
     r = authed.patch(f"/api/projects/{p['id']}", json={"short_name": "Practice Skirts"}).json()
     assert r["short_name"] == "Practice Skirts" and r["name"].startswith("Women's Latin")  # editable; the full name stays
+
+
+def test_account_usage_dashboard(authed, project):
+    import uuid
+
+    from app.db import session_scope
+    from app.models import AgentExecution
+
+    pid = uuid.UUID(project["id"])
+    with session_scope() as db:
+        db.add(AgentExecution(project_id=pid, agent="price_tier", operation="research_step:price_tiers", status="succeeded", model="m",
+                              input_tokens=1000, output_tokens=200, cache_read_tokens=3000, search_requests=5, cost_usd=0.5))
+        db.add(AgentExecution(project_id=pid, agent="brand_strategy", operation="short_name", status="succeeded", model="m",
+                              input_tokens=400, output_tokens=20, cost_usd=0.002))
+    u = authed.get("/api/usage").json()
+    assert u["totals"]["calls"] == 2 and u["totals"]["cost_usd"] == 0.502 and u["totals"]["search_requests"] == 5
+    assert u["totals"]["cached_share_pct"] == 68.2  # 3000 of 4400 input tokens came from the cache
+    assert u["by_product"][0]["name"] == "Latin dancewear" and u["by_agent"][0]["label"] == "Price Tier Agent"
+    assert len(u["by_day"]) == 1 and u["recent"][0]["product"] == "Latin dancewear"
+    assert authed.get("/api/usage", params={"project_id": str(uuid.uuid4())}).json()["totals"]["calls"] == 0  # not this account's
