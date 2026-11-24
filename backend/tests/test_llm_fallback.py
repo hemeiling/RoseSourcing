@@ -46,6 +46,7 @@ def test_grammar_too_large_falls_back_to_validated_json(monkeypatch):
     out, usage = p.structured(system="sys", prompt="p", output_model=ExtractedSizeChart)
     assert out.rows[0].measurements[0].max == 84 and usage.input_tokens == 100
     assert "JSON Schema" in sent[0]["system"] and "output_format" not in sent[0]
+    assert "cache_control" not in sent[0]  # a one-shot call would only pay the cache-write premium
 
 
 def test_invalid_json_gets_one_repair_round(monkeypatch):
@@ -113,6 +114,7 @@ def test_web_research_falls_back_to_search_only_when_fetch_is_rejected(monkeypat
     calls: list[list[str]] = []
 
     def fake_call(fn, **kw):
+        assert kw["cache_control"] == {"type": "ephemeral"}  # every round re-reads the earlier ones: cache them
         calls.append([t["name"] for t in kw["tools"]])
         if len(kw["tools"]) > 1:
             raise LLMError("Bad request to Anthropic API: web_fetch tool is not enabled for this organization")

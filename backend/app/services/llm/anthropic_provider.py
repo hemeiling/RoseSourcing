@@ -33,6 +33,10 @@ log = logging.getLogger(__name__)
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 MAX_PAUSE_CONTINUATIONS = 4
+# Automatic prompt caching for multi-turn loops (web research, copilot): each round re-reads everything before it, and
+# the API (and web search, after each set of results) caches that prefix so later rounds read it at a fraction of the
+# input price. One-shot structured calls are left uncached - a cache write there is never read back.
+AUTO_CACHE = {"type": "ephemeral"}
 
 
 class AnthropicProvider:
@@ -199,7 +203,8 @@ class AnthropicProvider:
         for _ in range(MAX_PAUSE_CONTINUATIONS + 1):
             try:
                 response = self._call(self.client.beta.messages.create, model=self.model, max_tokens=16000, system=system,
-                                      messages=messages, tools=tools, output_config={"effort": self.effort}, **self._extra())
+                                      messages=messages, tools=tools, output_config={"effort": self.effort}, cache_control=AUTO_CACHE,
+                                      **self._extra())
             except LLMError as e:
                 if len(tools) < 2 or "fetch" not in str(e).lower() and "allowed_callers" not in str(e).lower():
                     raise
@@ -207,7 +212,8 @@ class AnthropicProvider:
                 result.errors.append("Page reading (web fetch) is not available for this account; used search results only.")
                 tools = tools[:1]
                 response = self._call(self.client.beta.messages.create, model=self.model, max_tokens=16000, system=system,
-                                      messages=messages, tools=tools, output_config={"effort": self.effort}, **self._extra())
+                                      messages=messages, tools=tools, output_config={"effort": self.effort}, cache_control=AUTO_CACHE,
+                                      **self._extra())
             self._check_refusal(response)
             result.usage.add(self._usage(response))
             self._collect_research_blocks(response.content, result)
@@ -285,6 +291,7 @@ class AnthropicProvider:
                 messages=convo,
                 tools=api_tools,
                 output_config={"effort": self.effort},
+                cache_control=AUTO_CACHE,
                 **self._extra(),
             )
             usage.add(self._usage(response))

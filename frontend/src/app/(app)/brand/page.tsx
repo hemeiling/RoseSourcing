@@ -65,7 +65,7 @@ function BrandStudio({ projectId }: { projectId: string }) {
     try {
       const created = await post<BrandConcept>(`/api/projects/${projectId}/brand-concepts/generate`, { kind, brief: brief.trim() || null });
       concepts.setData((prev) => [created, ...(prev ?? [])]);
-      setFilter("all");
+      setFilter(created.kind as Kind);
     } catch (e) {
       if (e instanceof ApiError && e.isConfigError) setConfigError(e.message);
       else setError(errorText(e));
@@ -108,31 +108,34 @@ function BrandStudio({ projectId }: { projectId: string }) {
               <legend className="mb-1.5 text-xs font-medium text-slate-700">What to generate</legend>
               <div className="space-y-1.5">
                 {KINDS.map((k) => (
-                  <label
-                    key={k.value}
-                    className={clsx(
-                      "flex cursor-pointer gap-2.5 rounded-lg border px-3 py-2 transition-colors",
-                      kind === k.value ? "border-brand-400 bg-brand-50" : "border-slate-200 hover:bg-slate-50",
+                  <div key={k.value}
+                    className={clsx("rounded-lg border transition-colors", kind === k.value ? "border-brand-400 bg-brand-50" : "border-slate-200 hover:bg-slate-50")}>
+                    <label className="flex cursor-pointer gap-2.5 px-3 py-2">
+                      {/* Picking a type also shows its saved drafts on the right; the brief and Generate open right here. */}
+                      <input type="radio" name="kind" value={k.value} checked={kind === k.value} onChange={() => { setKind(k.value); setFilter(k.value); }}
+                        className="mt-1 accent-brand-600" />
+                      <span>
+                        <span className="block text-sm font-medium text-slate-900">{k.label}{counts[k.value] ? <span className="ml-1 text-xs font-normal text-slate-500">({counts[k.value]} saved)</span> : null}</span>
+                        <span className="block text-xs text-slate-500">{k.desc}</span>
+                      </span>
+                    </label>
+                    {kind === k.value && (
+                      <div className="space-y-2 border-t border-brand-200 px-3 py-2.5">
+                        <Field label="Brief (optional)" hint="Tone, constraints, words you like or dislike, segments to focus on.">
+                          <Textarea rows={2} value={brief} onChange={(e) => setBrief(e.target.value)} maxLength={2000} placeholder="e.g. elegant but approachable, aimed at adult beginners" />
+                        </Field>
+                        {configError && <ConfigNotice message={configError} />}
+                        {error && <Alert tone="red">{error}</Alert>}
+                        <Button onClick={generate} loading={busy} disabled={!!aiMissing} className="w-full">
+                          <Sparkles className="h-4 w-4" /> Generate {k.label.toLowerCase()}
+                        </Button>
+                        {busy && <p className="text-center text-xs text-slate-500">This usually takes 15-60 seconds.</p>}
+                      </div>
                     )}
-                  >
-                    <input type="radio" name="kind" value={k.value} checked={kind === k.value} onChange={() => setKind(k.value)} className="mt-1 accent-brand-600" />
-                    <span>
-                      <span className="block text-sm font-medium text-slate-900">{k.label}</span>
-                      <span className="block text-xs text-slate-500">{k.desc}</span>
-                    </span>
-                  </label>
+                  </div>
                 ))}
               </div>
             </fieldset>
-            <Field label="Brief (optional)" hint="Tone, constraints, words you like or dislike, segments to focus on.">
-              <Textarea value={brief} onChange={(e) => setBrief(e.target.value)} maxLength={2000} placeholder="e.g. elegant but approachable, aimed at adult beginners" />
-            </Field>
-            {configError && <ConfigNotice message={configError} />}
-            {error && <Alert tone="red">{error}</Alert>}
-            <Button onClick={generate} loading={busy} disabled={!!aiMissing} className="w-full">
-              <Sparkles className="h-4 w-4" /> Generate {KINDS.find((k) => k.value === kind)?.label.toLowerCase()}
-            </Button>
-            {busy && <p className="text-center text-xs text-slate-500">This usually takes 15-60 seconds.</p>}
           </CardBody>
         </Card>
 
@@ -142,7 +145,7 @@ function BrandStudio({ projectId }: { projectId: string }) {
             <CardBody>
               <Tabs
                 value={filter}
-                onChange={setFilter}
+                onChange={(f) => { setFilter(f); if (f !== "all") setKind(f); }}
                 tabs={[
                   { value: "all", label: `All (${concepts.data?.length ?? 0})` },
                   ...KINDS.map((k) => ({ value: k.value, label: `${k.label}${counts[k.value] ? ` (${counts[k.value]})` : ""}` })),
@@ -153,8 +156,10 @@ function BrandStudio({ projectId }: { projectId: string }) {
               ) : concepts.error ? (
                 <Alert tone="red">{errorText(concepts.error)}</Alert>
               ) : list.length === 0 ? (
-                <EmptyState icon={<Palette className="h-5 w-5" />} title={filter === "all" ? "No brand concepts yet" : "No concepts of this kind yet"}>
-                  Pick a draft type on the left and generate. Drafts are saved here automatically.
+                <EmptyState icon={<Palette className="h-5 w-5" />}
+                  title={filter === "all" ? "No brand concepts yet" : `No ${KINDS.find((k) => k.value === filter)?.label.toLowerCase()} yet`}>
+                  {filter === "all" ? "Pick a draft type on the left and press Generate. Drafts are saved here automatically."
+                    : "Press Generate under this type on the left - the draft appears here, saved automatically."}
                 </EmptyState>
               ) : (
                 <div className="space-y-4">

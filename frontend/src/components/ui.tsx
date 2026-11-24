@@ -239,7 +239,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
 
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { value: T; label: ReactNode }[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="mb-5 flex gap-1 overflow-x-auto border-b border-line" role="tablist">
+    <div className="mb-5 flex flex-wrap gap-x-1 border-b border-line" role="tablist">
       {tabs.map((t) => (
         <button
           key={t.value}

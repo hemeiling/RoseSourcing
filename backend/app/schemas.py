@@ -623,6 +623,7 @@ class AgentExecutionOut(ORM):
     attempts: int
     input_tokens: int
     output_tokens: int
+    cache_read_tokens: int = 0
     search_requests: int
     cost_usd: float
     started_at: datetime
