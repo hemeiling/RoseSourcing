@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { api, get } from "@/lib/api";
+import { LanguageProvider } from "@/lib/i18n";
 import type { Project, SystemStatus, User } from "@/lib/types";
 
 // ----------------------------------------------------------------------------- auth
@@ -137,10 +138,12 @@ export const useStatus = () => useContext(StatusContext);
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <AuthProvider>
-      <StatusProvider>
-        <ProjectProvider>{children}</ProjectProvider>
-      </StatusProvider>
-    </AuthProvider>
+    <LanguageProvider>
+      <AuthProvider>
+        <StatusProvider>
+          <ProjectProvider>{children}</ProjectProvider>
+        </StatusProvider>
+      </AuthProvider>
+    </LanguageProvider>
   );
 }

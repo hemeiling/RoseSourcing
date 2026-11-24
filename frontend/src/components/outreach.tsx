@@ -6,6 +6,7 @@ import { Alert, Badge, Button, Card, CardBody, CardHeader, ExternalLink, Field, 
 import { del, errorText, patch, post, put } from "@/lib/api";
 import { date, domainOf, money } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT, type MsgKey } from "@/lib/i18n";
 
 const LISTS = [
   ["materials", "Materials"], ["dimensions", "Dimensions"], ["colours_patterns", "Colours & patterns"], ["construction", "Construction"],
@@ -31,12 +32,19 @@ type Sample = {
 };
 type Outreach = { spec: { id: string; content: Spec; text: string; created_at: string } | null; suppliers: SupplierRow[]; samples: Sample[] };
 
-const STATUS: Record<SupplierRow["status"], { label: string; tone: Tone }> = {
+const STATUS: Record<SupplierRow["status"], { label: MsgKey; tone: Tone }> = {
   not_contacted: { label: "Not contacted", tone: "slate" }, drafted: { label: "Draft ready", tone: "slate" },
   sent: { label: "Waiting for quote", tone: "amber" }, quoted: { label: "Quoted", tone: "green" },
 };
 const SAMPLE_STATUS = ["requested", "ordered", "shipped", "received", "approved", "rejected"];
+const SAMPLE_STATUS_LABEL: Record<string, MsgKey> = {
+  requested: "Requested", ordered: "Ordered", shipped: "Shipped", received: "Received", approved: "Approved", rejected: "Rejected",
+};
 const SCORES = ["comfort", "fit", "durability", "look"];
+const SCORE_LABEL: Record<string, { label: MsgKey; aria: MsgKey }> = {
+  comfort: { label: "Comfort", aria: "comfort score" }, fit: { label: "Fit", aria: "fit score" },
+  durability: { label: "Durability", aria: "durability score" }, look: { label: "Look", aria: "look score" },
+};
 const TARGET_SUPPLIERS = 5;
 
 function copy(text: string, done: () => void) {
@@ -54,6 +62,7 @@ function printSpec(title: string, text: string) {
 }
 
 function SpecSheet({ projectId, spec, onChange }: { projectId: string; spec: Outreach["spec"]; onChange: () => void }) {
+  const { t } = useT();
   const [notes, setNotes] = useState("");
   const [form, setForm] = useState<Spec | null>(spec?.content ?? null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -61,7 +70,7 @@ function SpecSheet({ projectId, spec, onChange }: { projectId: string; spec: Out
   useEffect(() => setForm(spec?.content ?? null), [spec]);
 
   const generate = async () => {
-    if (spec && !window.confirm("Redraft the spec sheet from the latest research? Your edits will be replaced.")) return;
+    if (spec && !window.confirm(t("Redraft the spec sheet from the latest research? Your edits will be replaced."))) return;
     setBusy("gen"); setMsg(null);
     try { await post(`/api/projects/${projectId}/spec-sheet`, { notes: notes.trim() || undefined }); onChange(); }
     catch (e) { setMsg(errorText(e)); } finally { setBusy(null); }
@@ -69,19 +78,19 @@ function SpecSheet({ projectId, spec, onChange }: { projectId: string; spec: Out
   const save = async () => {
     if (!form) return;
     setBusy("save"); setMsg(null);
-    try { await put(`/api/projects/${projectId}/spec-sheet`, form); setMsg("Saved."); onChange(); }
+    try { await put(`/api/projects/${projectId}/spec-sheet`, form); setMsg(t("Saved.")); onChange(); }
     catch (e) { setMsg(errorText(e)); } finally { setBusy(null); }
   };
 
   if (!spec || !form)
     return (
       <Card>
-        <CardHeader icon={<FileText className="h-4 w-4" />} title="1. Spec sheet" subtitle="Drafted from this product's research - review complaints become quality requirements, compliance rules become labelling lines. You edit it before anything goes to a supplier." />
+        <CardHeader icon={<FileText className="h-4 w-4" />} title={t("1. Spec sheet")} subtitle={t("Drafted from this product's research - review complaints become quality requirements, compliance rules become labelling lines. You edit it before anything goes to a supplier.")} />
         <CardBody className="space-y-3">
-          <Field label="Anything the draft should include (optional)">
-            <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. tweed and plaid fabrics, 2 colourways, padded band, retail target $28" />
+          <Field label={t("Anything the draft should include (optional)")}>
+            <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("e.g. tweed and plaid fabrics, 2 colourways, padded band, retail target $28")} />
           </Field>
-          <Button onClick={generate} loading={busy === "gen"}><Sparkles className="h-4 w-4" /> Draft spec sheet</Button>
+          <Button onClick={generate} loading={busy === "gen"}><Sparkles className="h-4 w-4" /> {t("Draft spec sheet")}</Button>
           {msg && <Alert tone="red">{msg}</Alert>}
         </CardBody>
       </Card>
@@ -90,34 +99,34 @@ function SpecSheet({ projectId, spec, onChange }: { projectId: string; spec: Out
   const set = <K extends keyof Spec>(k: K, v: Spec[K]) => setForm({ ...form, [k]: v });
   return (
     <Card>
-      <CardHeader icon={<FileText className="h-4 w-4" />} title="1. Spec sheet"
-        subtitle={form.edited_at ? `Edited ${date(form.edited_at)}` : "AI draft - check every line, especially values marked '(to confirm)'."}
+      <CardHeader icon={<FileText className="h-4 w-4" />} title={t("1. Spec sheet")}
+        subtitle={form.edited_at ? t("Edited {date}", { date: date(form.edited_at) }) : t("AI draft - check every line, especially values marked '(to confirm)'.")}
         actions={<div className="flex flex-wrap gap-2">
-          <Button size="sm" variant="secondary" onClick={() => printSpec(form.product_name, spec.text)}><Printer className="h-3.5 w-3.5" /> Print / PDF</Button>
-          <Button size="sm" variant="ghost" onClick={generate} loading={busy === "gen"}><Sparkles className="h-3.5 w-3.5" /> Redraft</Button>
+          <Button size="sm" variant="secondary" onClick={() => printSpec(form.product_name, spec.text)}><Printer className="h-3.5 w-3.5" /> {t("Print / PDF")}</Button>
+          <Button size="sm" variant="ghost" onClick={generate} loading={busy === "gen"}><Sparkles className="h-3.5 w-3.5" /> {t("Redraft")}</Button>
         </div>} />
       <CardBody className="space-y-3">
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Product name"><Input value={form.product_name} onChange={(e) => set("product_name", e.target.value)} /></Field>
-          <Field label="Summary"><Textarea rows={2} value={form.summary} onChange={(e) => set("summary", e.target.value)} /></Field>
+          <Field label={t("Product name")}><Input value={form.product_name} onChange={(e) => set("product_name", e.target.value)} /></Field>
+          <Field label={t("Summary")}><Textarea rows={2} value={form.summary} onChange={(e) => set("summary", e.target.value)} /></Field>
           {LISTS.map(([k, label]) => (
-            <Field key={k} label={label} hint="One per line">
+            <Field key={k} label={t(label)} hint={t("One per line")}>
               <Textarea rows={Math.min(8, Math.max(3, (form[k]?.length ?? 0) + 1))} value={(form[k] ?? []).join("\n")}
                 onChange={(e) => set(k, e.target.value.split("\n"))} />
             </Field>
           ))}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Field label="Quote quantities"><Input value={form.quantities.join(", ")}
+          <Field label={t("Quote quantities")}><Input value={form.quantities.join(", ")}
             onChange={(e) => set("quantities", e.target.value.split(/[,\s]+/).map(Number).filter((n) => n > 0))} /></Field>
-          <Field label="Incoterm"><Input value={form.incoterm} onChange={(e) => set("incoterm", e.target.value)} /></Field>
-          <Field label="Ship to"><Input value={form.destination ?? ""} onChange={(e) => set("destination", e.target.value || null)} /></Field>
-          <Field label="Samples to ask about"><Input value={form.sample_request} onChange={(e) => set("sample_request", e.target.value)} /></Field>
-          <Field label="Target unit cost (USD)"><Input type="number" min={0} step="0.01" value={form.target_unit_cost ?? ""}
+          <Field label={t("Incoterm")}><Input value={form.incoterm} onChange={(e) => set("incoterm", e.target.value)} /></Field>
+          <Field label={t("Ship to")}><Input value={form.destination ?? ""} onChange={(e) => set("destination", e.target.value || null)} /></Field>
+          <Field label={t("Samples to ask about")}><Input value={form.sample_request} onChange={(e) => set("sample_request", e.target.value)} /></Field>
+          <Field label={t("Target unit cost (USD)")}><Input type="number" min={0} step="0.01" value={form.target_unit_cost ?? ""}
             onChange={(e) => set("target_unit_cost", e.target.value === "" ? null : Number(e.target.value))} /></Field>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={save} loading={busy === "save"}>Save spec sheet</Button>
+          <Button onClick={save} loading={busy === "save"}>{t("Save spec sheet")}</Button>
           {msg && <span className="text-sm text-slate-600">{msg}</span>}
         </div>
       </CardBody>
@@ -126,6 +135,7 @@ function SpecSheet({ projectId, spec, onChange }: { projectId: string; spec: Out
 }
 
 function QuoteForm({ row, quantities, onDone }: { row: SupplierRow; quantities: number[]; onDone: () => void }) {
+  const { t } = useT();
   const [prices, setPrices] = useState<Record<number, string>>({});
   const [sample, setSample] = useState("");
   const [lead, setLead] = useState("");
@@ -133,7 +143,7 @@ function QuoteForm({ row, quantities, onDone }: { row: SupplierRow; quantities: 
   const [busy, setBusy] = useState(false);
   const submit = async () => {
     const list = quantities.filter((q) => prices[q]?.trim()).map((q) => ({ quantity: q, unit_price: Number(prices[q]) }));
-    if (!list.length) return setErr("Enter at least one unit price.");
+    if (!list.length) return setErr(t("Enter at least one unit price."));
     setBusy(true); setErr(null);
     try {
       await post(`/api/suppliers/${row.id}/rfq-quotes`, { prices: list, sample_cost: sample ? Number(sample) : null, lead_time_days: lead ? Number(lead) : null, incoterm: "FOB" });
@@ -143,17 +153,18 @@ function QuoteForm({ row, quantities, onDone }: { row: SupplierRow; quantities: 
   return (
     <div className="mt-2 grid gap-2 rounded-lg bg-canvas p-3 sm:grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] sm:items-end">
       {quantities.map((q) => (
-        <Field key={q} label={`Unit price at ${q}`}><Input type="number" min={0} step="0.01" value={prices[q] ?? ""} onChange={(e) => setPrices({ ...prices, [q]: e.target.value })} /></Field>
+        <Field key={q} label={t("Unit price at {n}", { n: q })}><Input type="number" min={0} step="0.01" value={prices[q] ?? ""} onChange={(e) => setPrices({ ...prices, [q]: e.target.value })} /></Field>
       ))}
-      <Field label="Sample cost"><Input type="number" min={0} step="0.01" value={sample} onChange={(e) => setSample(e.target.value)} /></Field>
-      <Field label="Lead time (days)"><Input type="number" min={0} value={lead} onChange={(e) => setLead(e.target.value)} /></Field>
-      <Button size="sm" onClick={submit} loading={busy}>Save quote</Button>
+      <Field label={t("Sample cost")}><Input type="number" min={0} step="0.01" value={sample} onChange={(e) => setSample(e.target.value)} /></Field>
+      <Field label={t("Lead time (days)")}><Input type="number" min={0} value={lead} onChange={(e) => setLead(e.target.value)} /></Field>
+      <Button size="sm" onClick={submit} loading={busy}>{t("Save quote")}</Button>
       {err && <p className="text-xs text-red-700 sm:col-span-full">{err}</p>}
     </div>
   );
 }
 
 function SupplierRfq({ row, quantities, onChange }: { row: SupplierRow; quantities: number[]; onChange: () => void }) {
+  const { t } = useT();
   const [open, setOpen] = useState<"draft" | "quote" | null>(null);
   const [copied, setCopied] = useState(false);
   const s = STATUS[row.status];
@@ -168,21 +179,21 @@ function SupplierRfq({ row, quantities, onChange }: { row: SupplierRow; quantiti
           <div className="font-medium text-ink">{row.name}</div>
           <div className="text-xs text-slate-500">
             {[row.platform, row.country].filter(Boolean).join(" · ")}
-            {row.listing_url && <> · <ExternalLink href={row.listing_url}>listing on {domainOf(row.listing_url)}</ExternalLink></>}
+            {row.listing_url && <> · <ExternalLink href={row.listing_url}>{t("listing on {domain}", { domain: domainOf(row.listing_url) })}</ExternalLink></>}
             {row.website && !row.listing_url && <> · <ExternalLink href={row.website}>{domainOf(row.website)}</ExternalLink></>}
           </div>
           {rfqQuotes.length > 0 && (
             <div className="mt-1 text-xs text-slate-700">
               {rfqQuotes.map((q) => `${q.quantity}: ${money(q.unit_price, { decimals: 2, currency: q.currency })}`).join(" · ")}
-              {rfqQuotes[0].sample_cost !== null && ` · sample ${money(rfqQuotes[0].sample_cost, { decimals: 2 })}`}
-              {rfqQuotes[0].lead_time_days !== null && ` · ${rfqQuotes[0].lead_time_days} days`}
+              {rfqQuotes[0].sample_cost !== null && ` · ${t("sample {price}", { price: money(rfqQuotes[0].sample_cost, { decimals: 2 }) })}`}
+              {rfqQuotes[0].lead_time_days !== null && ` · ${t("{n} days", { n: rfqQuotes[0].lead_time_days })}`}
             </div>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={s.tone}>{s.label}{row.sent_at && row.status === "sent" ? ` since ${date(row.sent_at)}` : ""}</Badge>
-          {row.draft && <Button size="sm" variant="secondary" onClick={() => setOpen(open === "draft" ? null : "draft")}>Message</Button>}
-          {(row.status === "sent" || row.status === "quoted") && <Button size="sm" variant="ghost" onClick={() => setOpen(open === "quote" ? null : "quote")}>Log quote</Button>}
+          <Badge tone={s.tone}>{row.sent_at && row.status === "sent" ? t("{status} since {date}", { status: t(s.label), date: date(row.sent_at) }) : t(s.label)}</Badge>
+          {row.draft && <Button size="sm" variant="secondary" onClick={() => setOpen(open === "draft" ? null : "draft")}>{t("Message")}</Button>}
+          {(row.status === "sent" || row.status === "quoted") && <Button size="sm" variant="ghost" onClick={() => setOpen(open === "quote" ? null : "quote")}>{t("Log quote")}</Button>}
         </div>
       </div>
       {open === "draft" && row.draft && (
@@ -191,13 +202,13 @@ function SupplierRfq({ row, quantities, onChange }: { row: SupplierRow; quantiti
           <Textarea rows={10} readOnly value={row.draft.body} className="text-xs" />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="secondary" onClick={() => copy(`${row.draft!.subject}\n\n${row.draft!.body}`, () => setCopied(true))}>
-              {copied ? <Check className="h-3.5 w-3.5" /> : <ClipboardCopy className="h-3.5 w-3.5" />} {copied ? "Copied" : "Copy message"}
+              {copied ? <Check className="h-3.5 w-3.5" /> : <ClipboardCopy className="h-3.5 w-3.5" />} {copied ? t("Copied") : t("Copy message")}
             </Button>
-            {mailto && <a href={mailto}><Button size="sm" variant="secondary"><Mail className="h-3.5 w-3.5" /> Open in email</Button></a>}
-            {row.listing_url && <a href={row.listing_url} target="_blank" rel="noopener noreferrer"><Button size="sm" variant="secondary">Message on {domainOf(row.listing_url)}</Button></a>}
-            <Button size="sm" onClick={markSent}><Send className="h-3.5 w-3.5" /> I sent it</Button>
+            {mailto && <a href={mailto}><Button size="sm" variant="secondary"><Mail className="h-3.5 w-3.5" /> {t("Open in email")}</Button></a>}
+            {row.listing_url && <a href={row.listing_url} target="_blank" rel="noopener noreferrer"><Button size="sm" variant="secondary">{t("Message on {domain}", { domain: domainOf(row.listing_url) })}</Button></a>}
+            <Button size="sm" onClick={markSent}><Send className="h-3.5 w-3.5" /> {t("I sent it")}</Button>
           </div>
-          <p className="text-xs text-slate-500">136Sourcing does not send messages: send it by email or through the supplier&apos;s marketplace page, then mark it as sent.</p>
+          <p className="text-xs text-slate-500">{t("136Sourcing does not send messages: send it by email or through the supplier's marketplace page, then mark it as sent.")}</p>
         </div>
       )}
       {open === "quote" && <QuoteForm row={row} quantities={quantities} onDone={() => { setOpen(null); onChange(); }} />}
@@ -206,6 +217,7 @@ function SupplierRfq({ row, quantities, onChange }: { row: SupplierRow; quantiti
 }
 
 function Rfqs({ projectId, data, onChange }: { projectId: string; data: Outreach; onChange: () => void }) {
+  const { t, tr } = useT();
   const [picked, setPicked] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -219,19 +231,19 @@ function Rfqs({ projectId, data, onChange }: { projectId: string; data: Outreach
   };
   return (
     <Card>
-      <CardHeader icon={<Send className="h-4 w-4" />} title={`2. Requests for quotation - ${quantities.join(" / ")} units`}
-        subtitle="Each message carries the saved spec sheet and asks for a unit price at every quantity, sample cost and lead time."
-        actions={<Badge tone={contacted >= TARGET_SUPPLIERS ? "green" : "amber"}>{contacted} of {TARGET_SUPPLIERS}+ suppliers asked</Badge>} />
+      <CardHeader icon={<Send className="h-4 w-4" />} title={t("2. Requests for quotation - {quantities} units", { quantities: quantities.join(" / ") })}
+        subtitle={t("Each message carries the saved spec sheet and asks for a unit price at every quantity, sample cost and lead time.")}
+        actions={<Badge tone={contacted >= TARGET_SUPPLIERS ? "green" : "amber"}>{t("{n} of {target}+ suppliers asked", { n: contacted, target: TARGET_SUPPLIERS })}</Badge>} />
       <CardBody className="space-y-3">
         {!data.suppliers.length ? (
-          <p className="text-sm text-slate-500">No suppliers yet. Use <a href="#supplier-list" className="font-semibold text-primary-700 underline">Search supplier listings</a> in Suppliers, or add them there.</p>
+          <p className="text-sm text-slate-500">{tr("No suppliers yet. Use {link} in Suppliers, or add them there.", { link: <a href="#supplier-list" className="font-semibold text-primary-700 underline">{t("Search supplier listings")}</a> })}</p>
         ) : (
           <>
             {fresh.length > 0 && (
               <div className="rounded-lg border border-line p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-ink">Choose suppliers to ask</span>
-                  <button className="text-xs font-semibold text-primary-700 hover:underline" onClick={() => setPicked(fresh.map((s) => s.id))}>Select all {fresh.length}</button>
+                  <span className="text-sm font-medium text-ink">{t("Choose suppliers to ask")}</span>
+                  <button className="text-xs font-semibold text-primary-700 hover:underline" onClick={() => setPicked(fresh.map((s) => s.id))}>{t("Select all {n}", { n: fresh.length })}</button>
                 </div>
                 <div className="grid gap-1.5">
                   {fresh.map((s) => (
@@ -243,8 +255,8 @@ function Rfqs({ projectId, data, onChange }: { projectId: string; data: Outreach
                   ))}
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <Button size="sm" onClick={draft} loading={busy} disabled={!picked.length || !data.spec}>Draft {picked.length || ""} RFQ{picked.length === 1 ? "" : "s"}</Button>
-                  {!data.spec && <span className="text-xs text-slate-500">Save the spec sheet first.</span>}
+                  <Button size="sm" onClick={draft} loading={busy} disabled={!picked.length || !data.spec}>{picked.length ? t(picked.length === 1 ? "Draft {n} RFQ" : "Draft {n} RFQs", { n: picked.length }) : t("Draft RFQs")}</Button>
+                  {!data.spec && <span className="text-xs text-slate-500">{t("Save the spec sheet first.")}</span>}
                 </div>
               </div>
             )}
@@ -262,13 +274,14 @@ function Rfqs({ projectId, data, onChange }: { projectId: string; data: Outreach
 const blankSample = { supplier_id: "", quantity: 1, variant: "", unit_cost: "", shipping_cost: "", status: "requested", ordered_on: "", tracking: "" };
 
 function Samples({ projectId, data, onChange }: { projectId: string; data: Outreach; onChange: () => void }) {
+  const { t } = useT();
   const [form, setForm] = useState(blankSample);
   const [err, setErr] = useState<string | null>(null);
   const quoted = [...data.suppliers].filter((s) => s.quotes.some((q) => q.source === "rfq"))
     .sort((a, b) => Math.min(...a.quotes.map((q) => q.unit_price ?? 1e9)) - Math.min(...b.quotes.map((q) => q.unit_price ?? 1e9)));
   const body = (s: Sample, changes: Partial<Sample>) => ({ ...s, ...changes });
   const add = async () => {
-    if (!form.supplier_id) return setErr("Choose a supplier.");
+    if (!form.supplier_id) return setErr(t("Choose a supplier."));
     setErr(null);
     try {
       await post(`/api/projects/${projectId}/samples`, {
@@ -283,12 +296,12 @@ function Samples({ projectId, data, onChange }: { projectId: string; data: Outre
   const active = data.samples.filter((s) => s.status !== "rejected").length;
   return (
     <Card>
-      <CardHeader icon={<Package className="h-4 w-4" />} title="3. Samples"
-        subtitle="Order and pay on the supplier's platform; track each sample here and score it when it arrives."
-        actions={<Badge tone={active >= 2 ? "green" : "amber"}>{active} of 2-3 samples</Badge>} />
+      <CardHeader icon={<Package className="h-4 w-4" />} title={t("3. Samples")}
+        subtitle={t("Order and pay on the supplier's platform; track each sample here and score it when it arrives.")}
+        actions={<Badge tone={active >= 2 ? "green" : "amber"}>{t("{n} of 2-3 samples", { n: active })}</Badge>} />
       <CardBody className="space-y-3">
         {quoted.length > 0 && active < 2 && (
-          <p className="text-sm text-slate-600">Lowest quotes so far: {quoted.slice(0, 3).map((s) => s.name).join(", ")}.</p>
+          <p className="text-sm text-slate-600">{t("Lowest quotes so far: {names}.", { names: quoted.slice(0, 3).map((s) => s.name).join(", ") })}</p>
         )}
         {data.samples.length > 0 && (
           <ul className="divide-y divide-slate-100 rounded-lg border border-line">
@@ -298,24 +311,24 @@ function Samples({ projectId, data, onChange }: { projectId: string; data: Outre
                   <div className="min-w-0">
                     <div className="font-medium text-ink">{s.supplier_name}{s.variant ? ` · ${s.variant}` : ""}</div>
                     <div className="text-xs text-slate-500">
-                      {s.quantity} pc{s.unit_cost !== null ? ` · ${money(s.unit_cost, { decimals: 2 })} each` : ""}
-                      {s.shipping_cost !== null ? ` · shipping ${money(s.shipping_cost, { decimals: 2 })}` : ""}
-                      {s.ordered_on ? ` · ordered ${date(s.ordered_on)}` : ""}{s.tracking ? ` · tracking ${s.tracking}` : ""}
+                      {t("{n} pc", { n: s.quantity })}{s.unit_cost !== null ? ` · ${t("{price} each", { price: money(s.unit_cost, { decimals: 2 }) })}` : ""}
+                      {s.shipping_cost !== null ? ` · ${t("shipping {price}", { price: money(s.shipping_cost, { decimals: 2 }) })}` : ""}
+                      {s.ordered_on ? ` · ${t("ordered {date}", { date: date(s.ordered_on) })}` : ""}{s.tracking ? ` · ${t("tracking {code}", { code: s.tracking })}` : ""}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Select aria-label="Sample status" value={s.status} onChange={(e) => update(s, { status: e.target.value })} className="w-36">
-                      {SAMPLE_STATUS.map((x) => <option key={x} value={x}>{x[0].toUpperCase() + x.slice(1)}</option>)}
+                    <Select aria-label={t("Sample status")} value={s.status} onChange={(e) => update(s, { status: e.target.value })} className="w-36">
+                      {SAMPLE_STATUS.map((x) => <option key={x} value={x}>{t(SAMPLE_STATUS_LABEL[x])}</option>)}
                     </Select>
-                    <button className="text-xs text-slate-400 hover:text-red-600" onClick={async () => { if (window.confirm("Delete this sample record?")) { await del(`/api/samples/${s.id}`); onChange(); } }}>Delete</button>
+                    <button className="text-xs text-slate-400 hover:text-red-600" onClick={async () => { if (window.confirm(t("Delete this sample record?"))) { await del(`/api/samples/${s.id}`); onChange(); } }}>{t("Delete")}</button>
                   </div>
                 </div>
                 {["received", "approved", "rejected"].includes(s.status) && (
                   <div className="flex flex-wrap gap-3">
                     {SCORES.map((k) => (
                       <label key={k} className="flex items-center gap-1.5 text-xs text-slate-600">
-                        {k[0].toUpperCase() + k.slice(1)}
-                        <Select aria-label={`${k} score`} value={s.scores[k] ?? ""} className="w-16 py-1 text-xs"
+                        {t(SCORE_LABEL[k].label)}
+                        <Select aria-label={t(SCORE_LABEL[k].aria)} value={s.scores[k] ?? ""} className="w-16 py-1 text-xs"
                           onChange={(e) => update(s, { scores: { ...s.scores, [k]: Number(e.target.value) } })}>
                           <option value="">-</option>
                           {[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}</option>)}
@@ -330,23 +343,23 @@ function Samples({ projectId, data, onChange }: { projectId: string; data: Outre
         )}
         {data.suppliers.length > 0 && (
           <div className="grid gap-2 rounded-lg bg-canvas p-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
-            <Field label="Supplier">
+            <Field label={t("Supplier")}>
               <Select value={form.supplier_id} onChange={(e) => setForm({ ...form, supplier_id: e.target.value })}>
-                <option value="">Choose…</option>
+                <option value="">{t("Choose…")}</option>
                 {(quoted.length ? [...quoted, ...data.suppliers.filter((s) => !quoted.includes(s))] : data.suppliers).map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
               </Select>
             </Field>
-            <Field label="Variant"><Input value={form.variant} onChange={(e) => setForm({ ...form, variant: e.target.value })} placeholder="e.g. tweed, black plaid" /></Field>
-            <Field label="Pieces"><Input type="number" min={1} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} /></Field>
-            <Field label="Status">
+            <Field label={t("Variant")}><Input value={form.variant} onChange={(e) => setForm({ ...form, variant: e.target.value })} placeholder={t("e.g. tweed, black plaid")} /></Field>
+            <Field label={t("Pieces")}><Input type="number" min={1} value={form.quantity} onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })} /></Field>
+            <Field label={t("Status")}>
               <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                {SAMPLE_STATUS.slice(0, 3).map((x) => <option key={x} value={x}>{x[0].toUpperCase() + x.slice(1)}</option>)}
+                {SAMPLE_STATUS.slice(0, 3).map((x) => <option key={x} value={x}>{t(SAMPLE_STATUS_LABEL[x])}</option>)}
               </Select>
             </Field>
-            <Field label="Cost each (USD)"><Input type="number" min={0} step="0.01" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: e.target.value })} /></Field>
-            <Field label="Shipping (USD)"><Input type="number" min={0} step="0.01" value={form.shipping_cost} onChange={(e) => setForm({ ...form, shipping_cost: e.target.value })} /></Field>
-            <Field label="Ordered on"><Input type="date" value={form.ordered_on} onChange={(e) => setForm({ ...form, ordered_on: e.target.value })} /></Field>
-            <Button onClick={add}>Add sample</Button>
+            <Field label={t("Cost each (USD)")}><Input type="number" min={0} step="0.01" value={form.unit_cost} onChange={(e) => setForm({ ...form, unit_cost: e.target.value })} /></Field>
+            <Field label={t("Shipping (USD)")}><Input type="number" min={0} step="0.01" value={form.shipping_cost} onChange={(e) => setForm({ ...form, shipping_cost: e.target.value })} /></Field>
+            <Field label={t("Ordered on")}><Input type="date" value={form.ordered_on} onChange={(e) => setForm({ ...form, ordered_on: e.target.value })} /></Field>
+            <Button onClick={add}>{t("Add sample")}</Button>
             {err && <p className="text-xs text-red-700 sm:col-span-full">{err}</p>}
           </div>
         )}
@@ -357,9 +370,10 @@ function Samples({ projectId, data, onChange }: { projectId: string; data: Outre
 
 /** Spec sheet -> RFQs to 5+ suppliers at 100/300/500 units -> 2-3 samples. */
 export function OutreachSection({ projectId }: { projectId: string }) {
+  const { t } = useT();
   const data = useApi<Outreach>(`/api/projects/${projectId}/outreach`);
   if (data.loading && !data.data) return <Spinner />;
-  if (!data.data) return <Alert tone="red">{data.error ? errorText(data.error) : "Could not load quotes and samples."}</Alert>;
+  if (!data.data) return <Alert tone="red">{data.error ? errorText(data.error) : t("Could not load quotes and samples.")}</Alert>;
   return (
     <div className="space-y-4">
       <SpecSheet projectId={projectId} spec={data.data.spec} onChange={data.reload} />

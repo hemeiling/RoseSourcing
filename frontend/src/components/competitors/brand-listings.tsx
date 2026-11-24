@@ -3,14 +3,15 @@
 import clsx from "clsx";
 import { ArrowUpRight, Pencil, Star, Swords, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { DiscoveredByBadge } from "./competitor-modals";
+import { DiscoveredByBadge, useTierLabel } from "./competitor-modals";
 import { Rating, median, type Tracker } from "@/components/listing-insights";
 import { fmtFigure } from "@/components/market-size";
 import { Badge, Button, Card, CardHeader, ExternalLink, ProductThumb, Td, Th } from "@/components/ui";
-import { date, domainOf, money, num, titleCase } from "@/lib/format";
+import { date, domainOf, money, num } from "@/lib/format";
+import { useT, type MsgKey, type Vars } from "@/lib/i18n";
 import type { Competitor, CompetitorProduct, PriceObservation } from "@/lib/types";
 
-const OTHER = "Other sites";
+const OTHER = "Other sites"; // a platform value compared in code; shown with t(OTHER)
 const SHOWN = 3; // listings shown per brand before "Show all"
 
 type Row = { product: CompetitorProduct; latest: PriceObservation | null; count: number; platform: string; tracked: boolean; seller: string | null };
@@ -19,11 +20,13 @@ const latestOf = (p: CompetitorProduct) =>
   p.price_observations.reduce<PriceObservation | null>((a, o) => (!a || o.observed_at > a.observed_at ? o : a), null);
 
 /** Where a competitor's name links: its website, else the listing where it was seen. */
-function brandLink(c: Competitor, rows: Row[]) {
+function brandLink(c: Competitor, rows: Row[], t: (key: MsgKey, vars?: Vars) => string) {
   if (c.website) return { href: c.website, label: domainOf(c.website) };
   const url = rows.map((r) => r.latest?.source_url ?? r.product.url).find(Boolean);
-  return url ? { href: url, label: `listing on ${domainOf(url)}` } : null;
+  return url ? { href: url, label: t("listing on {domain}", { domain: domainOf(url) }) } : null;
 }
+
+const platformLabel = (p: string, t: (key: MsgKey) => string) => (p === OTHER ? t(OTHER) : p);
 
 /** Every competitor brand with its listings underneath: the brand's tier, channels, source and revenue, and each listing's
  *  picture, price, rating, reviews and badges as last seen. Listings the Listing Tracker picked as directly comparable are
@@ -37,6 +40,8 @@ export function BrandsAndListings({ competitors, tracker, trackedAt, onToggleWat
   onRemove: (c: Competitor) => void;
   onDetail: (c: Competitor) => void;
 }) {
+  const { t, tr, lang } = useT();
+  const tierLabel = useTierLabel();
   const [platform, setPlatform] = useState("all");
   const [trackedOnly, setTrackedOnly] = useState(false);
   const [watchOnly, setWatchOnly] = useState(false);
@@ -77,61 +82,65 @@ export function BrandsAndListings({ competitors, tracker, trackedAt, onToggleWat
 
   return (
     <Card>
-      <CardHeader title="Competitors & listings" icon={<Swords className="h-4 w-4" />}
-        subtitle={`${competitors.length} brands · ${listingCount} listings · ${competitors.filter((c) => c.on_watchlist).length} on watchlist`} />
+      <CardHeader title={t("Competitors & listings")} icon={<Swords className="h-4 w-4" />}
+        subtitle={`${t("{n} brands", { n: competitors.length })} · ${t("{n} listings", { n: listingCount })} · ${t("{n} on watchlist", { n: competitors.filter((c) => c.on_watchlist).length })}`} />
       <div className="space-y-2.5 border-b border-line px-5 py-3">
         {tracker && trackedAt ? (
           <>
             <p className="text-xs text-slate-500">
-              <span className="font-semibold text-slate-700">{tl.length} directly comparable listings</span> tracked on {date(trackedAt)}, picked
-              from {tracker.candidates_considered} search results for &quot;{tracker.keywords.join('", "')}&quot;. {tracker.left_out}
+              {tr("{listings} tracked on {date}, picked from {n} search results for \"{keywords}\".", {
+                listings: <span className="font-semibold text-slate-700">{t("{n} directly comparable listings", { n: tl.length })}</span>,
+                date: date(trackedAt),
+                n: tracker.candidates_considered,
+                keywords: tracker.keywords.join(lang === "zh" ? "”、“" : '", "'),
+              })} {tracker.left_out}
             </p>
             <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-600">
-              {prices.length > 0 && <span>Price {money(Math.min(...prices))} – {money(Math.max(...prices))}, median <b className="text-ink">{money(median(prices))}</b></span>}
-              {counts.length > 0 && <span>Median <b className="text-ink">{num(median(counts))}</b> reviews</span>}
-              <span><b className="text-ink">{tl.filter((r) => r.badges.length).length}</b> with a badge</span>
+              {prices.length > 0 && <span>{tr("Price {min} – {max}, median {median}", { min: money(Math.min(...prices)), max: money(Math.max(...prices)), median: <b className="text-ink">{money(median(prices))}</b> })}</span>}
+              {counts.length > 0 && <span>{tr("Median {n} reviews", { n: <b className="text-ink">{num(median(counts))}</b> })}</span>}
+              <span>{tr("{n} with a badge", { n: <b className="text-ink">{tl.filter((r) => r.badges.length).length}</b> })}</span>
             </div>
             {tracker.gaps.length > 0 && <ul className="list-disc space-y-0.5 pl-5 text-xs text-amber-800">{tracker.gaps.map((g) => <li key={g}>{g}</li>)}</ul>}
           </>
         ) : (
-          <p className="text-xs text-slate-500">No comparable listings tracked yet - run the Top Listings Tracker from the agents list at the top to log 15-20 with price, rating, reviews and badges.</p>
+          <p className="text-xs text-slate-500">{t("No comparable listings tracked yet - run the Top Listings Tracker from the agents list at the top to log 15-20 with price, rating, reviews and badges.")}</p>
         )}
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filter listings">
-          <button onClick={() => setPlatform("all")} aria-pressed={platform === "all"} className={chip(platform === "all")}>All · {listingCount}</button>
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t("Filter listings")}>
+          <button onClick={() => setPlatform("all")} aria-pressed={platform === "all"} className={chip(platform === "all")}>{t("All")} · {listingCount}</button>
           {platforms.map(([p, n]) => (
-            <button key={p} onClick={() => setPlatform(p)} aria-pressed={platform === p} className={chip(platform === p)}>{p} · {n}</button>
+            <button key={p} onClick={() => setPlatform(p)} aria-pressed={platform === p} className={chip(platform === p)}>{platformLabel(p, t)} · {n}</button>
           ))}
           <span className="mx-1 hidden h-4 w-px bg-line sm:inline-block" aria-hidden />
           {tracker && (
             <label className="flex items-center gap-1.5 text-xs font-medium text-slate-700">
               <input type="checkbox" checked={trackedOnly} onChange={(e) => setTrackedOnly(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
-              Comparable only
+              {t("Comparable only")}
             </label>
           )}
           <label className="ml-2 flex items-center gap-1.5 text-xs font-medium text-slate-700">
             <input type="checkbox" checked={watchOnly} onChange={(e) => setWatchOnly(e.target.checked)} className="h-4 w-4 rounded border-slate-300" />
-            Watchlist only
+            {t("Watchlist only")}
           </label>
         </div>
       </div>
       {brands.length === 0 ? (
-        <p className="px-5 py-4 text-sm text-slate-500">No competitors match these filters.</p>
+        <p className="px-5 py-4 text-sm text-slate-500">{t("No competitors match these filters.")}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px]">
             <thead className="border-b border-slate-200 bg-slate-50/60">
               <tr>
-                <Th className="w-10"><span className="sr-only">Watchlist</span></Th>
-                <Th>Competitor</Th>
-                <Th>Tier</Th>
-                <Th>Channels</Th>
-                <Th>Source</Th>
-                <Th>Price</Th>
-                <Th className="text-right">Actions</Th>
+                <Th className="w-10"><span className="sr-only">{t("Watchlist")}</span></Th>
+                <Th>{t("Competitor")}</Th>
+                <Th>{t("Tier")}</Th>
+                <Th>{t("Channels")}</Th>
+                <Th>{t("Source")}</Th>
+                <Th>{t("Price")}</Th>
+                <Th className="text-right">{t("Actions")}</Th>
               </tr>
             </thead>
             {brands.map(({ c, rows }) => {
-              const link = brandLink(c, rows);
+              const link = brandLink(c, rows, t);
               const ps = rows.flatMap((r) => (r.latest ? [r.latest.price] : []));
               const shown = open.has(c.id) ? rows : rows.slice(0, SHOWN);
               return (
@@ -139,14 +148,14 @@ export function BrandsAndListings({ competitors, tracker, trackedAt, onToggleWat
                   <tr>
                     <Td>
                       <button onClick={() => onToggleWatch(c)} className="group rounded p-1 hover:bg-amber-50" aria-pressed={c.on_watchlist}
-                        aria-label={c.on_watchlist ? `Remove ${c.name} from watchlist` : `Add ${c.name} to watchlist`}
-                        title={c.on_watchlist ? "On watchlist" : "Add to watchlist"}>
+                        aria-label={c.on_watchlist ? t("Remove {name} from watchlist", { name: c.name }) : t("Add {name} to watchlist", { name: c.name })}
+                        title={c.on_watchlist ? t("On watchlist") : t("Add to watchlist")}>
                         <Star className={c.on_watchlist ? "h-4 w-4 fill-amber-300 text-amber-500" : "h-4 w-4 text-slate-300 group-hover:text-amber-400"} />
                       </button>
                     </Td>
                     <Td>
                       {link ? (
-                        <a href={link.href} target="_blank" rel="noopener noreferrer" title={`Open ${c.name} (${link.label})`}
+                        <a href={link.href} target="_blank" rel="noopener noreferrer" title={t("Open {name} ({label})", { name: c.name, label: link.label })}
                           className="inline-flex items-start gap-1 font-medium text-primary-700 underline decoration-primary-300 underline-offset-2 hover:text-primary-800 hover:decoration-primary-800">
                           {c.name}<ArrowUpRight className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                         </a>
@@ -156,27 +165,27 @@ export function BrandsAndListings({ competitors, tracker, trackedAt, onToggleWat
                       {link && <div className="text-xs text-slate-500">{link.label}</div>}
                       {c.revenue && (
                         <div className="text-xs text-slate-600">
-                          Revenue {fmtFigure(c.revenue)}{c.revenue.year ? ` (${c.revenue.year})` : ""}
-                          {c.revenue.source_url && <> · <ExternalLink href={c.revenue.source_url}>source</ExternalLink></>}
+                          {t("Revenue {value}", { value: fmtFigure(c.revenue) })}{c.revenue.year ? ` (${c.revenue.year})` : ""}
+                          {c.revenue.source_url && <> · <ExternalLink href={c.revenue.source_url}>{t("source")}</ExternalLink></>}
                         </div>
                       )}
                       {c.positioning && <div className="mt-0.5 max-w-xs text-xs text-slate-500">{c.positioning}</div>}
                     </Td>
-                    <Td>{c.price_tier ? <Badge tone="blue">{titleCase(c.price_tier)}</Badge> : <span className="text-xs text-slate-400">Unknown</span>}</Td>
+                    <Td>{c.price_tier ? <Badge tone="blue">{tierLabel(c.price_tier)}</Badge> : <span className="text-xs text-slate-400">{t("Unknown")}</span>}</Td>
                     <Td className="max-w-[12rem] text-xs text-slate-600">{c.channels.length ? c.channels.join(", ") : <span className="text-slate-400">-</span>}</Td>
                     <Td><DiscoveredByBadge by={c.discovered_by} /></Td>
                     <Td className="text-xs text-slate-600">
                       {ps.length ? <span className="text-sm font-medium text-ink">{Math.min(...ps) === Math.max(...ps) ? money(ps[0]) : `${money(Math.min(...ps))} – ${money(Math.max(...ps))}`}</span>
-                        : <span className="text-slate-400">None recorded</span>}
-                      <div>{rows.length} listing{rows.length === 1 ? "" : "s"}</div>
+                        : <span className="text-slate-400">{t("None recorded")}</span>}
+                      <div>{t(rows.length === 1 ? "{n} listing" : "{n} listings", { n: rows.length })}</div>
                     </Td>
                     <Td className="text-right">
                       <div className="flex flex-wrap items-center justify-end gap-1">
-                        <Button size="sm" variant="secondary" onClick={() => onDetail(c)} className="whitespace-nowrap" title="Price history of every product">History</Button>
-                        <button onClick={() => onEdit(c)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800" aria-label={`Edit ${c.name}`}>
+                        <Button size="sm" variant="secondary" onClick={() => onDetail(c)} className="whitespace-nowrap" title={t("Price history of every product")}>{t("History")}</Button>
+                        <button onClick={() => onEdit(c)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800" aria-label={t("Edit {name}", { name: c.name })}>
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => onRemove(c)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Delete ${c.name}`}>
+                        <button onClick={() => onRemove(c)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={t("Delete {name}", { name: c.name })}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -192,7 +201,7 @@ export function BrandsAndListings({ competitors, tracker, trackedAt, onToggleWat
                         {rows.length > SHOWN && (
                           <button className="mt-1.5 text-xs font-semibold text-primary-700 hover:underline"
                             onClick={() => setOpen((s) => { const n = new Set(s); if (n.has(c.id)) n.delete(c.id); else n.add(c.id); return n; })}>
-                            {open.has(c.id) ? "Show fewer" : `Show all ${rows.length} listings`}
+                            {open.has(c.id) ? t("Show fewer") : t("Show all {n} listings", { n: rows.length })}
                           </button>
                         )}
                       </td>
@@ -209,6 +218,7 @@ export function BrandsAndListings({ competitors, tracker, trackedAt, onToggleWat
 }
 
 function ListingRow({ r }: { r: Row }) {
+  const { t } = useT();
   const p = r.product;
   const o = r.latest;
   const url = o?.source_url ?? p.url;
@@ -218,13 +228,13 @@ function ListingRow({ r }: { r: Row }) {
       <div className="min-w-0">
         {url ? <ExternalLink href={url} className="font-medium">{p.name}</ExternalLink> : <span className="font-medium text-ink">{p.name}</span>}
         <div className="flex flex-wrap items-center gap-x-1.5 text-xs text-slate-500">
-          {r.seller && <span>sold by {r.seller} ·</span>}
-          {o ? <span>seen {date(o.observed_at)}{r.count > 1 ? ` · ${r.count} price records` : ""}</span> : <span>no price recorded</span>}
-          {r.tracked && <Badge tone="teal" title="Picked by the Top Listings Tracker as directly comparable">Comparable</Badge>}
+          {r.seller && <span>{t("sold by {seller} ·", { seller: r.seller })}</span>}
+          {o ? <span>{t("seen {date}", { date: date(o.observed_at) })}{r.count > 1 ? ` · ${t("{n} price records", { n: r.count })}` : ""}</span> : <span>{t("no price recorded")}</span>}
+          {r.tracked && <Badge tone="teal" title={t("Picked by the Top Listings Tracker as directly comparable")}>{t("Comparable")}</Badge>}
         </div>
         {(o?.badges.length ?? 0) > 0 && <div className="mt-1 flex flex-wrap gap-1">{o!.badges.map((b) => <Badge key={b} tone="slate">{b}</Badge>)}</div>}
       </div>
-      <div className="text-xs text-slate-600 sm:text-sm">{r.platform}</div>
+      <div className="text-xs text-slate-600 sm:text-sm">{platformLabel(r.platform, t)}</div>
       <div className="font-semibold text-ink">{o ? money(o.price) : "-"}</div>
       <div className="text-xs sm:text-sm">{o ? <Rating rating={o.rating} reviews={o.review_count} /> : null}</div>
     </li>

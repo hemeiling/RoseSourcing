@@ -8,11 +8,13 @@ import { Alert, Badge, Button, Card, CardBody, CardHeader, EmptyState, Modal, Sp
 import { errorText, post } from "@/lib/api";
 import { date, money, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT } from "@/lib/i18n";
 import type { ChannelPlan, Finding, ResearchRun } from "@/lib/types";
 
 const ROLE_TONE: Record<string, Tone> = { primary: "slate", secondary: "slate", test: "slate" };
 
 function FindingChips({ ids, findings, onOpen }: { ids: string[]; findings: Record<string, Finding>; onOpen: (f: Finding) => void }) {
+  const { t } = useT();
   const items = ids.map((id) => findings[id]).filter(Boolean);
   if (!items.length) return null;
   return (
@@ -20,7 +22,7 @@ function FindingChips({ ids, findings, onOpen }: { ids: string[]; findings: Reco
       {items.map((f, i) => (
         <button key={f.id} onClick={() => onOpen(f)} title={f.claim}
           className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-brand-50 hover:text-brand-700">
-          evidence {i + 1}
+          {t("evidence {n}", { n: i + 1 })}
         </button>
       ))}
     </span>
@@ -28,6 +30,7 @@ function FindingChips({ ids, findings, onOpen }: { ids: string[]; findings: Reco
 }
 
 function PlanView({ plan, findings, onOpen, onRefresh }: { plan: ChannelPlan; findings: Record<string, Finding>; onOpen: (f: Finding) => void; onRefresh: () => void }) {
+  const { t, tr } = useT();
   const c = plan.content;
   const was = c.based_on;
   const now = plan.current;
@@ -35,22 +38,25 @@ function PlanView({ plan, findings, onOpen, onRefresh }: { plan: ChannelPlan; fi
   return (
     <div className="space-y-5">
       <Card>
-        <CardHeader title="Channel & shipping plan" icon={<Compass className="h-4 w-4" />}
-          subtitle={`AI-written ${date(plan.created_at)} from your findings and channel numbers${was ? ` at ${money(was.retail_price)} retail (saved scenario '${was.scenario}')` : ""} · ${c.generated_by.model}`} />
+        <CardHeader title={t("Channel & shipping plan")} icon={<Compass className="h-4 w-4" />}
+          subtitle={`${was
+            ? t("AI-written {date} from your findings and channel numbers at {price} retail (saved scenario '{scenario}')", { date: date(plan.created_at), price: money(was.retail_price), scenario: was.scenario })
+            : t("AI-written {date} from your findings and channel numbers", { date: date(plan.created_at) })} · ${c.generated_by.model}`} />
         <CardBody className="space-y-4">
           {plan.refreshing ? (
-            <Alert tone="blue">Rewriting the plan with your current numbers - this takes about a minute.</Alert>
+            <Alert tone="blue">{t("Rewriting the plan with your current numbers - this takes about a minute.")}</Alert>
           ) : stale && now && (
             <Alert>
-              This plan was written at <b>{money(was?.retail_price)}</b> retail. Your saved scenario <b>&apos;{now.scenario}&apos;</b> now uses <b>{money(now.retail_price)}</b>, so
-              the risks, channel picks and margins quoted below may be out of date.
-              <div className="mt-2"><Button size="sm" onClick={onRefresh}>Rewrite the plan with {money(now.retail_price)}</Button></div>
+              {tr("This plan was written at {price} retail. Your saved scenario {scenario} now uses {now}, so the risks, channel picks and margins quoted below may be out of date.", {
+                price: <b>{money(was?.retail_price)}</b>, scenario: <b>&apos;{now.scenario}&apos;</b>, now: <b>{money(now.retail_price)}</b>,
+              })}
+              <div className="mt-2"><Button size="sm" onClick={onRefresh}>{t("Rewrite the plan with {price}", { price: money(now.retail_price) })}</Button></div>
             </Alert>
           )}
           <p className="text-sm leading-relaxed text-slate-800">{c.summary}</p>
           <div className="grid gap-4">
             <div>
-              <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><Store className="h-3.5 w-3.5" /> Launch channels</h3>
+              <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><Store className="h-3.5 w-3.5" /> {t("Launch channels")}</h3>
               <ul className="space-y-2">
                 {c.launch_channels.map((p) => (
                   <li key={p.channel} className="rounded-lg border border-slate-200 p-3 text-sm">
@@ -61,25 +67,26 @@ function PlanView({ plan, findings, onOpen, onRefresh }: { plan: ChannelPlan; fi
               </ul>
               {c.channels_to_defer.length > 0 && (
                 <div className="mt-3">
-                  <div className="text-xs font-medium text-slate-500">Defer for now</div>
+                  <div className="text-xs font-medium text-slate-500">{t("Defer for now")}</div>
                   <ul className="mt-1 space-y-1 text-[13px] text-slate-600">{c.channels_to_defer.map((d) => <li key={d.channel}><span className="font-medium text-slate-800">{d.channel}:</span> {d.reason}</li>)}</ul>
                 </div>
               )}
             </div>
             <div>
-              <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><Ship className="h-3.5 w-3.5" /> Shipping & fulfillment</h3>
+              <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><Ship className="h-3.5 w-3.5" /> {t("Shipping & fulfillment")}</h3>
               <dl className="space-y-2 text-[13px]">
-                <div><dt className="font-medium text-slate-800">First order</dt><dd className="text-slate-600">{c.first_order_shipping}<FindingChips ids={c.shipping_finding_ids} findings={findings} onOpen={onOpen} /></dd></div>
-                <div><dt className="font-medium text-slate-800">Once demand is proven</dt><dd className="text-slate-600">{c.replenishment_shipping}</dd></div>
-                <div><dt className="font-medium text-slate-800">Fulfillment at launch</dt><dd className="text-slate-600">{c.fulfillment}</dd></div>
+                <div><dt className="font-medium text-slate-800">{t("First order")}</dt><dd className="text-slate-600">{c.first_order_shipping}<FindingChips ids={c.shipping_finding_ids} findings={findings} onOpen={onOpen} /></dd></div>
+                <div><dt className="font-medium text-slate-800">{t("Once demand is proven")}</dt><dd className="text-slate-600">{c.replenishment_shipping}</dd></div>
+                <div><dt className="font-medium text-slate-800">{t("Fulfillment at launch")}</dt><dd className="text-slate-600">{c.fulfillment}</dd></div>
               </dl>
             </div>
           </div>
         </CardBody>
       </Card>
       <p className="text-sm text-slate-600">
-        The plan&apos;s customs checks, risks, open questions and next steps are in{" "}
-        <a href="#actions" className="font-semibold text-primary-700 underline">Risks &amp; next steps</a>.
+        {tr("The plan's customs checks, risks, open questions and next steps are in {link}.", {
+          link: <a href="#actions" className="font-semibold text-primary-700 underline">{t("Risks & next steps")}</a>,
+        })}
       </p>
     </div>
   );
@@ -87,6 +94,7 @@ function PlanView({ plan, findings, onOpen, onRefresh }: { plan: ChannelPlan; fi
 
 /** The channel & shipping plan and its evidence (the agent runs from the agents list at the top of the report). */
 export function PlanTab({ projectId }: { projectId: string }) {
+  const { t, tr } = useT();
   const runs = useApi<ResearchRun[]>(`/api/projects/${projectId}/research-runs`);
   const plan = useApi<ChannelPlan | null>(`/api/projects/${projectId}/channels/plan`);
   const latestRun = useMemo(() => runs.data?.find((r) => r.kind === "channels_logistics") ?? null, [runs.data]);
@@ -128,25 +136,26 @@ export function PlanTab({ projectId }: { projectId: string }) {
         <PlanView plan={plan.data} findings={byId} onOpen={setOpen} onRefresh={() => setRefreshConfirm(true)} />
       ) : (
         <Card>
-          <EmptyState icon={<Compass className="h-5 w-5" />} title="No channel & shipping plan yet">
-            Run the Sales &amp; Shipping Planner from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>, or add channels and shipping quotes yourself on the other tabs - the calculators work without AI.
+          <EmptyState icon={<Compass className="h-5 w-5" />} title={t("No channel & shipping plan yet")}>
+            {tr("Run the Sales & Shipping Planner from the {link}, or add channels and shipping quotes yourself on the other tabs - the calculators work without AI.", {
+              link: <a href="#review" className="font-semibold text-primary-700 underline">{t("agents list at the top")}</a>,
+            })}
           </EmptyState>
         </Card>
       )}
 
       {evidence.length > 0 && (
         <Card>
-          <CardHeader title="Evidence from the latest run" subtitle={`${evidence.length} findings with sources, evidence type and verification status`} />
+          <CardHeader title={t("Evidence from the latest run")} subtitle={t("{n} findings with sources, evidence type and verification status", { n: evidence.length })} />
           <CardBody className="grid gap-3">{evidence.map((f) => <FindingCard key={f.id} finding={f} compact />)}</CardBody>
         </Card>
       )}
 
-      <ConfirmModal open={refreshConfirm} title="Rewrite the plan with your current numbers?" confirmLabel="Rewrite plan" busy={busy}
+      <ConfirmModal open={refreshConfirm} title={t("Rewrite the plan with your current numbers?")} confirmLabel={t("Rewrite plan")} busy={busy}
         onConfirm={refreshPlan} onClose={() => setRefreshConfirm(false)}>
-        <p>This re-runs only the plan step: one AI call (usually well under $1) using the findings already saved, your channels as they are
-          now, and your latest saved cost scenario. No new web searches. The old plan stays in the history.</p>
+        <p>{t("This re-runs only the plan step: one AI call (usually well under $1) using the findings already saved, your channels as they are now, and your latest saved cost scenario. No new web searches. The old plan stays in the history.")}</p>
       </ConfirmModal>
-      <Modal open={!!open} onClose={() => setOpen(null)} title="Evidence">{open && <FindingCard finding={open} />}</Modal>
+      <Modal open={!!open} onClose={() => setOpen(null)} title={t("Evidence")}>{open && <FindingCard finding={open} />}</Modal>
     </div>
   );
 }

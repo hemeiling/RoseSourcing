@@ -11,9 +11,11 @@ import { Alert, Badge, Button, Card, ConfigNotice, ExternalLink, PageHeader, Spi
 import { ApiError, del, errorText, get, post } from "@/lib/api";
 import { ago, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT, type MsgKey } from "@/lib/i18n";
 import type { CopilotMessage, CopilotThread } from "@/lib/types";
 
-const EXAMPLES = [
+// Shown and asked in the chosen language, so the copilot answers in it too.
+const EXAMPLES: MsgKey[] = [
   "Start market research for this product, focusing on beginners' practice wear",
   "Add Brand Z as a competitor: their practice dress is $64 at https://example.com/dress",
   "Draft an RFQ to my cheapest supplier asking for samples",
@@ -44,6 +46,7 @@ function AssistantMessage({ m }: { m: CopilotMessage }) {
   const writes = m.tool_calls.filter((c) => ["create_recommendation", "save_cost_scenario", "save_size_chart"].includes(c.tool));
   const reads = m.tool_calls.filter((c) => !writes.includes(c));
   const links = m.references.filter((r) => r.url);
+  const { t } = useT();
   return (
     <div className="flex gap-3">
       <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white"><Bot className="h-4 w-4" /></div>
@@ -65,14 +68,14 @@ function AssistantMessage({ m }: { m: CopilotMessage }) {
             {writes.map((c, i) => (
               <div key={i} className={clsx("flex items-center gap-1.5 text-xs", c.ok ? "text-emerald-700" : "text-red-700")}>
                 {c.ok ? <CheckCircle2 className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
-                {c.ok ? `Confirmed by the server: ${c.summary}` : `Not saved: ${c.summary}`}
+                {c.ok ? t("Confirmed by the server: {summary}", { summary: c.summary }) : t("Not saved: {summary}", { summary: c.summary })}
               </div>
             ))}
           </div>
         )}
         {links.length > 0 && (
           <details className="mt-2 text-xs text-slate-600">
-            <summary className="cursor-pointer select-none text-slate-500 hover:text-slate-700">Sources used ({links.length})</summary>
+            <summary className="cursor-pointer select-none text-slate-500 hover:text-slate-700">{t("Sources used ({n})", { n: links.length })}</summary>
             <ul className="mt-1.5 space-y-1 pl-1">
               {links.map((r) => (
                 <li key={`${r.type}:${r.id}`}><Badge>{titleCase(r.type)}</Badge> <ExternalLink href={r.url!}>{r.label}</ExternalLink></li>
@@ -96,6 +99,7 @@ function CopilotView({ projectId }: { projectId: string }) {
   const [configError, setConfigError] = useState<string | null>(null);
   const [loadingThread, setLoadingThread] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
+  const { t } = useT();
 
   useEffect(() => {
     setThreadId(null);
@@ -111,8 +115,8 @@ function CopilotView({ projectId }: { projectId: string }) {
     setError(null);
     setLoadingThread(true);
     try {
-      const t = await get<CopilotThread>(`/api/copilot/threads/${id}`);
-      setMessages(t.messages ?? []);
+      const thread = await get<CopilotThread>(`/api/copilot/threads/${id}`);
+      setMessages(thread.messages ?? []);
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -156,27 +160,27 @@ function CopilotView({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <PageHeader title="AI Business Copilot"
-        description="Ask questions about your project. The copilot looks up your saved research, competitors, suppliers and scenarios, cites evidence, and only reports actions the server confirms." />
+      <PageHeader title={t("AI Business Copilot")}
+        description={t("Ask questions about your project. The copilot looks up your saved research, competitors, suppliers and scenarios, cites evidence, and only reports actions the server confirms.")} />
       {!aiReady && <div className="mb-4"><ConfigNotice message={configError ?? status?.ai.requirement} /></div>}
       <div className="grid gap-4 lg:grid-cols-[240px_1fr]">
         <Card className="h-fit">
           <div className="border-b border-slate-100 p-3">
             <Button variant="secondary" size="sm" className="w-full" onClick={() => { setThreadId(null); setMessages([]); }}>
-              <MessageSquarePlus className="h-3.5 w-3.5" /> New conversation
+              <MessageSquarePlus className="h-3.5 w-3.5" /> {t("New conversation")}
             </Button>
           </div>
           <ul className="max-h-[60vh] overflow-y-auto p-1.5">
             {threads.loading && !threads.data && <li className="p-2"><Spinner /></li>}
-            {threads.data?.length === 0 && <li className="p-3 text-xs text-slate-500">No conversations yet.</li>}
-            {threads.data?.map((t) => (
-              <li key={t.id} className="group flex items-center">
-                <button onClick={() => openThread(t.id)}
-                  className={clsx("min-w-0 flex-1 rounded-md px-2.5 py-2 text-left", t.id === threadId ? "bg-brand-50 text-brand-800" : "text-slate-700 hover:bg-slate-50")}>
-                  <div className="break-words text-[13px] font-medium">{t.title}</div>
-                  <div className="text-[11px] text-slate-400">{ago(t.updated_at)}</div>
+            {threads.data?.length === 0 && <li className="p-3 text-xs text-slate-500">{t("No conversations yet.")}</li>}
+            {threads.data?.map((th) => (
+              <li key={th.id} className="group flex items-center">
+                <button onClick={() => openThread(th.id)}
+                  className={clsx("min-w-0 flex-1 rounded-md px-2.5 py-2 text-left", th.id === threadId ? "bg-brand-50 text-brand-800" : "text-slate-700 hover:bg-slate-50")}>
+                  <div className="break-words text-[13px] font-medium">{th.title}</div>
+                  <div className="text-[11px] text-slate-400">{ago(th.updated_at)}</div>
                 </button>
-                <button onClick={() => removeThread(t.id)} aria-label="Delete conversation" className="rounded p-1.5 text-slate-300 opacity-0 hover:text-red-600 group-hover:opacity-100 focus:opacity-100">
+                <button onClick={() => removeThread(th.id)} aria-label={t("Delete conversation")} className="rounded p-1.5 text-slate-300 opacity-0 hover:text-red-600 group-hover:opacity-100 focus:opacity-100">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </li>
@@ -189,12 +193,12 @@ function CopilotView({ projectId }: { projectId: string }) {
             {loadingThread && <Spinner />}
             {!loadingThread && messages.length === 0 && !pending && (
               <div className="py-6">
-                <div className="mb-4 flex items-center gap-2 text-sm font-medium text-slate-800"><Bot className="h-4 w-4 text-brand-600" /> Try asking</div>
+                <div className="mb-4 flex items-center gap-2 text-sm font-medium text-slate-800"><Bot className="h-4 w-4 text-brand-600" /> {t("Try asking")}</div>
                 <div className="grid gap-2">
                   {EXAMPLES.map((ex) => (
-                    <button key={ex} disabled={!aiReady} onClick={() => ask(ex)}
+                    <button key={ex} disabled={!aiReady} onClick={() => ask(t(ex))}
                       className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-sm text-slate-700 hover:border-brand-300 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50">
-                      {ex}
+                      {t(ex)}
                     </button>
                   ))}
                 </div>
@@ -213,7 +217,7 @@ function CopilotView({ projectId }: { projectId: string }) {
             {pending && (
               <>
                 <div className="flex justify-end"><div className="max-w-[85%] rounded-xl rounded-tr-sm bg-brand-600/80 px-4 py-2.5 text-sm text-white">{pending}</div></div>
-                <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Checking your project data...</div>
+                <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> {t("Checking your project data...")}</div>
               </>
             )}
             <div ref={bottom} />
@@ -222,10 +226,10 @@ function CopilotView({ projectId }: { projectId: string }) {
           <form onSubmit={(e: FormEvent) => { e.preventDefault(); ask(question); }} className="flex items-end gap-2 border-t border-slate-100 p-3">
             <textarea value={question} onChange={(e) => setQuestion(e.target.value)} rows={1} maxLength={4000} disabled={!aiReady}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(question); } }}
-              placeholder={aiReady ? "Ask about your market, competitors, suppliers or margins..." : "AI is not configured"}
-              aria-label="Question"
+              placeholder={aiReady ? t("Ask about your market, competitors, suppliers or margins...") : t("AI is not configured")}
+              aria-label={t("Question")}
               className="max-h-40 min-h-[42px] flex-1 resize-y rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50" />
-            <Button type="submit" disabled={!question.trim() || !!pending || !aiReady} aria-label="Send"><Send className="h-4 w-4" /></Button>
+            <Button type="submit" disabled={!question.trim() || !!pending || !aiReady} aria-label={t("Send")}><Send className="h-4 w-4" /></Button>
           </form>
         </Card>
       </div>

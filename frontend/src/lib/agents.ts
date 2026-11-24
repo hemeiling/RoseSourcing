@@ -1,11 +1,13 @@
 // The research agents. Each works on any product: run it from that product's report (its section), the copilot,
 // or Claude through the connector. Results are saved per product.
 
+import type { MsgKey } from "./i18n";
 import type { SectionId } from "./sections";
 import type { ResearchRun } from "./types";
 
 // In the order Run all runs them: each reads what the earlier ones saved, and Market Research's report comes last.
-export const AGENTS: { kind: ResearchRun["kind"]; name: string; does: string; section: SectionId }[] = [
+// `name` and `does` are English dictionary keys: show them with t(agent.name).
+export const AGENTS: { kind: ResearchRun["kind"]; name: MsgKey; does: MsgKey; section: SectionId }[] = [
   { kind: "price_tiers", name: "Price Range Finder", does: "Budget-to-luxury tiers from real Amazon and Google Shopping listings, with quality and buyer needs per tier.", section: "pricing" },
   { kind: "listing_tracker", name: "Top Listings Tracker", does: "Google Trends plus 15-20 directly comparable listings across Amazon, Etsy and brand sites, logged with price, rating, review count and badges.", section: "listings" },
   { kind: "competitor_discovery", name: "Competitor Finder", does: "Finds brands selling this product, their channels and prices; competitors are placed in price tiers.", section: "brands" },

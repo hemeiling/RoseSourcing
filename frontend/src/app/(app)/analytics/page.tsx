@@ -15,6 +15,7 @@ import {
 import { del, errorText, post, put } from "@/lib/api";
 import { date, money, num, pct, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT, type MsgKey } from "@/lib/i18n";
 import type { Experiment, Finding, ModelSpec, Opportunity, PriceTarget, Scenario, UEResults } from "@/lib/types";
 
 /** The amount at the end of each bar (left of the bar when it is negative). */
@@ -28,7 +29,7 @@ function BarValue(props: { x?: unknown; y?: unknown; width?: unknown; height?: u
   );
 }
 
-const GROUPS: { title: string; fields: string[] }[] = [
+const GROUPS: { title: MsgKey; fields: string[] }[] = [
   { title: "Pricing", fields: ["retail_price", "avg_discount_pct"] },
   { title: "Product & landed cost", fields: ["factory_cost", "freight_per_unit", "shipment_fixed_costs", "units_per_shipment", "duty_rate_pct", "import_clearance_per_unit", "packaging_per_unit"] },
   { title: "Fulfillment, payments & channel fees", fields: ["fulfillment_per_unit", "payment_fee_pct", "payment_fee_fixed", "channel_commission_pct", "channel_fee_per_order", "units_per_order"] },
@@ -39,7 +40,7 @@ const GROUPS: { title: string; fields: string[] }[] = [
 const SCENARIO_TYPES = ["hypothetical", "quote_based", "actual", "research_estimate"] as const;
 
 // Each input's name and unit: the unit is written under the name and marked inside the box ($ before, % or units after).
-const FIELDS: Record<string, { label: string; unit: string; pre?: string; post?: string }> = {
+const FIELDS: Record<string, { label: MsgKey; unit: MsgKey; pre?: string; post?: string }> = {
   retail_price: { label: "Retail price", unit: "USD per unit", pre: "$" },
   avg_discount_pct: { label: "Average discount", unit: "% off the retail price", post: "%" },
   factory_cost: { label: "Factory cost", unit: "USD per unit", pre: "$" },
@@ -64,6 +65,17 @@ const FIELDS: Record<string, { label: string; unit: string; pre?: string; post?:
   moq: { label: "Supplier MOQ", unit: "units" },
   sample_costs: { label: "Sample costs", unit: "USD in total", pre: "$" },
 };
+
+type Translate = Pick<ReturnType<typeof useT>, "t" | "tx">;
+
+/** The calculator's own sentences (warnings, notes): fixed ones through the dictionary, the two with numbers by pattern. */
+function serverText(s: string, { t, tx }: Translate): string {
+  let m = s.match(/^Budget after samples covers ~(-?\d+) units at landed cost, below the MOQ of (\d+)\.$/);
+  if (m) return t("Budget after samples covers ~{n} units at landed cost, below the MOQ of {moq}.", { n: m[1], moq: m[2] });
+  m = s.match(/^Fees, returns and discounts take (-?\d+)% of net revenue, so no price reaches a ([\d.e+-]+)% contribution margin\.$/);
+  if (m) return t("Fees, returns and discounts take {share}% of net revenue, so no price reaches a {target}% contribution margin.", { share: m[1], target: m[2] });
+  return tx(s);
+}
 
 /** A number box that can be cleared and retyped: it keeps what you type and reports the number (empty = 0). */
 function NumberInput({ id, value, onValue, pre, post }: { id: string; value: number; onValue: (v: number) => void; pre?: string; post?: string }) {
@@ -93,11 +105,11 @@ type Recommended = {
   };
 };
 
-function fmtField(k: string, v: number): string {
+function fmtField(k: string, v: number, t: ReturnType<typeof useT>["t"]): string {
   const f = FIELDS[k];
   if (f?.pre === "$") return money(v, { decimals: 2 });
   if (f?.post === "%") return `${v}%`;
-  if (f?.post === "units") return `${num(v)} units`;
+  if (f?.post === "units") return t("{n} units", { n: num(v) });
   return String(v);
 }
 
@@ -105,28 +117,33 @@ function fmtField(k: string, v: number): string {
 function RecommendPanel({ rec, busy, error, onRun, onUseAll }: {
   rec: Recommended | null | undefined; busy: boolean; error: string | null; onRun: () => void; onUseAll: () => void;
 }) {
+  const { t, tr } = useT();
   const r = rec?.content;
   return (
     <div className="rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 font-semibold text-primary-800"><Sparkles className="h-4 w-4" aria-hidden /> Recommended numbers from your research</div>
+        <div className="flex items-center gap-1.5 font-semibold text-primary-800"><Sparkles className="h-4 w-4" aria-hidden /> {t("Recommended numbers from your research")}</div>
         <div className="flex flex-wrap gap-2">
-          {r && <Button size="sm" onClick={onUseAll}>Use all</Button>}
-          <Button size="sm" variant={r ? "ghost" : "primary"} loading={busy} onClick={onRun}>{r ? "Recommend again" : "Recommend numbers"}</Button>
+          {r && <Button size="sm" onClick={onUseAll}>{t("Use all")}</Button>}
+          <Button size="sm" variant={r ? "ghost" : "primary"} loading={busy} onClick={onRun}>{r ? t("Recommend again") : t("Recommend numbers")}</Button>
         </div>
       </div>
       {!r ? (
-        <p className="mt-1 text-xs text-slate-600">Reads this product&apos;s price tiers, tracked listings, supplier prices, channel fees, shipping benchmarks, reviews and findings, then suggests each input with its reason and source. One AI call (usually under $0.50); nothing changes until you click Use.</p>
+        <p className="mt-1 text-xs text-slate-600">{t("Reads this product's price tiers, tracked listings, supplier prices, channel fees, shipping benchmarks, reviews and findings, then suggests each input with its reason and source. One AI call (usually under $0.50); nothing changes until you click Use.")}</p>
       ) : (
         <div className="mt-1 space-y-1 text-xs text-slate-700">
           <p>{r.summary}</p>
           {r.price_note && <p className="rounded bg-amber-50 px-2 py-1 text-amber-900">{r.price_note}</p>}
           <p>
-            With all of them: retail <b>{money(r.results.retail_price)}</b>, landed cost <b>{money(r.results.landed_cost)}</b> per unit,
-            contribution <b className={r.results.contribution_margin < 0 ? "text-red-700" : "text-green-700"}>{money(r.results.contribution_margin)}</b> per unit
-            ({pct(r.results.contribution_margin_pct)}), gross margin {pct(r.results.gross_margin_pct)}.
+            {tr("With all of them: retail {retail}, landed cost {landed} per unit, contribution {contribution} per unit ({share}), gross margin {gross}.", {
+              retail: <b>{money(r.results.retail_price)}</b>,
+              landed: <b>{money(r.results.landed_cost)}</b>,
+              contribution: <b className={r.results.contribution_margin < 0 ? "text-red-700" : "text-green-700"}>{money(r.results.contribution_margin)}</b>,
+              share: pct(r.results.contribution_margin_pct),
+              gross: pct(r.results.gross_margin_pct),
+            })}
           </p>
-          <p className="text-slate-500">From {r.evidence_count} pieces of evidence · {date(rec!.created_at)}{r.generated_by.cost_usd ? ` · AI cost ${money(r.generated_by.cost_usd, { decimals: 2 })}` : ""}</p>
+          <p className="text-slate-500">{t("From {n} pieces of evidence", { n: r.evidence_count })} · {date(rec!.created_at)}{r.generated_by.cost_usd ? ` · ${t("AI cost {cost}", { cost: money(r.generated_by.cost_usd, { decimals: 2 }) })}` : ""}</p>
         </div>
       )}
       {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
@@ -135,12 +152,13 @@ function RecommendPanel({ rec, busy, error, onRun, onUseAll }: {
 }
 
 function Suggestion({ item, current, onUse }: { item: Recommended["content"]["inputs"][number]; current: number; onUse: () => void }) {
+  const { t, tx } = useT();
   const same = Math.abs((current ?? 0) - item.value) < 1e-9;
   return (
     <div className="mt-1 text-[11px] leading-snug text-slate-600">
-      <span className="font-semibold text-primary-800">Suggested {fmtField(item.field, item.value)}</span>
-      <span className="text-slate-500"> · {BASIS_META[item.basis]?.label ?? item.basis}{item.basis !== "assumption" && !item.exact_in_source ? " (estimated from the source)" : ""}</span>
-      {" "}{same ? <span className="text-green-700">· in use</span> : <button className="font-semibold text-primary-700 hover:underline" onClick={onUse}>Use</button>}
+      <span className="font-semibold text-primary-800">{t("Suggested {value}", { value: fmtField(item.field, item.value, t) })}</span>
+      <span className="text-slate-500"> · {BASIS_META[item.basis] ? tx(BASIS_META[item.basis].label) : item.basis}{item.basis !== "assumption" && !item.exact_in_source ? ` ${t("(estimated from the source)")}` : ""}</span>
+      {" "}{same ? <span className="text-green-700">· {t("in use")}</span> : <button className="font-semibold text-primary-700 hover:underline" onClick={onUse}>{t("Use")}</button>}
       <div>{item.why}{item.sources.map((s, i) => (
         <span key={s.ref}>{" "}{s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-primary-700 underline" title={s.label}>[{i + 1}]</a> : <span title={s.label}>[{i + 1}]</span>}</span>
       ))}</div>
@@ -151,31 +169,32 @@ function Suggestion({ item, current, onUse }: { item: Recommended["content"]["in
 const TARGETS = [10, 20, 30, 40, 50];
 
 function PriceTargets({ r, inputs, onUsePrice }: { r: UEResults; inputs: Record<string, number>; onUsePrice: (p: number) => void }) {
+  const { t, tx } = useT();
   const [custom, setCustom] = useState("");
   const [customRow, setCustomRow] = useState<PriceTarget | null>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
-    const t = Number(custom);
-    if (custom === "" || !Number.isFinite(t)) { setCustomRow(null); setErr(null); return; }
+    const target = Number(custom);
+    if (custom === "" || !Number.isFinite(target)) { setCustomRow(null); setErr(null); return; }
     const timer = setTimeout(() => {
-      post<PriceTarget>("/api/analytics/price-for-margin", { inputs, target_margin_pct: t })
+      post<PriceTarget>("/api/analytics/price-for-margin", { inputs, target_margin_pct: target })
         .then((row) => { setCustomRow(row); setErr(null); }).catch((e) => { setCustomRow(null); setErr(errorText(e)); });
     }, 300);
     return () => clearTimeout(timer);
   }, [custom, inputs]);
   const rows = [...(r.price_targets ?? []).filter((x) => TARGETS.includes(x.target_pct)), ...(customRow ? [customRow] : [])];
   const cell = (p: number | null, note?: string | null) => p === null
-    ? <span className="text-xs text-slate-500" title={note ?? undefined}>Not reachable</span>
-    : <button className="font-semibold tabular-nums text-primary-700 hover:underline" title="Use this retail price" onClick={() => onUsePrice(p)}>{money(p)}</button>;
+    ? <span className="text-xs text-slate-500" title={note ? serverText(note, { t, tx }) : undefined}>{t("Not reachable")}</span>
+    : <button className="font-semibold tabular-nums text-primary-700 hover:underline" title={t("Use this retail price")} onClick={() => onUsePrice(p)}>{money(p)}</button>;
+  const note = rows.find((x) => x.contribution_margin_price === null && x.contribution_note)?.contribution_note;
   return (
     <div>
-      <div className="mb-1 text-xs font-medium text-slate-600">Retail price for a target margin</div>
+      <div className="mb-1 text-xs font-medium text-slate-600">{t("Retail price for a target margin")}</div>
       <p className="mb-2 text-xs text-slate-500">
-        Gross margin = (price after discount - landed cost) / price after discount. Contribution margin also takes off fulfillment,
-        fees, returns and marketing. Click a price to use it.
+        {t("Gross margin = (price after discount - landed cost) / price after discount. Contribution margin also takes off fulfillment, fees, returns and marketing. Click a price to use it.")}
       </p>
       <table className="w-full text-sm">
-        <thead><tr className="text-left text-xs text-slate-500"><th className="py-1 font-medium">Target margin (%)</th><th className="py-1 font-medium">Price for gross margin (USD)</th><th className="py-1 font-medium">Price for contribution margin (USD)</th></tr></thead>
+        <thead><tr className="text-left text-xs text-slate-500"><th className="py-1 font-medium">{t("Target margin (%)")}</th><th className="py-1 font-medium">{t("Price for gross margin (USD)")}</th><th className="py-1 font-medium">{t("Price for contribution margin (USD)")}</th></tr></thead>
         <tbody className="divide-y divide-slate-100">
           {rows.map((x, i) => (
             <tr key={`${x.target_pct}-${i}`}>
@@ -187,51 +206,48 @@ function PriceTargets({ r, inputs, onUsePrice }: { r: UEResults; inputs: Record<
         </tbody>
       </table>
       <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
-        Custom target
-        <Input type="number" min={0} max={99} step="any" inputMode="decimal" value={custom} onChange={(e) => setCustom(e.target.value)} className="w-24" placeholder="e.g. 35" />
+        {t("Custom target")}
+        <Input type="number" min={0} max={99} step="any" inputMode="decimal" value={custom} onChange={(e) => setCustom(e.target.value)} className="w-24" placeholder={t("e.g. 35")} />
         %
       </label>
       {err && <p className="mt-1 text-xs text-red-700">{err}</p>}
-      {rows.some((x) => x.contribution_margin_price === null && x.contribution_note) && (
-        <p className="mt-1 text-xs text-slate-500">{rows.find((x) => x.contribution_margin_price === null && x.contribution_note)?.contribution_note}</p>
-      )}
+      {note && <p className="mt-1 text-xs text-slate-500">{serverText(note, { t, tx })}</p>}
     </div>
   );
 }
 
 function ShipmentSizes({ r, fixed, onUse, onFixed }: { r: UEResults; fixed: number; onUse: (units: number) => void; onFixed: (v: number) => void }) {
+  const { t, tr } = useT();
   if (!r.by_shipment_size?.length) return null;
   if (!fixed)
     return (
       <div className="rounded-lg border border-line p-3">
-        <div className="mb-1 text-xs font-medium text-slate-600">Per-unit cost by shipment size</div>
+        <div className="mb-1 text-xs font-medium text-slate-600">{t("Per-unit cost by shipment size")}</div>
         <p className="text-xs text-slate-600">
-          Shipment size changes the cost per unit once you enter a <b>fixed cost per shipment</b> - the fees paid once however many
-          units ship: customs broker and entry, documents, delivery to your warehouse, the carrier&apos;s minimum charge. Ask your
-          forwarder to list them in the quote.
+          {tr("Shipment size changes the cost per unit once you enter a {fixed} - the fees paid once however many units ship: customs broker and entry, documents, delivery to your warehouse, the carrier's minimum charge. Ask your forwarder to list them in the quote.", {
+            fixed: <b>{t("fixed cost per shipment")}</b>,
+          })}
         </p>
-        <Button size="sm" variant="ghost" className="mt-1" onClick={() => onFixed(200)}>Try an example: $200 per shipment</Button>
+        <Button size="sm" variant="ghost" className="mt-1" onClick={() => onFixed(200)}>{t("Try an example: $200 per shipment")}</Button>
       </div>
     );
   return (
     <div>
-      <div className="mb-1 text-xs font-medium text-slate-600">Per-unit cost by shipment size</div>
+      <div className="mb-1 text-xs font-medium text-slate-600">{t("Per-unit cost by shipment size")}</div>
       <p className="mb-2 text-xs text-slate-500">
-        The fixed cost per shipment (broker, customs entry, documents, delivery, minimum charges) is shared by every unit, so
-        bigger shipments cost less per unit. Carriers also charge less per kg above weight breaks, and sea freight becomes
-        worth it at larger volumes - enter that quote&apos;s freight per unit to see it. Bigger orders need more cash up front.
+        {t("The fixed cost per shipment (broker, customs entry, documents, delivery, minimum charges) is shared by every unit, so bigger shipments cost less per unit. Carriers also charge less per kg above weight breaks, and sea freight becomes worth it at larger volumes - enter that quote's freight per unit to see it. Bigger orders need more cash up front.")}
       </p>
       <table className="w-full text-sm">
         <thead><tr className="text-left text-xs text-slate-500">
-          <th className="py-1 font-medium">Shipment (units)</th><th className="py-1 font-medium">Shipping (USD/unit)</th><th className="py-1 font-medium">Landed (USD/unit)</th>
-          <th className="py-1 font-medium">Contribution (USD/unit)</th><th className="py-1 font-medium">Order cost (USD)</th>
+          <th className="py-1 font-medium">{t("Shipment (units)")}</th><th className="py-1 font-medium">{t("Shipping (USD/unit)")}</th><th className="py-1 font-medium">{t("Landed (USD/unit)")}</th>
+          <th className="py-1 font-medium">{t("Contribution (USD/unit)")}</th><th className="py-1 font-medium">{t("Order cost (USD)")}</th>
         </tr></thead>
         <tbody className="divide-y divide-slate-100">
           {r.by_shipment_size.map((s) => (
             <tr key={s.units} className={s.current ? "bg-slate-50 font-semibold" : undefined}>
               <td className="py-1.5">
-                {s.current ? <span>{num(s.units)} (now)</span>
-                  : <button className="text-primary-700 hover:underline" title="Use this shipment size" onClick={() => onUse(s.units)}>{num(s.units)}</button>}
+                {s.current ? <span>{t("{n} (now)", { n: num(s.units) })}</span>
+                  : <button className="text-primary-700 hover:underline" title={t("Use this shipment size")} onClick={() => onUse(s.units)}>{num(s.units)}</button>}
               </td>
               <td className="py-1.5 tabular-nums">{money(s.shipping_per_unit)}</td>
               <td className="py-1.5 tabular-nums">{money(s.landed_cost)}</td>
@@ -246,22 +262,23 @@ function ShipmentSizes({ r, fixed, onUse, onFixed }: { r: UEResults; fixed: numb
 }
 
 function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Record<string, number>; onSet: (k: string, v: number) => void }) {
-  if (!r) return <Spinner label="Calculating..." />;
+  const { t, tx, lang } = useT();
+  if (!r) return <Spinner label={t("Calculating...")} />;
   const pu = r.per_unit;
   const lc = r.landed_cost_breakdown;
   // Costs in the logo's soft lavender; the result carries meaning (teal = each sale earns, pink = each sale loses).
   const COST = "#b9a7f6";
   const waterfall = [
-    { name: "Factory", value: lc.factory_cost, color: COST },
-    { name: "Freight", value: (lc.freight ?? 0) + (lc.shipment_fees ?? 0), color: COST },
-    { name: "Duty", value: lc.duty, color: COST },
-    { name: "Clearance+pkg", value: (lc.clearance ?? 0) + (lc.packaging ?? 0), color: COST },
-    { name: "Fulfillment", value: pu.fulfillment, color: COST },
-    { name: "Payment fees", value: pu.payment_fees, color: COST },
-    { name: "Channel fees", value: pu.channel_fees ?? 0, color: COST },
-    { name: "Returns", value: (pu.return_handling ?? 0) + (pu.unsellable_loss ?? 0), color: COST },
-    { name: "Marketing", value: pu.marketing, color: COST },
-    { name: "Contribution", value: r.contribution_margin, color: r.contribution_margin >= 0 ? "#0f9e90" : "#e8467c" },
+    { name: t("Factory"), value: lc.factory_cost, color: COST },
+    { name: t("Freight"), value: (lc.freight ?? 0) + (lc.shipment_fees ?? 0), color: COST },
+    { name: t("Duty"), value: lc.duty, color: COST },
+    { name: t("Clearance+pkg"), value: (lc.clearance ?? 0) + (lc.packaging ?? 0), color: COST },
+    { name: t("Fulfillment"), value: pu.fulfillment, color: COST },
+    { name: t("Payment fees"), value: pu.payment_fees, color: COST },
+    { name: t("Channel fees"), value: pu.channel_fees ?? 0, color: COST },
+    { name: t("Returns"), value: (pu.return_handling ?? 0) + (pu.unsellable_loss ?? 0), color: COST },
+    { name: t("Marketing"), value: pu.marketing, color: COST },
+    { name: t("Contribution"), value: r.contribution_margin, color: r.contribution_margin >= 0 ? "#0f9e90" : "#e8467c" },
   ];
   const lo = Math.min(0, ...waterfall.map((d) => d.value));
   const hi = Math.max(0, ...waterfall.map((d) => d.value));
@@ -271,32 +288,32 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-lg bg-slate-50 p-3">
-          <div className="text-xs text-slate-500">Contribution (USD per unit)</div>
+          <div className="text-xs text-slate-500">{t("Contribution (USD per unit)")}</div>
           <div className={`text-2xl font-semibold ${r.contribution_margin >= 0 ? "text-ink" : "text-red-700"}`}>{money(r.contribution_margin)}</div>
-          <div className="text-xs text-slate-500">{pct(r.contribution_margin_pct)} of net revenue</div>
+          <div className="text-xs text-slate-500">{t("{share} of net revenue", { share: pct(r.contribution_margin_pct) })}</div>
         </div>
         <div className="rounded-lg bg-slate-50 p-3">
-          <div className="text-xs text-slate-500">Landed cost (USD per unit)</div>
+          <div className="text-xs text-slate-500">{t("Landed cost (USD per unit)")}</div>
           <div className="text-2xl font-semibold text-slate-900">{money(lc.landed_cost)}</div>
-          <div className="text-xs text-slate-500">Gross margin {pct(r.gross_margin_pct)}</div>
+          <div className="text-xs text-slate-500">{t("Gross margin {share}", { share: pct(r.gross_margin_pct) })}</div>
         </div>
       </div>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <div><dt className="text-xs text-slate-500">Break-even CAC</dt><dd className="font-medium">{money(r.breakeven_cac)} <span className="text-xs font-normal text-slate-500">per order</span></dd></div>
-        <div><dt className="text-xs text-slate-500">Sales needed to cover fixed costs</dt><dd className="font-medium">{r.breakeven_units_per_month === null ? "-" : <>{num(r.breakeven_units_per_month, 1)} <span className="text-xs font-normal text-slate-500">units per month</span></>}</dd></div>
-        <div><dt className="text-xs text-slate-500">MOQ inventory cost (landed)</dt><dd className="font-medium">{money(r.moq_inventory_cost)}</dd></div>
-        <div><dt className="text-xs text-slate-500">Units affordable with budget</dt><dd className="font-medium">{num(r.affordable_units_with_budget)} <span className="text-xs font-normal text-slate-500">units</span></dd></div>
-        <div className="col-span-2"><dt className="text-xs text-slate-500">Sales to recover the initial investment</dt><dd className="font-medium">{r.units_to_recover_investment === null ? "-" : <>{num(r.units_to_recover_investment, 0)} <span className="text-xs font-normal text-slate-500">units</span></>}</dd></div>
+        <div><dt className="text-xs text-slate-500">{t("Break-even CAC")}</dt><dd className="font-medium">{money(r.breakeven_cac)} <span className="text-xs font-normal text-slate-500">{t("per order")}</span></dd></div>
+        <div><dt className="text-xs text-slate-500">{t("Sales needed to cover fixed costs")}</dt><dd className="font-medium">{r.breakeven_units_per_month === null ? "-" : <>{num(r.breakeven_units_per_month, 1)} <span className="text-xs font-normal text-slate-500">{t("units per month")}</span></>}</dd></div>
+        <div><dt className="text-xs text-slate-500">{t("MOQ inventory cost (landed)")}</dt><dd className="font-medium">{money(r.moq_inventory_cost)}</dd></div>
+        <div><dt className="text-xs text-slate-500">{t("Units affordable with budget")}</dt><dd className="font-medium">{num(r.affordable_units_with_budget)} <span className="text-xs font-normal text-slate-500">{t("units")}</span></dd></div>
+        <div className="col-span-2"><dt className="text-xs text-slate-500">{t("Sales to recover the initial investment")}</dt><dd className="font-medium">{r.units_to_recover_investment === null ? "-" : <>{num(r.units_to_recover_investment, 0)} <span className="text-xs font-normal text-slate-500">{t("units")}</span></>}</dd></div>
       </dl>
       {r.warnings.length > 0 && (
         <ul className="space-y-1">
           {r.warnings.map((w) => (
-            <li key={w} className="flex gap-1.5 text-xs text-amber-800"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />{w}</li>
+            <li key={w} className="flex gap-1.5 text-xs text-amber-800"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />{serverText(w, { t, tx })}</li>
           ))}
         </ul>
       )}
       <div>
-        <div className="mb-1 text-xs font-medium text-slate-600">Where each sale&apos;s revenue goes (USD per unit)</div>
+        <div className="mb-1 text-xs font-medium text-slate-600">{t("Where each sale's revenue goes (USD per unit)")}</div>
         <div style={{ height: waterfall.length * 28 + 30 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={waterfall} layout="vertical" margin={{ left: 4, right: 56, top: 4, bottom: 4 }}>
@@ -305,7 +322,7 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
               <YAxis type="category" dataKey="name" width={92} fontSize={11} interval={0} />
               <ReferenceLine x={0} stroke="#64748b" />
               <Tooltip formatter={(v) => money(Number(v))} />
-              <Bar dataKey="value" radius={[3, 3, 3, 3]} barSize={16}>
+              <Bar dataKey="value" name={lang === "zh" ? t("USD per unit") : undefined} radius={[3, 3, 3, 3]} barSize={16}>
                 {waterfall.map((d) => <Cell key={d.name} fill={d.color} />)}
                 <LabelList dataKey="value" content={BarValue} />
               </Bar>
@@ -316,7 +333,7 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
       <PriceTargets r={r} inputs={inputs} onUsePrice={(p) => onSet("retail_price", p)} />
       <ShipmentSizes r={r} fixed={inputs.shipment_fixed_costs ?? 0} onUse={(n) => onSet("units_per_shipment", n)} onFixed={(v) => onSet("shipment_fixed_costs", v)} />
       <div>
-        <div className="mb-1 text-xs font-medium text-slate-600">Price sensitivity: contribution (USD per unit) at each retail price (USD)</div>
+        <div className="mb-1 text-xs font-medium text-slate-600">{t("Price sensitivity: contribution (USD per unit) at each retail price (USD)")}</div>
         <div className="h-44">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={r.price_sensitivity} margin={{ left: 0, right: 20, top: 5 }}>
@@ -324,8 +341,8 @@ function ResultsPanel({ r, inputs, onSet }: { r: UEResults | null; inputs: Recor
               <XAxis dataKey="price" tickFormatter={(v) => `$${v}`} fontSize={11} />
               <YAxis tickFormatter={(v) => `$${v}`} fontSize={11} />
               <ReferenceLine y={0} stroke="#e8467c" strokeDasharray="4 4" />
-              <Tooltip formatter={(v, n) => (n === "margin_pct" ? pct(Number(v)) : money(Number(v)))} labelFormatter={(l) => `Price ${money(Number(l))}`} />
-              <Line type="monotone" dataKey="contribution_margin" name="Contribution" stroke="#5b3bc9" strokeWidth={2} dot />
+              <Tooltip formatter={(v, n) => (n === "margin_pct" ? pct(Number(v)) : money(Number(v)))} labelFormatter={(l) => t("Price {price}", { price: money(Number(l)) })} />
+              <Line type="monotone" dataKey="contribution_margin" name={t("Contribution")} stroke="#5b3bc9" strokeWidth={2} dot />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -338,6 +355,7 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
   projectId: string; spec: ModelSpec; scenarios: Scenario[]; reload: () => void; loadId: string | null; onLoaded: () => void;
 }) {
   const { project } = useProjects();
+  const { t, tx, tr, lang } = useT();
   const [inputs, setInputs] = useState<Record<string, number>>(() => ({
     ...spec.defaults,
     ...(project?.budget_usd != null ? { initial_investment: project.budget_usd } : {}),
@@ -449,44 +467,46 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
     <div className="grid gap-5">
       <Card >
         <CardHeader
-          title={editing ? `Editing: ${editing.name}` : "Unit economics calculator"}
-          subtitle={`${assumptionCount} of ${Object.keys(spec.defaults).length} inputs are assumptions. Tag each input with where the number came from. Channels, suppliers and plans use your latest saved scenario - save to use these numbers there.`}
+          title={editing ? t("Editing: {name}", { name: editing.name }) : t("Unit economics calculator")}
+          subtitle={t("{n} of {total} inputs are assumptions. Tag each input with where the number came from. Channels, suppliers and plans use your latest saved scenario - save to use these numbers there.", { n: assumptionCount, total: Object.keys(spec.defaults).length })}
           icon={<Calculator className="h-4 w-4" />}
           actions={
             <>
-              {editing && <Button size="sm" variant="ghost" onClick={() => { setEditing(null); setName(""); }}>Start new</Button>}
-              <Button size="sm" onClick={() => setSaveOpen(true)}><Save className="h-3.5 w-3.5" /> {editing ? "Save" : "Save scenario"}</Button>
+              {editing && <Button size="sm" variant="ghost" onClick={() => { setEditing(null); setName(""); }}>{t("Start new")}</Button>}
+              <Button size="sm" onClick={() => setSaveOpen(true)}><Save className="h-3.5 w-3.5" /> {editing ? t("Save") : t("Save scenario")}</Button>
             </>
           }
         />
         <CardBody className="space-y-4">
           {!editing && (source === "recommended"
-            ? <Alert tone="blue">Showing the numbers recommended from this product&apos;s research. Save them as a scenario to use them in the other tabs.</Alert>
-            : <Alert tone="blue">No saved numbers for this product yet, so these are example values. Click <b>Recommend numbers</b> to fill them from its research, or run market research first.</Alert>)}
+            ? <Alert tone="blue">{t("Showing the numbers recommended from this product's research. Save them as a scenario to use them in the other tabs.")}</Alert>
+            : <Alert tone="blue">{tr("No saved numbers for this product yet, so these are example values. Click {button} to fill them from its research, or run market research first.", { button: <b>{t("Recommend numbers")}</b> })}</Alert>)}
           {estimate && (
             <p className="text-sm text-slate-600">
-              These are the Market Analyst&apos;s estimates from its report of {date(estimate.created_at)}. Open <b>Why this number</b> under an
-              input to see its reasoning and evidence; anything marked Assumption still needs a real quote or source.
+              {tr("These are the Market Analyst's estimates from its report of {date}. Open {why} under an input to see its reasoning and evidence; anything marked Assumption still needs a real quote or source.", {
+                date: date(estimate.created_at),
+                why: <b>{t("Why this number")}</b>,
+              })}
             </p>
           )}
           <RecommendPanel rec={rec.data} busy={recBusy} error={recError} onRun={runRecommend} onUseAll={applyAll} />
           {GROUPS.map((g) => (
             <fieldset key={g.title}>
-              <legend className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{g.title}</legend>
+              <legend className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">{t(g.title)}</legend>
               <div className="grid gap-x-3 gap-y-2.5 sm:grid-cols-2">
                 {g.fields.map((k) => (
                   <div key={k}>
                     {/* Name on one line, unit on the next: every label is two lines, so the boxes in a row line up. */}
-                    <label className="mb-1 block leading-tight" htmlFor={`in-${k}`} title={spec.descriptions[k]}>
-                      <span className="block text-xs font-medium text-slate-700">{FIELDS[k]?.label ?? spec.labels[k] ?? titleCase(k)}</span>
-                      <span className="block text-[11px] text-slate-500">{FIELDS[k]?.unit ?? "\u00a0"}</span>
+                    <label className="mb-1 block leading-tight" htmlFor={`in-${k}`} title={spec.descriptions[k] && tx(spec.descriptions[k])}>
+                      <span className="block text-xs font-medium text-slate-700">{FIELDS[k] ? t(FIELDS[k].label) : spec.labels[k] != null ? tx(spec.labels[k]) : titleCase(k)}</span>
+                      <span className="block text-[11px] text-slate-500">{FIELDS[k] ? t(FIELDS[k].unit) : "\u00a0"}</span>
                     </label>
                     <div className="flex gap-1.5">
                       <NumberInput id={`in-${k}`} value={inputs[k]} pre={FIELDS[k]?.pre} post={FIELDS[k]?.post} onValue={(v) => setInputs((cur) => ({ ...cur, [k]: v }))} />
-                      <select aria-label={`Source of ${spec.labels[k]}`} title="Where this number came from" value={basis[k] ?? "assumption"}
+                      <select aria-label={t("Source of {label}", { label: lang === "zh" && FIELDS[k] ? t(FIELDS[k].label) : String(spec.labels[k]) })} title={t("Where this number came from")} value={basis[k] ?? "assumption"}
                         onChange={(e) => setBasis((b) => ({ ...b, [k]: e.target.value }))}
                         className="h-9 w-[7.25rem] shrink-0 rounded-md border border-slate-200 bg-slate-50 px-1.5 text-[11px] text-slate-600">
-                        {Object.entries(BASIS_META).map(([v, m]) => <option key={v} value={v} title={m.label}>{v === "sourced_research" ? "Research" : m.label}</option>)}
+                        {Object.entries(BASIS_META).map(([v, m]) => <option key={v} value={v} title={tx(m.label)}>{v === "sourced_research" ? t("Research") : tx(m.label)}</option>)}
                       </select>
                     </div>
                     {recBy[k] && <Suggestion item={recBy[k]} current={inputs[k]} onUse={() => {
@@ -495,7 +515,7 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
                     }} />}
                     {why[k]?.note && (
                       <details className="mt-1 text-xs text-slate-600">
-                        <summary className="cursor-pointer font-medium text-primary-700">Why this number</summary>
+                        <summary className="cursor-pointer font-medium text-primary-700">{t("Why this number")}</summary>
                         <p className="mt-1">{why[k].note}</p>
                         <FindingChips ids={why[k].finding_ids} index={evidence.index} loading={evidence.loading} onOpen={setOpenFinding} />
                       </details>
@@ -508,27 +528,27 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
         </CardBody>
       </Card>
       <Card >
-        <CardHeader title="Results" subtitle="Deterministic model - same math the AI copilot uses" icon={<Gauge className="h-4 w-4" />} />
+        <CardHeader title={t("Results")} subtitle={t("Deterministic model - same math the AI copilot uses")} icon={<Gauge className="h-4 w-4" />} />
         <CardBody>{calcError ? <Alert tone="red">{calcError}</Alert>
           : <ResultsPanel r={results} inputs={inputs} onSet={(k, v) => setInputs((cur) => ({ ...cur, [k]: v }))} />}</CardBody>
       </Card>
 
-      <Modal open={!!openFinding} onClose={() => setOpenFinding(null)} title="Evidence" wide>
+      <Modal open={!!openFinding} onClose={() => setOpenFinding(null)} title={t("Evidence")} wide>
         {openFinding && <FindingCard finding={openFinding} />}
       </Modal>
-      <Modal open={saveOpen} onClose={() => setSaveOpen(false)} title={editing ? "Save scenario" : "Save new scenario"}>
+      <Modal open={saveOpen} onClose={() => setSaveOpen(false)} title={editing ? t("Save scenario") : t("Save new scenario")}>
         <div className="space-y-3">
-          <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. $69 price, sea freight" /></Field>
-          <Field label="Scenario type" hint="Use 'actual' only when the inputs come from real orders and invoices.">
+          <Field label={t("Name")}><Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("e.g. $69 price, sea freight")} /></Field>
+          <Field label={t("Scenario type")} hint={t("Use 'actual' only when the inputs come from real orders and invoices.")}>
             <Select value={stype} onChange={(e) => setStype(e.target.value)}>
-              {SCENARIO_TYPES.map((t) => <option key={t} value={t}>{titleCase(t)}</option>)}
+              {SCENARIO_TYPES.map((st) => <option key={st} value={st}>{titleCase(st)}</option>)}
             </Select>
           </Field>
-          <Field label="Notes"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} /></Field>
+          <Field label={t("Notes")}><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} /></Field>
           {saveError && <Alert tone="red">{saveError}</Alert>}
           <div className="flex justify-end gap-2">
-            {editing && <Button variant="secondary" loading={busy} onClick={() => save(true)}>Save as new</Button>}
-            <Button loading={busy} onClick={() => save(false)}>{editing ? "Update scenario" : "Save"}</Button>
+            {editing && <Button variant="secondary" loading={busy} onClick={() => save(true)}>{t("Save as new")}</Button>}
+            <Button loading={busy} onClick={() => save(false)}>{editing ? t("Update scenario") : t("Save")}</Button>
           </div>
         </div>
       </Modal>
@@ -537,6 +557,7 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
 }
 
 function CompareTab({ scenarios, spec, onLoad, reload }: { scenarios: Scenario[]; spec: ModelSpec; onLoad: (id: string) => void; reload: () => void }) {
+  const { t } = useT();
   const [selected, setSelected] = useState<string[]>(() => scenarios.slice(0, 3).map((s) => s.id));
   const [error, setError] = useState<string | null>(null);
   const chosen = scenarios.filter((s) => selected.includes(s.id));
@@ -552,9 +573,9 @@ function CompareTab({ scenarios, spec, onLoad, reload }: { scenarios: Scenario[]
     }
   }
 
-  if (!scenarios.length) return <Card><EmptyState icon={<Calculator className="h-5 w-5" />} title="No saved scenarios">Save scenarios from the calculator, a supplier quote, or a research report to compare them here.</EmptyState></Card>;
+  if (!scenarios.length) return <Card><EmptyState icon={<Calculator className="h-5 w-5" />} title={t("No saved scenarios")}>{t("Save scenarios from the calculator, a supplier quote, or a research report to compare them here.")}</EmptyState></Card>;
 
-  const rows: { label: string; get: (s: Scenario) => string; key?: string }[] = [
+  const rows: { label: MsgKey; get: (s: Scenario) => string; key?: string }[] = [
     { label: "Type", get: (s) => titleCase(s.scenario_type) },
     { label: "Retail price", get: (s) => money(s.inputs.retail_price), key: "retail_price" },
     { label: "Factory cost", get: (s) => money(s.inputs.factory_cost), key: "factory_cost" },
@@ -572,26 +593,26 @@ function CompareTab({ scenarios, spec, onLoad, reload }: { scenarios: Scenario[]
     <div className="space-y-5">
       {error && <Alert tone="red">{error}</Alert>}
       <Card>
-        <CardHeader title="Saved scenarios" subtitle="Select up to 4 to compare" />
+        <CardHeader title={t("Saved scenarios")} subtitle={t("Select up to 4 to compare")} />
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px]">
-            <thead className="border-b border-slate-100 bg-slate-50"><tr><Th /><Th>Name</Th><Th>Type</Th><Th>Assumptions</Th><Th>Contribution</Th><Th>Updated</Th><Th /></tr></thead>
+            <thead className="border-b border-slate-100 bg-slate-50"><tr><Th /><Th>{t("Name")}</Th><Th>{t("Type")}</Th><Th>{t("Assumptions")}</Th><Th>{t("Contribution")}</Th><Th>{t("Updated")}</Th><Th /></tr></thead>
             <tbody className="divide-y divide-slate-100">
               {scenarios.map((s) => {
                 const nAssume = Object.keys(spec.defaults).filter((k) => (s.input_basis[k] ?? "assumption").startsWith("assumption")).length;
                 return (
                   <tr key={s.id}>
-                    <Td><input type="checkbox" aria-label={`Compare ${s.name}`} checked={selected.includes(s.id)}
+                    <Td><input type="checkbox" aria-label={t("Compare {name}", { name: s.name })} checked={selected.includes(s.id)}
                       onChange={(e) => setSelected((cur) => (e.target.checked ? [...cur, s.id].slice(-4) : cur.filter((x) => x !== s.id)))} /></Td>
-                    <Td className="font-medium text-slate-900">{s.name}{s.created_by !== "user" && <span className="ml-1.5 text-[11px] font-normal text-slate-400">by {titleCase(s.created_by)}</span>}</Td>
+                    <Td className="font-medium text-slate-900">{s.name}{s.created_by !== "user" && <span className="ml-1.5 text-[11px] font-normal text-slate-400">{t("by {who}", { who: titleCase(s.created_by) })}</span>}</Td>
                     <Td><Badge tone={s.scenario_type === "actual" ? "green" : "slate"}>{titleCase(s.scenario_type)}</Badge></Td>
-                    <Td>{nAssume} of {Object.keys(spec.defaults).length}</Td>
+                    <Td>{t("{n} of {total}", { n: nAssume, total: Object.keys(spec.defaults).length })}</Td>
                     <Td className={s.results.contribution_margin >= 0 ? "text-ink" : "text-red-700"}>{money(s.results.contribution_margin)}</Td>
                     <Td className="text-xs text-slate-500">{date(s.updated_at)}</Td>
                     <Td>
                       <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => onLoad(s.id)} aria-label="Open in calculator"><Pencil className="h-3.5 w-3.5" /></Button>
-                        <Button size="sm" variant="ghost" onClick={() => remove(s.id)} aria-label="Delete scenario"><Trash2 className="h-3.5 w-3.5" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => onLoad(s.id)} aria-label={t("Open in calculator")}><Pencil className="h-3.5 w-3.5" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => remove(s.id)} aria-label={t("Delete scenario")}><Trash2 className="h-3.5 w-3.5" /></Button>
                       </div>
                     </Td>
                   </tr>
@@ -603,7 +624,7 @@ function CompareTab({ scenarios, spec, onLoad, reload }: { scenarios: Scenario[]
       </Card>
       {chosen.length > 0 && (
         <Card>
-          <CardHeader title="Comparison" subtitle="Badges show where each input came from" />
+          <CardHeader title={t("Comparison")} subtitle={t("Badges show where each input came from")} />
           <CardBody>
             <div className="mb-5 h-56">
               <ResponsiveContainer width="100%" height="100%">
@@ -614,18 +635,18 @@ function CompareTab({ scenarios, spec, onLoad, reload }: { scenarios: Scenario[]
                   <Tooltip formatter={(v) => money(Number(v))} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <ReferenceLine y={0} stroke="#94a3b8" />
-                  <Bar dataKey="landed" name="Landed cost (USD/unit)" fill="#b9a7f6" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="contribution" name="Contribution (USD/unit)" fill="#0f9e90" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="landed" name={t("Landed cost (USD/unit)")} fill="#b9a7f6" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="contribution" name={t("Contribution (USD/unit)")} fill="#0f9e90" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[560px] text-sm">
-                <thead className="border-b border-slate-100"><tr><Th>Metric</Th>{chosen.map((s) => <Th key={s.id}>{s.name}</Th>)}</tr></thead>
+                <thead className="border-b border-slate-100"><tr><Th>{t("Metric")}</Th>{chosen.map((s) => <Th key={s.id}>{s.name}</Th>)}</tr></thead>
                 <tbody className="divide-y divide-slate-100">
                   {rows.map((row) => (
                     <tr key={row.label}>
-                      <Td className="text-xs font-medium text-slate-500">{row.label}</Td>
+                      <Td className="text-xs font-medium text-slate-500">{t(row.label)}</Td>
                       {chosen.map((s) => (
                         <Td key={s.id}>
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -647,6 +668,7 @@ function CompareTab({ scenarios, spec, onLoad, reload }: { scenarios: Scenario[]
 }
 
 function ExperimentsTab({ projectId }: { projectId: string }) {
+  const { t } = useT();
   const { data, reload, loading } = useApi<Experiment[]>(`/api/projects/${projectId}/experiments`);
   const blank = { name: "", hypothesis: "", method: "", success_metric: "", status: "planned", result: "", start_date: "", end_date: "" };
   const [form, setForm] = useState<typeof blank & { id?: string }>(blank);
@@ -670,11 +692,11 @@ function ExperimentsTab({ projectId }: { projectId: string }) {
 
   return (
     <Card>
-      <CardHeader title="Validation experiments" icon={<FlaskConical className="h-4 w-4" />}
-        subtitle="Track the cheap tests that turn assumptions into evidence (landing pages, pre-orders, sample feedback, pricing tests)."
-        actions={<Button size="sm" onClick={() => { setForm(blank); setOpen(true); }}><Plus className="h-3.5 w-3.5" /> New experiment</Button>} />
+      <CardHeader title={t("Validation experiments")} icon={<FlaskConical className="h-4 w-4" />}
+        subtitle={t("Track the cheap tests that turn assumptions into evidence (landing pages, pre-orders, sample feedback, pricing tests).")}
+        actions={<Button size="sm" onClick={() => { setForm(blank); setOpen(true); }}><Plus className="h-3.5 w-3.5" /> {t("New experiment")}</Button>} />
       {loading && !data ? <CardBody><Spinner /></CardBody> : !data?.length ? (
-        <EmptyState icon={<FlaskConical className="h-5 w-5" />} title="No experiments yet">Record what you will test, how you will measure it, and what happened.</EmptyState>
+        <EmptyState icon={<FlaskConical className="h-5 w-5" />} title={t("No experiments yet")}>{t("Record what you will test, how you will measure it, and what happened.")}</EmptyState>
       ) : (
         <ul className="divide-y divide-slate-100">
           {data.map((x) => (
@@ -684,35 +706,35 @@ function ExperimentsTab({ projectId }: { projectId: string }) {
                 <Badge tone={x.status === "completed" ? "green" : x.status === "running" ? "blue" : x.status === "abandoned" ? "slate" : "amber"}>{titleCase(x.status)}</Badge>
                 {(x.start_date || x.end_date) && <span className="text-xs text-slate-400">{date(x.start_date)} → {date(x.end_date)}</span>}
                 <div className="ml-auto flex gap-1">
-                  <Button size="sm" variant="ghost" aria-label="Edit experiment" onClick={() => { setForm({ ...blank, ...x, method: x.method ?? "", success_metric: x.success_metric ?? "", result: x.result ?? "", start_date: x.start_date ?? "", end_date: x.end_date ?? "" }); setOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button size="sm" variant="ghost" aria-label="Delete experiment" onClick={async () => { await del(`/api/experiments/${x.id}`).catch(() => {}); reload(); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <Button size="sm" variant="ghost" aria-label={t("Edit experiment")} onClick={() => { setForm({ ...blank, ...x, method: x.method ?? "", success_metric: x.success_metric ?? "", result: x.result ?? "", start_date: x.start_date ?? "", end_date: x.end_date ?? "" }); setOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
+                  <Button size="sm" variant="ghost" aria-label={t("Delete experiment")} onClick={async () => { await del(`/api/experiments/${x.id}`).catch(() => {}); reload(); }}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               </div>
-              <p className="mt-1 text-sm text-slate-700"><span className="text-slate-500">Hypothesis:</span> {x.hypothesis}</p>
-              {x.success_metric && <p className="text-xs text-slate-600"><span className="text-slate-500">Success metric:</span> {x.success_metric}</p>}
-              {x.result && <p className="mt-1 text-xs text-slate-700"><span className="font-medium">Result:</span> {x.result}</p>}
+              <p className="mt-1 text-sm text-slate-700"><span className="text-slate-500">{t("Hypothesis:")}</span> {x.hypothesis}</p>
+              {x.success_metric && <p className="text-xs text-slate-600"><span className="text-slate-500">{t("Success metric:")}</span> {x.success_metric}</p>}
+              {x.result && <p className="mt-1 text-xs text-slate-700"><span className="font-medium">{t("Result:")}</span> {x.result}</p>}
             </li>
           ))}
         </ul>
       )}
-      <Modal open={open} onClose={() => setOpen(false)} title={form.id ? "Edit experiment" : "New experiment"}>
+      <Modal open={open} onClose={() => setOpen(false)} title={form.id ? t("Edit experiment") : t("New experiment")}>
         <div className="space-y-3">
-          <Field label="Name"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-          <Field label="Hypothesis"><Textarea rows={2} value={form.hypothesis} onChange={(e) => setForm({ ...form, hypothesis: e.target.value })} /></Field>
-          <Field label="Method"><Textarea rows={2} value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} /></Field>
-          <Field label="Success metric"><Input value={form.success_metric} onChange={(e) => setForm({ ...form, success_metric: e.target.value })} /></Field>
+          <Field label={t("Name")}><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
+          <Field label={t("Hypothesis")}><Textarea rows={2} value={form.hypothesis} onChange={(e) => setForm({ ...form, hypothesis: e.target.value })} /></Field>
+          <Field label={t("Method")}><Textarea rows={2} value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value })} /></Field>
+          <Field label={t("Success metric")}><Input value={form.success_metric} onChange={(e) => setForm({ ...form, success_metric: e.target.value })} /></Field>
           <div className="grid grid-cols-3 gap-3">
-            <Field label="Status">
+            <Field label={t("Status")}>
               <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                 {["planned", "running", "completed", "abandoned"].map((s) => <option key={s} value={s}>{titleCase(s)}</option>)}
               </Select>
             </Field>
-            <Field label="Start"><Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></Field>
-            <Field label="End"><Input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} /></Field>
+            <Field label={t("Start")}><Input type="date" value={form.start_date} onChange={(e) => setForm({ ...form, start_date: e.target.value })} /></Field>
+            <Field label={t("End")}><Input type="date" value={form.end_date} onChange={(e) => setForm({ ...form, end_date: e.target.value })} /></Field>
           </div>
-          <Field label="Result"><Textarea rows={2} value={form.result} onChange={(e) => setForm({ ...form, result: e.target.value })} /></Field>
+          <Field label={t("Result")}><Textarea rows={2} value={form.result} onChange={(e) => setForm({ ...form, result: e.target.value })} /></Field>
           {error && <Alert tone="red">{error}</Alert>}
-          <div className="flex justify-end"><Button onClick={save} disabled={!form.name.trim() || !form.hypothesis.trim()}>Save</Button></div>
+          <div className="flex justify-end"><Button onClick={save} disabled={!form.name.trim() || !form.hypothesis.trim()}>{t("Save")}</Button></div>
         </div>
       </Modal>
     </Card>
@@ -722,6 +744,7 @@ function ExperimentsTab({ projectId }: { projectId: string }) {
 type Tab = "calculator" | "compare" | "experiments";
 
 function AnalyticsView({ projectId }: { projectId: string }) {
+  const { t } = useT();
   const params = useSearchParams();
   const [tab, setTab] = useState<Tab>("calculator");
   // ?scenario=<id> (e.g. from a research report or supplier quote) opens that scenario in the calculator.
@@ -732,12 +755,12 @@ function AnalyticsView({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <PageHeader title="Analytics" description="Model unit economics with clearly labelled inputs, save and compare scenarios, and track validation experiments and AI spend."
-        badge={<Badge tone="slate" title="Sales performance analytics need a connected store">Sales analytics: <PlannedBadge /></Badge>} />
+      <PageHeader title={t("Analytics")} description={t("Model unit economics with clearly labelled inputs, save and compare scenarios, and track validation experiments and AI spend.")}
+        badge={<Badge tone="slate" title={t("Sales performance analytics need a connected store")}>{t("Sales analytics:")} <PlannedBadge /></Badge>} />
       <Tabs<Tab> value={tab} onChange={setTab} tabs={[
-        { value: "calculator", label: "Unit economics" },
-        { value: "compare", label: `Scenarios (${list.length})` },
-        { value: "experiments", label: "Experiments" },
+        { value: "calculator", label: t("Unit economics") },
+        { value: "compare", label: t("Scenarios ({n})", { n: list.length }) },
+        { value: "experiments", label: t("Experiments") },
       ]} />
       {!spec.data ? <Spinner /> : (
         <>

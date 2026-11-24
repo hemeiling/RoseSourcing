@@ -5,16 +5,25 @@ import { useEffect, useState, type FormEvent } from "react";
 import { del, errorText, patch, post } from "@/lib/api";
 import type { Competitor, CompetitorProduct } from "@/lib/types";
 import { date, domainOf, money, titleCase } from "@/lib/format";
+import { useT, type MsgKey } from "@/lib/i18n";
 import { Alert, Badge, Button, ExternalLink, Field, Input, Modal, ProductThumb, Select, Td, Textarea, Th } from "@/components/ui";
 import { VerificationBadge } from "@/components/evidence";
 
 export const TIERS = ["budget", "mid", "premium", "luxury"] as const;
 
+/** A price tier ("budget") as shown: "Budget" in English. In Chinese the stored value is the key, because "Budget" is
+ *  also the project's money budget (预算) while the tier is 平价. */
+export function useTierLabel() {
+  const { tx, lang } = useT();
+  return (tier: string) => (lang === "zh" ? tx(tier) : titleCase(tier));
+}
+
 export function DiscoveredByBadge({ by }: { by: string }) {
-  if (by === "ai_research") return <Badge tone="violet">AI research</Badge>;
-  if (by === "csv") return <Badge tone="blue">CSV import</Badge>;
-  if (by === "listing_tracker") return <Badge tone="teal">Top Listings Tracker</Badge>;
-  return <Badge tone="slate">Manual</Badge>;
+  const { t } = useT();
+  if (by === "ai_research") return <Badge tone="violet">{t("AI research")}</Badge>;
+  if (by === "csv") return <Badge tone="blue">{t("CSV import")}</Badge>;
+  if (by === "listing_tracker") return <Badge tone="teal">{t("Top Listings Tracker")}</Badge>;
+  return <Badge tone="slate">{t("Manual")}</Badge>;
 }
 
 /** Format a price in its own currency; falls back to plain text for unusual codes. */
@@ -35,7 +44,7 @@ export function numOrNull(s: string): number | null {
 
 const splitList = (s: string) =>
   s
-    .split(/[,;]/)
+    .split(/[,;，；、]/)
     .map((x) => x.trim())
     .filter(Boolean);
 
@@ -54,6 +63,8 @@ export function CompetitorFormModal({
   competitor: Competitor | null;
   onSaved: () => void;
 }) {
+  const { t } = useT();
+  const tierLabel = useTierLabel();
   const [form, setForm] = useState({ name: "", website: "", country: "", positioning: "", price_tier: "", channels: "", notes: "", on_watchlist: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,51 +113,51 @@ export function CompetitorFormModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={competitor ? `Edit ${competitor.name}` : "Add competitor"}>
+    <Modal open={open} onClose={onClose} title={competitor ? t("Edit {name}", { name: competitor.name }) : t("Add competitor")}>
       <form onSubmit={submit} className="space-y-3">
-        <Field label="Name">
+        <Field label={t("Name")}>
           <Input required value={form.name} onChange={set("name")} maxLength={200} />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Website">
+          <Field label={t("Website")}>
             <Input type="url" value={form.website} onChange={set("website")} placeholder="https://" />
           </Field>
-          <Field label="Country">
+          <Field label={t("Country")}>
             <Input value={form.country} onChange={set("country")} />
           </Field>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Price tier">
+          <Field label={t("Price tier")}>
             <Select value={form.price_tier} onChange={set("price_tier")}>
-              <option value="">Unknown</option>
-              {TIERS.map((t) => (
-                <option key={t} value={t}>
-                  {titleCase(t)}
+              <option value="">{t("Unknown")}</option>
+              {TIERS.map((tier) => (
+                <option key={tier} value={tier}>
+                  {tierLabel(tier)}
                 </option>
               ))}
             </Select>
           </Field>
-          <Field label="Sales channels" hint="Comma-separated, e.g. own website, Amazon, studios">
+          <Field label={t("Sales channels")} hint={t("Comma-separated, e.g. own website, Amazon, studios")}>
             <Input value={form.channels} onChange={set("channels")} />
           </Field>
         </div>
-        <Field label="Positioning">
-          <Textarea value={form.positioning} onChange={set("positioning")} rows={2} placeholder="How the brand presents itself" />
+        <Field label={t("Positioning")}>
+          <Textarea value={form.positioning} onChange={set("positioning")} rows={2} placeholder={t("How the brand presents itself")} />
         </Field>
-        <Field label="Notes">
+        <Field label={t("Notes")}>
           <Textarea value={form.notes} onChange={set("notes")} rows={2} />
         </Field>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={form.on_watchlist} onChange={(e) => setForm((f) => ({ ...f, on_watchlist: e.target.checked }))} className="h-4 w-4 rounded border-slate-300" />
-          Add to watchlist
+          {t("Add to watchlist")}
         </label>
         {error && <Alert tone="red">{error}</Alert>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="secondary" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button type="submit" loading={busy}>
-            {competitor ? "Save changes" : "Add competitor"}
+            {competitor ? t("Save changes") : t("Add competitor")}
           </Button>
         </div>
       </form>
@@ -157,6 +168,7 @@ export function CompetitorFormModal({
 // ----------------------------------------------------------------------------- detail
 
 function AddPriceForm({ product, onSaved }: { product: CompetitorProduct; onSaved: () => void }) {
+  const { t } = useT();
   const [open, setOpen] = useState(false);
   const [price, setPrice] = useState("");
   const [currency, setCurrency] = useState("USD");
@@ -170,7 +182,7 @@ function AddPriceForm({ product, onSaved }: { product: CompetitorProduct; onSave
     e.preventDefault();
     const p = numOrNull(price);
     if (p === null || p <= 0) {
-      setError("Enter a price greater than 0.");
+      setError(t("Enter a price greater than 0."));
       return;
     }
     setBusy(true);
@@ -197,32 +209,32 @@ function AddPriceForm({ product, onSaved }: { product: CompetitorProduct; onSave
   if (!open)
     return (
       <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
-        <Plus className="h-3.5 w-3.5" aria-hidden /> Add price observation
+        <Plus className="h-3.5 w-3.5" aria-hidden /> {t("Add price observation")}
       </Button>
     );
   return (
     <form onSubmit={submit} className="mt-2 grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-6">
-      <Field label="Price" className="sm:col-span-1">
+      <Field label={t("Price")} className="sm:col-span-1">
         <Input inputMode="decimal" required value={price} onChange={(e) => setPrice(e.target.value)} />
       </Field>
-      <Field label="Currency" className="sm:col-span-1">
+      <Field label={t("Currency")} className="sm:col-span-1">
         <Input value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} maxLength={8} />
       </Field>
-      <Field label="Observed on" className="sm:col-span-2">
+      <Field label={t("Observed on")} className="sm:col-span-2">
         <Input type="date" value={observed} onChange={(e) => setObserved(e.target.value)} />
       </Field>
-      <Field label="Source URL" className="sm:col-span-2" hint="With a URL, this is recorded as observed by you.">
+      <Field label={t("Source URL")} className="sm:col-span-2" hint={t("With a URL, this is recorded as observed by you.")}>
         <Input type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" />
       </Field>
-      <Field label="Note" className="sm:col-span-4">
-        <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. sale price, size XS" />
+      <Field label={t("Note")} className="sm:col-span-4">
+        <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("e.g. sale price, size XS")} />
       </Field>
       <div className="flex items-end justify-end gap-2 sm:col-span-2">
         <Button type="button" size="sm" variant="secondary" onClick={() => setOpen(false)}>
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button type="submit" size="sm" loading={busy}>
-          Save price
+          {t("Save price")}
         </Button>
       </div>
       {error && (
@@ -235,6 +247,7 @@ function AddPriceForm({ product, onSaved }: { product: CompetitorProduct; onSave
 }
 
 function AddProductForm({ competitorId, onSaved }: { competitorId: string; onSaved: () => void }) {
+  const { t } = useT();
   const [form, setForm] = useState({ name: "", url: "", product_type: "", material: "", price: "", currency: "USD", source_url: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -244,7 +257,7 @@ function AddProductForm({ competitorId, onSaved }: { competitorId: string; onSav
     e.preventDefault();
     const price = numOrNull(form.price);
     if (form.price.trim() && (price === null || price <= 0)) {
-      setError("Initial price must be a number greater than 0.");
+      setError(t("Initial price must be a number greater than 0."));
       return;
     }
     setBusy(true);
@@ -268,36 +281,36 @@ function AddProductForm({ competitorId, onSaved }: { competitorId: string; onSav
 
   return (
     <form onSubmit={submit} className="space-y-2 rounded-lg border border-dashed border-slate-300 p-3">
-      <div className="text-xs font-semibold text-slate-700">Add product</div>
+      <div className="text-xs font-semibold text-slate-700">{t("Add product")}</div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <Field label="Product name">
+        <Field label={t("Product name")}>
           <Input required value={form.name} onChange={set("name")} maxLength={300} />
         </Field>
-        <Field label="Product URL">
+        <Field label={t("Product URL")}>
           <Input type="url" value={form.url} onChange={set("url")} placeholder="https://" />
         </Field>
-        <Field label="Type">
-          <Input value={form.product_type} onChange={set("product_type")} placeholder="e.g. Latin practice dress" />
+        <Field label={t("Type")}>
+          <Input value={form.product_type} onChange={set("product_type")} placeholder={t("e.g. Latin practice dress")} />
         </Field>
-        <Field label="Material">
+        <Field label={t("Material")}>
           <Input value={form.material} onChange={set("material")} />
         </Field>
       </div>
       <div className="grid gap-2 sm:grid-cols-4">
-        <Field label="Initial price (optional)">
+        <Field label={t("Initial price (optional)")}>
           <Input inputMode="decimal" value={form.price} onChange={set("price")} />
         </Field>
-        <Field label="Currency">
+        <Field label={t("Currency")}>
           <Input value={form.currency} onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value.toUpperCase() }))} maxLength={8} />
         </Field>
-        <Field label="Price source URL" className="sm:col-span-2" hint="Defaults to the product URL.">
+        <Field label={t("Price source URL")} className="sm:col-span-2" hint={t("Defaults to the product URL.")}>
           <Input type="url" value={form.source_url} onChange={set("source_url")} placeholder="https://" />
         </Field>
       </div>
       {error && <Alert tone="red">{error}</Alert>}
       <div className="flex justify-end">
         <Button type="submit" size="sm" loading={busy}>
-          <Plus className="h-3.5 w-3.5" aria-hidden /> Add product
+          <Plus className="h-3.5 w-3.5" aria-hidden /> {t("Add product")}
         </Button>
       </div>
     </form>
@@ -305,12 +318,14 @@ function AddProductForm({ competitorId, onSaved }: { competitorId: string; onSav
 }
 
 export function CompetitorDetailModal({ competitor, onClose, onChanged }: { competitor: Competitor | null; onClose: () => void; onChanged: () => void }) {
+  const { t } = useT();
+  const tierLabel = useTierLabel();
   const [error, setError] = useState<string | null>(null);
   if (!competitor) return null;
   const c = competitor;
 
-  async function remove(path: string, what: string) {
-    if (!window.confirm(`Delete this ${what}? This cannot be undone.`)) return;
+  async function remove(path: string, question: MsgKey) {
+    if (!window.confirm(t(question))) return;
     setError(null);
     try {
       await del(path);
@@ -325,19 +340,19 @@ export function CompetitorDetailModal({ competitor, onClose, onChanged }: { comp
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <DiscoveredByBadge by={c.discovered_by} />
-          {c.price_tier && <Badge tone="blue">{titleCase(c.price_tier)}</Badge>}
-          {c.on_watchlist && <Badge tone="slate">Watchlist</Badge>}
+          {c.price_tier && <Badge tone="blue">{tierLabel(c.price_tier)}</Badge>}
+          {c.on_watchlist && <Badge tone="slate">{t("Watchlist")}</Badge>}
           {c.website && <ExternalLink href={c.website}>{domainOf(c.website)}</ExternalLink>}
           {c.country && <span className="text-xs text-slate-500">{c.country}</span>}
         </div>
-        {c.positioning && <p className="text-sm text-slate-700"><span className="font-medium">Positioning:</span> {c.positioning}</p>}
-        {c.channels.length > 0 && <p className="text-sm text-slate-700"><span className="font-medium">Channels:</span> {c.channels.join(", ")}</p>}
-        {c.notes && <p className="text-sm text-slate-700"><span className="font-medium">Notes:</span> {c.notes}</p>}
+        {c.positioning && <p className="text-sm text-slate-700"><span className="font-medium">{t("Positioning:")}</span> {c.positioning}</p>}
+        {c.channels.length > 0 && <p className="text-sm text-slate-700"><span className="font-medium">{t("Channels:")}</span> {c.channels.join(", ")}</p>}
+        {c.notes && <p className="text-sm text-slate-700"><span className="font-medium">{t("Notes:")}</span> {c.notes}</p>}
         {error && <Alert tone="red">{error}</Alert>}
 
         <div>
-          <h3 className="mb-2 text-sm font-semibold text-slate-900">Products &amp; price history</h3>
-          {c.products.length === 0 && <p className="text-sm text-slate-500">No products recorded yet.</p>}
+          <h3 className="mb-2 text-sm font-semibold text-slate-900">{t("Products & price history")}</h3>
+          {c.products.length === 0 && <p className="text-sm text-slate-500">{t("No products recorded yet.")}</p>}
           <div className="space-y-3">
             {c.products.map((p) => (
               <div key={p.id} className="rounded-lg border border-slate-200 p-3">
@@ -349,11 +364,11 @@ export function CompetitorDetailModal({ competitor, onClose, onChanged }: { comp
                         {p.url ? <ExternalLink href={p.url}>{p.name}</ExternalLink> : p.name}
                       </div>
                       <div className="text-xs text-slate-500">
-                        {[p.product_type, p.material, p.notes].filter(Boolean).join(" · ") || "No details"}
+                        {[p.product_type, p.material, p.notes].filter(Boolean).join(" · ") || t("No details")}
                       </div>
                     </div>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={() => remove(`/api/competitor-products/${p.id}`, "product and its price history")} aria-label={`Delete ${p.name}`}>
+                  <Button size="sm" variant="ghost" onClick={() => remove(`/api/competitor-products/${p.id}`, "Delete this product and its price history? This cannot be undone.")} aria-label={t("Delete {name}", { name: p.name })}>
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -362,11 +377,11 @@ export function CompetitorDetailModal({ competitor, onClose, onChanged }: { comp
                     <table className="w-full min-w-[560px]">
                       <thead className="border-b border-slate-100">
                         <tr>
-                          <Th>Observed</Th>
-                          <Th>Price</Th>
-                          <Th>Source</Th>
-                          <Th>Verification</Th>
-                          <Th>Note</Th>
+                          <Th>{t("Observed")}</Th>
+                          <Th>{t("Price")}</Th>
+                          <Th>{t("Source")}</Th>
+                          <Th>{t("Verification")}</Th>
+                          <Th>{t("Note")}</Th>
                           <Th />
                         </tr>
                       </thead>
@@ -378,7 +393,7 @@ export function CompetitorDetailModal({ competitor, onClose, onChanged }: { comp
                               <Td className="whitespace-nowrap text-xs">{date(o.observed_at)}</Td>
                               <Td className="whitespace-nowrap font-medium text-slate-900">{fmtPrice(o.price, o.currency)}</Td>
                               <Td className="text-xs">
-                                {o.source_url ? <ExternalLink href={o.source_url}>{domainOf(o.source_url)}</ExternalLink> : <span className="text-slate-400">no link</span>}
+                                {o.source_url ? <ExternalLink href={o.source_url}>{domainOf(o.source_url)}</ExternalLink> : <span className="text-slate-400">{t("no link")}</span>}
                                 <div className="text-slate-400">{titleCase(o.source_type)}</div>
                               </Td>
                               <Td>
@@ -387,9 +402,9 @@ export function CompetitorDetailModal({ competitor, onClose, onChanged }: { comp
                               <Td className="text-xs text-slate-600">{o.note ?? ""}</Td>
                               <Td>
                                 <button
-                                  onClick={() => remove(`/api/price-observations/${o.id}`, "price observation")}
+                                  onClick={() => remove(`/api/price-observations/${o.id}`, "Delete this price observation? This cannot be undone.")}
                                   className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                                  aria-label="Delete price observation"
+                                  aria-label={t("Delete price observation")}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </button>
@@ -400,7 +415,7 @@ export function CompetitorDetailModal({ competitor, onClose, onChanged }: { comp
                     </table>
                   </div>
                 ) : (
-                  <p className="mt-2 text-xs text-slate-500">No price observations.</p>
+                  <p className="mt-2 text-xs text-slate-500">{t("No price observations.")}</p>
                 )}
                 <AddPriceForm product={p} onSaved={onChanged} />
               </div>

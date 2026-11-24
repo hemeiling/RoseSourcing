@@ -22,8 +22,9 @@ import {
   type Tone,
 } from "@/components/ui";
 import { ApiError, del, errorText, patch, post } from "@/lib/api";
-import { date } from "@/lib/format";
+import { date, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT, type MsgKey } from "@/lib/i18n";
 import type { BrandConcept } from "@/lib/types";
 
 const KINDS = [
@@ -49,6 +50,7 @@ export default function BrandPage() {
 
 function BrandStudio({ projectId }: { projectId: string }) {
   const { status } = useStatus();
+  const { t, tx, lang } = useT();
   const concepts = useApi<BrandConcept[]>(`/api/projects/${projectId}/brand-concepts`);
   const [kind, setKind] = useState<Kind>("names");
   const [brief, setBrief] = useState("");
@@ -58,6 +60,11 @@ function BrandStudio({ projectId }: { projectId: string }) {
   const [filter, setFilter] = useState<"all" | Kind>("all");
 
   const aiMissing = status && !status.ai.configured;
+  // A draft type inside a sentence: lower case in English ("Generate brand names"), as is in Chinese.
+  const kindWord = (label: MsgKey | undefined) => (!label ? "" : lang === "zh" ? t(label) : label.toLowerCase());
+  const kindLabel = KINDS.find((k) => k.value === kind)?.label;
+  const filterLabel = KINDS.find((k) => k.value === filter)?.label;
+  const kindDesc = KINDS.find((k) => k.value === kind)?.desc;
 
   async function generate() {
     setBusy(true);
@@ -96,39 +103,39 @@ function BrandStudio({ projectId }: { projectId: string }) {
   return (
     <div>
       <PageHeader
-        title="Brand Studio"
-        description="Generate brand drafts grounded in this project's research, segments and competitors. Everything here is an AI-generated draft for you to refine."
+        title={t("Brand Studio")}
+        description={t("Generate brand drafts grounded in this project's research, segments and competitors. Everything here is an AI-generated draft for you to refine.")}
       />
 
       {/* One card: pick the draft type (the same dropdown filters the saved drafts), add a brief, generate. */}
       <Card>
-        <CardHeader title="Brand & content studio" icon={<Sparkles className="h-4 w-4" />}
-          subtitle="Pick a brand draft or launch content, add an optional brief and generate - saved below, newest first. Uses this product's research (no new searches)." />
+        <CardHeader title={t("Brand & content studio")} icon={<Sparkles className="h-4 w-4" />}
+          subtitle={t("Pick a brand draft or launch content, add an optional brief and generate - saved below, newest first. Uses this product's research (no new searches).")} />
         <div className="space-y-1.5 border-b border-line px-5 py-3">
           {aiMissing && <ConfigNotice message={status?.ai.requirement} />}
           <div className="flex flex-wrap items-center gap-2">
             <div className="w-60 shrink-0">
-              <Select aria-label="Draft type" value={filter} className="h-8 py-0!"
+              <Select aria-label={t("Draft type")} value={filter} className="h-8 py-0!"
                 onChange={(e) => { const v = e.target.value as "all" | Kind; setFilter(v); if (v !== "all") setKind(v); }}>
-                <option value="all">All drafts ({concepts.data?.length ?? 0})</option>
-                <optgroup label="Brand">
-                  {KINDS.filter((k) => !("content" in k)).map((k) => <option key={k.value} value={k.value}>{k.label}{counts[k.value] ? ` (${counts[k.value]} saved)` : ""}</option>)}
+                <option value="all">{t("All drafts ({n})", { n: concepts.data?.length ?? 0 })}</option>
+                <optgroup label={t("Brand")}>
+                  {KINDS.filter((k) => !("content" in k)).map((k) => <option key={k.value} value={k.value}>{counts[k.value] ? t("{kind} ({n} saved)", { kind: t(k.label), n: counts[k.value] }) : t(k.label)}</option>)}
                 </optgroup>
-                <optgroup label="Content (from your buyer research)">
-                  {KINDS.filter((k) => "content" in k).map((k) => <option key={k.value} value={k.value}>{k.label}{counts[k.value] ? ` (${counts[k.value]} saved)` : ""}</option>)}
+                <optgroup label={t("Content (from your buyer research)")}>
+                  {KINDS.filter((k) => "content" in k).map((k) => <option key={k.value} value={k.value}>{counts[k.value] ? t("{kind} ({n} saved)", { kind: t(k.label), n: counts[k.value] }) : t(k.label)}</option>)}
                 </optgroup>
               </Select>
             </div>
-            <Input aria-label="Brief (optional)" className="h-8 min-w-[12rem] flex-1 py-0!" value={brief} maxLength={2000} onChange={(e) => setBrief(e.target.value)}
-              placeholder="Brief (optional): tone, audience, words to use" title="Tone, constraints, words you like or dislike, segments to focus on" />
+            <Input aria-label={t("Brief (optional)")} className="h-8 min-w-[12rem] flex-1 py-0!" value={brief} maxLength={2000} onChange={(e) => setBrief(e.target.value)}
+              placeholder={t("Brief (optional): tone, audience, words to use")} title={t("Tone, constraints, words you like or dislike, segments to focus on")} />
             <Button size="sm" onClick={generate} loading={busy} disabled={!!aiMissing || filter === "all"}
-              title={filter === "all" ? "Choose a draft type first" : undefined}>
-              <Sparkles className="h-3.5 w-3.5" /> Generate{filter === "all" ? "" : ` ${KINDS.find((k) => k.value === kind)?.label.toLowerCase()}`}
+              title={filter === "all" ? t("Choose a draft type first") : undefined}>
+              <Sparkles className="h-3.5 w-3.5" /> {filter === "all" ? t("Generate") : t("Generate {kind}", { kind: kindWord(kindLabel) })}
             </Button>
           </div>
           <p className="text-xs text-slate-500">
-            {filter === "all" ? "Choose a draft type to generate one; the list shows every saved draft." : KINDS.find((k) => k.value === kind)?.desc}
-            {busy && " This usually takes 15-60 seconds."}
+            {filter === "all" ? t("Choose a draft type to generate one; the list shows every saved draft.") : kindDesc && t(kindDesc)}
+            {busy && t(" This usually takes 15-60 seconds.")}
           </p>
           {configError && <ConfigNotice message={configError} />}
           {error && <Alert tone="red">{error}</Alert>}
@@ -140,7 +147,7 @@ function BrandStudio({ projectId }: { projectId: string }) {
             <Alert tone="red">{errorText(concepts.error)}</Alert>
           ) : list.length === 0 ? (
             <p className="py-4 text-center text-sm text-slate-500">
-              {filter === "all" ? "No drafts yet - choose a type above and press Generate." : `No ${KINDS.find((k) => k.value === filter)?.label.toLowerCase()} yet - press Generate above.`}
+              {filter === "all" ? t("No drafts yet - choose a type above and press Generate.") : t("No {kind} yet - press Generate above.", { kind: kindWord(filterLabel) })}
             </p>
           ) : (
             <div className="space-y-4">
@@ -151,8 +158,8 @@ function BrandStudio({ projectId }: { projectId: string }) {
           )}
         </CardBody>
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-5 py-2.5 text-xs text-slate-500">
-          <ImageIcon className="h-3.5 w-3.5" aria-hidden /> Logo & mockup images <PlannedBadge />
-          <span>will connect to an image tool with the Content Studio; until then use your selected palettes and positioning as a designer brief.</span>
+          <ImageIcon className="h-3.5 w-3.5" aria-hidden /> {t("Logo & mockup images")} <PlannedBadge />
+          <span>{t("will connect to an image tool with the Content Studio; until then use your selected palettes and positioning as a designer brief.")}</span>
         </div>
       </Card>
     </div>
@@ -160,9 +167,11 @@ function BrandStudio({ projectId }: { projectId: string }) {
 }
 
 function ConceptCard({ concept, onUpdated, onDeleted }: { concept: BrandConcept; onUpdated: (c: BrandConcept) => void; onDeleted: (id: string) => void }) {
+  const { t, tx, lang } = useT();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const kindLabel = KINDS.find((k) => k.value === concept.kind)?.label ?? concept.kind;
+  const kindMeta = KINDS.find((k) => k.value === concept.kind);
+  const kindLabel = kindMeta ? t(kindMeta.label) : concept.kind;
 
   async function setStatus(status: BrandConcept["status"]) {
     setBusy(status);
@@ -177,7 +186,7 @@ function ConceptCard({ concept, onUpdated, onDeleted }: { concept: BrandConcept;
   }
 
   async function remove() {
-    if (!window.confirm(`Delete "${concept.title}"? This cannot be undone.`)) return;
+    if (!window.confirm(t('Delete "{name}"? This cannot be undone.', { name: concept.title }))) return;
     setBusy("delete");
     setError(null);
     try {
@@ -194,28 +203,28 @@ function ConceptCard({ concept, onUpdated, onDeleted }: { concept: BrandConcept;
       <div className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
-            <h3 className="text-sm font-semibold text-slate-900">{concept.title}</h3>
-            <Badge tone={STATUS_TONE[concept.status]}>{concept.status}</Badge>
-            <Badge tone="violet" title="Generated by the Brand Strategy Agent. Review before use.">
-              <Sparkles className="h-3 w-3" /> AI-generated draft
+            <h3 className="text-sm font-semibold text-slate-900">{tx(concept.title)}</h3>
+            <Badge tone={STATUS_TONE[concept.status]}>{lang === "zh" ? titleCase(concept.status) : concept.status}</Badge>
+            <Badge tone="violet" title={t("Generated by the Brand Strategy Agent. Review before use.")}>
+              <Sparkles className="h-3 w-3" /> {t("AI-generated draft")}
             </Badge>
           </div>
           <p className="mt-0.5 text-xs text-slate-500">
             {kindLabel} · {date(concept.created_at)}
-            {concept.brief ? ` · Brief: ${concept.brief}` : ""}
+            {concept.brief ? ` · ${t("Brief: {brief}", { brief: concept.brief })}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1">
-          <Button size="sm" variant={concept.status === "shortlisted" ? "primary" : "secondary"} loading={busy === "shortlisted"} onClick={() => setStatus("shortlisted")} title="Toggle shortlist">
-            <Star className="h-3.5 w-3.5" /> Shortlist
+          <Button size="sm" variant={concept.status === "shortlisted" ? "primary" : "secondary"} loading={busy === "shortlisted"} onClick={() => setStatus("shortlisted")} title={t("Toggle shortlist")}>
+            <Star className="h-3.5 w-3.5" /> {t("Shortlist")}
           </Button>
-          <Button size="sm" variant={concept.status === "selected" ? "primary" : "secondary"} loading={busy === "selected"} onClick={() => setStatus("selected")} title="Toggle selected">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Select
+          <Button size="sm" variant={concept.status === "selected" ? "primary" : "secondary"} loading={busy === "selected"} onClick={() => setStatus("selected")} title={t("Toggle selected")}>
+            <CheckCircle2 className="h-3.5 w-3.5" /> {t("Select")}
           </Button>
-          <Button size="sm" variant="ghost" loading={busy === "rejected"} onClick={() => setStatus("rejected")} title="Toggle rejected">
-            <XIcon className="h-3.5 w-3.5" /> {concept.status === "rejected" ? "Restore" : "Reject"}
+          <Button size="sm" variant="ghost" loading={busy === "rejected"} onClick={() => setStatus("rejected")} title={t("Toggle rejected")}>
+            <XIcon className="h-3.5 w-3.5" /> {concept.status === "rejected" ? t("Restore") : t("Reject")}
           </Button>
-          <Button size="sm" variant="ghost" loading={busy === "delete"} onClick={remove} aria-label="Delete concept">
+          <Button size="sm" variant="ghost" loading={busy === "delete"} onClick={remove} aria-label={t("Delete concept")}>
             <Trash2 className="h-3.5 w-3.5 text-red-600" />
           </Button>
         </div>

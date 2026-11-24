@@ -3,13 +3,15 @@
 import { useState, type FormEvent } from "react";
 import { Alert, Button, Field, Input, Select, Textarea } from "@/components/ui";
 import { errorText, patch, post } from "@/lib/api";
+import { titleCase } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { Product } from "@/lib/types";
 
 const STATUSES: Product["status"][] = ["idea", "sampling", "approved", "listed", "retired"];
 
 const splitList = (s: string) =>
   s
-    .split(",")
+    .split(/[,，、]/)
     .map((x) => x.trim())
     .filter(Boolean);
 
@@ -30,6 +32,7 @@ export function ProductForm({
   onSaved: (p: Product) => void;
   onCancel: () => void;
 }) {
+  const { t, lang } = useT();
   const [f, setF] = useState({
     name: product?.name ?? "",
     product_type: product?.product_type ?? "",
@@ -89,65 +92,65 @@ export function ProductForm({
   return (
     <form onSubmit={submit} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Product name" className="sm:col-span-2">
-          <Input required value={f.name} onChange={set("name")} placeholder="e.g. Latin practice dress" />
+        <Field label={t("Product name")} className="sm:col-span-2">
+          <Input required value={f.name} onChange={set("name")} placeholder={t("e.g. Latin practice dress")} />
         </Field>
-        <Field label="Product type">
-          <Input value={f.product_type} onChange={set("product_type")} placeholder="e.g. dress, skirt, top" />
+        <Field label={t("Product type")}>
+          <Input value={f.product_type} onChange={set("product_type")} placeholder={t("e.g. dress, skirt, top")} />
         </Field>
-        <Field label="Status">
+        <Field label={t("Status")}>
           <Select value={f.status} onChange={set("status")}>
             {STATUSES.map((s) => (
               <option key={s} value={s}>
-                {s}
+                {lang === "zh" ? titleCase(s) : s}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Description" className="sm:col-span-2">
+        <Field label={t("Description")} className="sm:col-span-2">
           <Textarea value={f.description} onChange={set("description")} />
         </Field>
-        <Field label="Materials" className="sm:col-span-2">
-          <Input value={f.materials} onChange={set("materials")} placeholder="e.g. 85% nylon, 15% spandex" />
+        <Field label={t("Materials")} className="sm:col-span-2">
+          <Input value={f.materials} onChange={set("materials")} placeholder={t("e.g. 85% nylon, 15% spandex")} />
         </Field>
-        <Field label="Features" hint="Comma-separated">
-          <Input value={f.features} onChange={set("features")} placeholder="4-way stretch, built-in shorts" />
+        <Field label={t("Features")} hint={t("Comma-separated")}>
+          <Input value={f.features} onChange={set("features")} placeholder={t("4-way stretch, built-in shorts")} />
         </Field>
-        <Field label="Sizes" hint="Comma-separated">
+        <Field label={t("Sizes")} hint={t("Comma-separated")}>
           <Input value={f.sizes} onChange={set("sizes")} placeholder="XS, S, M, L, XL" />
         </Field>
-        <Field label="Target retail price (USD)">
+        <Field label={t("Target retail price (USD)")}>
           <Input type="number" min={0} step="0.01" value={f.target_price} onChange={set("target_price")} />
         </Field>
         <Field label="SKU">
           <Input value={f.sku} onChange={set("sku")} />
         </Field>
-        <Field label="Inventory on hand" hint="Manual count - not synced from any system">
+        <Field label={t("Inventory on hand")} hint={t("Manual count - not synced from any system")}>
           <Input type="number" min={0} step="1" value={f.inventory_on_hand} onChange={set("inventory_on_hand")} />
         </Field>
-        <Field label="Reorder point">
+        <Field label={t("Reorder point")}>
           <Input type="number" min={0} step="1" value={f.reorder_point} onChange={set("reorder_point")} />
         </Field>
       </div>
       <fieldset className="rounded-lg border border-slate-200 p-3">
-        <legend className="px-1 text-xs font-semibold text-slate-600">Packaging (used by the shipping calculator)</legend>
-        <p className="mb-2 text-[11px] text-slate-500">Ask your supplier for the export carton size and packed weight.</p>
+        <legend className="px-1 text-xs font-semibold text-slate-600">{t("Packaging (used by the shipping calculator)")}</legend>
+        <p className="mb-2 text-[11px] text-slate-500">{t("Ask your supplier for the export carton size and packed weight.")}</p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <Field label="Units per carton"><Input type="number" min={1} step="1" value={f.units_per_carton} onChange={set("units_per_carton")} /></Field>
-          <Field label="Carton gross weight (kg)"><Input type="number" min={0} step="any" value={f.carton_gross_weight_kg} onChange={set("carton_gross_weight_kg")} /></Field>
-          <Field label="Unit weight (kg)"><Input type="number" min={0} step="any" value={f.unit_weight_kg} onChange={set("unit_weight_kg")} /></Field>
-          <Field label="Carton length (cm)"><Input type="number" min={0} step="any" value={f.carton_length_cm} onChange={set("carton_length_cm")} /></Field>
-          <Field label="Carton width (cm)"><Input type="number" min={0} step="any" value={f.carton_width_cm} onChange={set("carton_width_cm")} /></Field>
-          <Field label="Carton height (cm)"><Input type="number" min={0} step="any" value={f.carton_height_cm} onChange={set("carton_height_cm")} /></Field>
+          <Field label={t("Units per carton")}><Input type="number" min={1} step="1" value={f.units_per_carton} onChange={set("units_per_carton")} /></Field>
+          <Field label={t("Carton gross weight (kg)")}><Input type="number" min={0} step="any" value={f.carton_gross_weight_kg} onChange={set("carton_gross_weight_kg")} /></Field>
+          <Field label={t("Unit weight (kg)")}><Input type="number" min={0} step="any" value={f.unit_weight_kg} onChange={set("unit_weight_kg")} /></Field>
+          <Field label={t("Carton length (cm)")}><Input type="number" min={0} step="any" value={f.carton_length_cm} onChange={set("carton_length_cm")} /></Field>
+          <Field label={t("Carton width (cm)")}><Input type="number" min={0} step="any" value={f.carton_width_cm} onChange={set("carton_width_cm")} /></Field>
+          <Field label={t("Carton height (cm)")}><Input type="number" min={0} step="any" value={f.carton_height_cm} onChange={set("carton_height_cm")} /></Field>
         </div>
       </fieldset>
       {error && <Alert tone="red">{error}</Alert>}
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button type="submit" loading={busy}>
-          {product ? "Save changes" : "Add product"}
+          {product ? t("Save changes") : t("Add product")}
         </Button>
       </div>
     </form>

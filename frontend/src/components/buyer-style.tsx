@@ -6,6 +6,7 @@ import type { Snapshot } from "@/components/listing-insights";
 import { Badge, Card, CardBody, CardHeader, ExternalLink, ProductThumb, Spinner } from "@/components/ui";
 import { date, num, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT, type MsgKey } from "@/lib/i18n";
 
 type Tag = {
   ref: string; age: number | null; age_band: string; wearer: string; gift: boolean; occasions: string[]; liked: string[]; disliked: string[];
@@ -33,6 +34,7 @@ function SortTh({ label, k, sort, onSort, className }: { label: string; k: SortK
 
 /** Each look: how often it is praised, criticised and mentioned, and how many top sellers use it - sortable by any column. */
 function LooksTable({ styles }: { styles: Style[] }) {
+  const { t } = useT();
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean } | null>(null);
   const onSort = (k: SortKey) => setSort((cur) => (cur?.key === k ? { key: k, desc: !cur.desc } : { key: k, desc: k !== "term" }));
   const rows = !sort ? styles : [...styles].sort((a, b) => {
@@ -47,12 +49,12 @@ function LooksTable({ styles }: { styles: Style[] }) {
       <table className="w-full min-w-[560px] text-sm">
         <thead className="border-b border-line bg-slate-50/60 text-left text-xs uppercase tracking-wide text-slate-500">
           <tr>
-            <SortTh label="Look" k="term" className="px-4 py-2" {...th} />
-            <SortTh label="Praised" k="liked" className="px-2 py-2" {...th} />
-            <SortTh label="Criticised" k="disliked" className="px-2 py-2" {...th} />
-            <SortTh label="Mentioned" k="mentioned" className="px-2 py-2" {...th} />
-            <SortTh label="In top sellers" k="top_listings" className="px-2 py-2" {...th} />
-            <th className="px-4 py-2">Examples</th>
+            <SortTh label={t("Look")} k="term" className="px-4 py-2" {...th} />
+            <SortTh label={t("Praised")} k="liked" className="px-2 py-2" {...th} />
+            <SortTh label={t("Criticised")} k="disliked" className="px-2 py-2" {...th} />
+            <SortTh label={t("Mentioned")} k="mentioned" className="px-2 py-2" {...th} />
+            <SortTh label={t("In top sellers")} k="top_listings" className="px-2 py-2" {...th} />
+            <th className="px-4 py-2">{t("Examples")}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -65,7 +67,7 @@ function LooksTable({ styles }: { styles: Style[] }) {
               <td className="px-2 py-2 align-top font-semibold text-green-700">{s.liked || <span className="font-normal text-slate-400">0</span>}</td>
               <td className="px-2 py-2 align-top font-semibold text-red-700">{s.disliked || <span className="font-normal text-slate-400">0</span>}</td>
               <td className="px-2 py-2 align-top text-slate-700">{s.mentioned}</td>
-              <td className="px-2 py-2 align-top text-slate-700">{s.top_listings}{s.top_listings > 0 && <div className="text-xs text-slate-500">{num(s.top_listing_reviews)} reviews</div>}</td>
+              <td className="px-2 py-2 align-top text-slate-700">{s.top_listings}{s.top_listings > 0 && <div className="text-xs text-slate-500">{t("{n} reviews", { n: num(s.top_listing_reviews) })}</div>}</td>
               <td className="px-4 py-2 align-top">
                 <div className="flex flex-wrap gap-1.5">
                   {s.examples.map((e) => e.image ? <ProductThumb key={e.title} src={e.image} href={e.url} alt={e.title} size={36} />
@@ -97,7 +99,7 @@ type BuyerStyle = {
   generated_by: { generated_at: string };
 };
 
-const BAND_LABEL: Record<string, string> = { child: "Under 13", teen: "13-19", "20s": "20s", "30s": "30s", "40s": "40s", "50s": "50s", "60+": "60+" };
+const BAND_LABEL: Record<string, MsgKey> = { child: "Under 13", teen: "13-19", "20s": "20s", "30s": "30s", "40s": "40s", "50s": "50s", "60+": "60+" };
 const SHOWN = 6;
 
 /** One labelled bar per row; the value is written beside it so nothing depends on reading the bar length. */
@@ -119,17 +121,18 @@ function Bars({ rows, empty }: { rows: { label: string; value: number; title?: s
 
 /** Who buys this, what for, and which looks they like - counted by the app from every customer comment collected. */
 export function BuyerStyleSection({ projectId }: { projectId: string }) {
+  const { t, tr, lang } = useT();
   const snap = useApi<Snapshot<BuyerStyle>>(`/api/projects/${projectId}/snapshots/buyer_style`);
   const [all, setAll] = useState(false);
   const c = snap.data?.content;
-  const byRef = new Map((c?.comments ?? []).map((t) => [t.ref, t]));
+  const byRef = new Map((c?.comments ?? []).map((tag) => [tag.ref, tag]));
   const listing = new Map((c?.listings ?? []).map((l) => [l.ref, l]));
 
   const ref = (r: string) => {
-    const t = byRef.get(r);
+    const tag = byRef.get(r);
     const l = listing.get(r);
-    const href = t?.url ?? l?.url ?? null;
-    const title = t ? `"${t.quote}"` : l ? l.title : c?.findings?.[r] ?? r;
+    const href = tag?.url ?? l?.url ?? null;
+    const title = tag ? `"${tag.quote}"` : l ? l.title : c?.findings?.[r] ?? r;
     return href ? <a key={r} href={href} target="_blank" rel="noopener noreferrer" title={title}
       className="rounded border border-line px-1 text-[11px] font-semibold text-primary-700 hover:border-primary-300">{r}</a>
       : <span key={r} title={title} className="rounded border border-line px-1 text-[11px] text-slate-500">{r}</span>;
@@ -138,49 +141,50 @@ export function BuyerStyleSection({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       {snap.loading && !snap.data ? <Spinner /> : !c ? (
-        <p className="text-sm text-slate-500">No buyer profile yet. Run the Buyer Profiler from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>, after the Top Listings Tracker.</p>
+        <p className="text-sm text-slate-500">{tr("No buyer profile yet. Run the Buyer Profiler from the {link}, after the Top Listings Tracker.", { link: <a href="#review" className="font-semibold text-primary-700 underline">{t("agents list at the top")}</a> })}</p>
       ) : (
         <>
           <Card>
-            <CardHeader title="Who buys and what they like" icon={<Users className="h-4 w-4" />}
-              subtitle={`Counted from ${c.stats.comments_read} customer comments (${c.stats.reviews} marketplace reviews, ${c.stats.web_comments} web) on ${date(c.generated_by.generated_at)} · ${c.stats.tagged} say something about the buyer or the look${c.stats.unverified_dropped ? ` · ${c.stats.unverified_dropped} AI tags dropped (quote not found)` : ""}`} />
+            <CardHeader title={t("Who buys and what they like")} icon={<Users className="h-4 w-4" />}
+              subtitle={`${t("Counted from {n} customer comments ({reviews} marketplace reviews, {web} web) on {date}", { n: c.stats.comments_read, reviews: c.stats.reviews, web: c.stats.web_comments, date: date(c.generated_by.generated_at) })} · ${t("{n} say something about the buyer or the look", { n: c.stats.tagged })}${c.stats.unverified_dropped ? ` · ${t("{n} AI tags dropped (quote not found)", { n: c.stats.unverified_dropped })}` : ""}`} />
             <CardBody className="space-y-4">
               <p className="text-sm text-ink">{c.summary}</p>
               <div className="grid gap-4">
                 <div>
-                  <h3 className="mb-1.5 text-sm font-semibold text-ink">Age</h3>
+                  <h3 className="mb-1.5 text-sm font-semibold text-ink">{t("Age")}</h3>
                   <p className="mb-2 text-xs text-slate-600">
                     {c.stats.age.stated
-                      ? <>Median <b className="text-ink">{c.stats.age.median}</b> (range {c.stats.age.min}-{c.stats.age.max}) from {c.stats.age.stated} comment{c.stats.age.stated === 1 ? "" : "s"} that state an age.</>
-                      : "No comment states an age."}
-                    {c.stats.age.with_age_info > c.stats.age.stated && ` ${c.stats.age.with_age_info} mention an age group.`}
+                      ? tr(c.stats.age.stated === 1 ? "Median {median} (range {min}-{max}) from {n} comment that state an age." : "Median {median} (range {min}-{max}) from {n} comments that state an age.", {
+                          median: <b className="text-ink">{c.stats.age.median}</b>, min: c.stats.age.min, max: c.stats.age.max, n: c.stats.age.stated })
+                      : t("No comment states an age.")}
+                    {c.stats.age.with_age_info > c.stats.age.stated && `${lang === "zh" ? "" : " "}${t("{n} mention an age group.", { n: c.stats.age.with_age_info })}`}
                   </p>
-                  <Bars rows={Object.entries(c.stats.age.bands).map(([b, v]) => ({ label: BAND_LABEL[b] ?? b, value: v }))} empty="No age groups mentioned." />
+                  <Bars rows={Object.entries(c.stats.age.bands).map(([b, v]) => ({ label: BAND_LABEL[b] ? t(BAND_LABEL[b]) : b, value: v }))} empty={t("No age groups mentioned.")} />
                 </div>
                 <div>
-                  <h3 className="mb-1.5 text-sm font-semibold text-ink">Who wears it</h3>
-                  <Bars rows={Object.entries(c.stats.wearer).map(([w, v]) => ({ label: w === "self" ? "The buyer" : titleCase(w), value: v }))} empty="Not mentioned." />
-                  {c.stats.gift > 0 && <p className="mt-1.5 text-xs text-slate-600">{c.stats.gift} bought as a gift.</p>}
-                  <h3 className="mb-1.5 mt-3 text-sm font-semibold text-ink">Star ratings read</h3>
+                  <h3 className="mb-1.5 text-sm font-semibold text-ink">{t("Who wears it")}</h3>
+                  <Bars rows={Object.entries(c.stats.wearer).map(([w, v]) => ({ label: w === "self" ? t("The buyer") : titleCase(w), value: v }))} empty={t("Not mentioned.")} />
+                  {c.stats.gift > 0 && <p className="mt-1.5 text-xs text-slate-600">{t("{n} bought as a gift.", { n: c.stats.gift })}</p>}
+                  <h3 className="mb-1.5 mt-3 text-sm font-semibold text-ink">{t("Star ratings read")}</h3>
                   {(c.stats.rated ?? 0) >= 5
-                    ? <Bars rows={Object.entries(c.stats.stars).map(([s, v]) => ({ label: `${s} stars`, value: v }))} empty="No star ratings." />
-                    : <p className="text-xs text-slate-500">Only {c.stats.rated ?? 0} of {c.stats.comments_read} comments carry a star rating: Amazon&apos;s quoted reviews come without one.</p>}
+                    ? <Bars rows={Object.entries(c.stats.stars).map(([s, v]) => ({ label: t("{n} stars", { n: s }), value: v }))} empty={t("No star ratings.")} />
+                    : <p className="text-xs text-slate-500">{t("Only {n} of {total} comments carry a star rating: Amazon's quoted reviews come without one.", { n: c.stats.rated ?? 0, total: c.stats.comments_read })}</p>}
                 </div>
                 <div>
-                  <h3 className="mb-1.5 text-sm font-semibold text-ink">What they wear it for</h3>
+                  <h3 className="mb-1.5 text-sm font-semibold text-ink">{t("What they wear it for")}</h3>
                   <Bars rows={c.stats.occasions.map((o) => ({ label: o.tag, value: o.count, title: o.includes?.length ? `${o.tag}: ${o.includes.join(", ")}` : o.tag }))}
-                    empty="No occasions mentioned." />
-                  <p className="mt-1 text-[11px] text-slate-500">Comments per group; hover a group for the words buyers used.</p>
+                    empty={t("No occasions mentioned.")} />
+                  <p className="mt-1 text-[11px] text-slate-500">{t("Comments per group; hover a group for the words buyers used.")}</p>
                 </div>
               </div>
               {!!c.published?.length && (
                 <div className="rounded-lg bg-canvas px-3 py-2">
-                  <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">What published sources say about the buyers</h3>
+                  <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{t("What published sources say about the buyers")}</h3>
                   <ul className="space-y-0.5 text-xs text-slate-700">
                     {c.published.map((f) => (
                       <li key={f.claim}>
-                        {f.evidence_type === "unavailable" ? <span className="text-slate-500">Not found: {f.claim}</span> : f.claim}
-                        {f.url && <> · <ExternalLink href={f.url}>source</ExternalLink></>}
+                        {f.evidence_type === "unavailable" ? <span className="text-slate-500">{t("Not found: {claim}", { claim: f.claim })}</span> : f.claim}
+                        {f.url && <> · <ExternalLink href={f.url}>{t("source")}</ExternalLink></>}
                       </li>
                     ))}
                   </ul>
@@ -190,27 +194,27 @@ export function BuyerStyleSection({ projectId }: { projectId: string }) {
           </Card>
 
           <Card>
-            <CardHeader title="Looks they like" icon={<Palette className="h-4 w-4" />}
-              subtitle="Praised and criticised in comments, and how many of the best-selling tracked listings use each look." />
+            <CardHeader title={t("Looks they like")} icon={<Palette className="h-4 w-4" />}
+              subtitle={t("Praised and criticised in comments, and how many of the best-selling tracked listings use each look.")} />
             <LooksTable styles={c.styles} />
           </Card>
 
           <div className="grid gap-4">
             <Card>
-              <CardHeader title="Buyer personas" icon={<UserRound className="h-4 w-4" />} subtitle="Grounded in the tagged comments (hover a ref to read it)." />
+              <CardHeader title={t("Buyer personas")} icon={<UserRound className="h-4 w-4" />} subtitle={t("Grounded in the tagged comments (hover a ref to read it).")} />
               <CardBody className="space-y-3">
                 {c.personas.map((p) => (
                   <div key={p.name} className="rounded-lg border border-line p-3">
                     <div className="flex flex-wrap items-baseline justify-between gap-2"><span className="font-semibold text-ink">{p.name}</span><Badge tone="slate">{p.age_range}</Badge></div>
                     <p className="mt-1 text-sm text-slate-600">{p.description}</p>
-                    {p.wants.length > 0 && <p className="mt-1 text-xs text-slate-600"><span className="font-semibold">Wants:</span> {p.wants.join(" · ")}</p>}
+                    {p.wants.length > 0 && <p className="mt-1 text-xs text-slate-600"><span className="font-semibold">{t("Wants:")}</span> {p.wants.join(" · ")}</p>}
                     {p.comment_refs.length > 0 && <div className="mt-1.5 flex flex-wrap gap-1">{p.comment_refs.map(ref)}</div>}
                   </div>
                 ))}
               </CardBody>
             </Card>
             <Card>
-              <CardHeader title="Design directions" icon={<Sparkles className="h-4 w-4" />} subtitle="What to design next, with the comments (C), best sellers (L) and web findings (F) behind it." />
+              <CardHeader title={t("Design directions")} icon={<Sparkles className="h-4 w-4" />} subtitle={t("What to design next, with the comments (C), best sellers (L) and web findings (F) behind it.")} />
               <CardBody className="space-y-3">
                 {c.design_directions.map((d) => (
                   <div key={d.title} className="rounded-lg border border-line p-3">
@@ -225,28 +229,28 @@ export function BuyerStyleSection({ projectId }: { projectId: string }) {
           </div>
 
           <Card>
-            <CardHeader title={`What buyers say (${c.comments.length})`} subtitle="Each tag rests on the quote shown, copied word for word from the comment." />
+            <CardHeader title={t("What buyers say ({n})", { n: c.comments.length })} subtitle={t("Each tag rests on the quote shown, copied word for word from the comment.")} />
             <ul className="divide-y divide-slate-100">
-              {(all ? c.comments : c.comments.slice(0, SHOWN)).map((t) => (
-                <li key={t.ref} className="px-5 py-2.5 text-sm">
+              {(all ? c.comments : c.comments.slice(0, SHOWN)).map((tag) => (
+                <li key={tag.ref} className="px-5 py-2.5 text-sm">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[11px] font-semibold text-slate-400">{t.ref}</span>
-                    {t.stars && <span className="text-xs text-slate-500">{t.stars}★</span>}
-                    {t.age !== null ? <Badge tone="violet">Age {t.age}</Badge> : t.age_band !== "unknown" && <Badge tone="violet">{BAND_LABEL[t.age_band] ?? t.age_band}</Badge>}
-                    {t.wearer !== "unknown" && <Badge tone="slate">{t.wearer === "self" ? "Wears it herself/himself" : `For ${t.wearer}`}</Badge>}
-                    {t.gift && <Badge tone="amber">Gift</Badge>}
-                    {t.occasions.map((o) => <Badge key={o} tone="blue">{o}</Badge>)}
-                    {t.liked.map((l) => <Badge key={`+${l}`} tone="green">+ {l}</Badge>)}
-                    {t.disliked.map((l) => <Badge key={`-${l}`} tone="red">- {l}</Badge>)}
+                    <span className="text-[11px] font-semibold text-slate-400">{tag.ref}</span>
+                    {tag.stars && <span className="text-xs text-slate-500">{tag.stars}★</span>}
+                    {tag.age !== null ? <Badge tone="violet">{t("Age {n}", { n: tag.age })}</Badge> : tag.age_band !== "unknown" && <Badge tone="violet">{BAND_LABEL[tag.age_band] ? t(BAND_LABEL[tag.age_band]) : tag.age_band}</Badge>}
+                    {tag.wearer !== "unknown" && <Badge tone="slate">{tag.wearer === "self" ? t("Wears it herself/himself") : t("For {who}", { who: lang === "zh" ? titleCase(tag.wearer) : tag.wearer })}</Badge>}
+                    {tag.gift && <Badge tone="amber">{t("Gift")}</Badge>}
+                    {tag.occasions.map((o) => <Badge key={o} tone="blue">{o}</Badge>)}
+                    {tag.liked.map((l) => <Badge key={`+${l}`} tone="green">+ {l}</Badge>)}
+                    {tag.disliked.map((l) => <Badge key={`-${l}`} tone="red">- {l}</Badge>)}
                   </div>
-                  <p className="mt-1 text-slate-700">&ldquo;{t.quote}&rdquo;</p>
-                  {t.url && <ExternalLink href={t.url} className="text-xs">{t.source_title ?? "Source"}</ExternalLink>}
+                  <p className="mt-1 text-slate-700">&ldquo;{tag.quote}&rdquo;</p>
+                  {tag.url && <ExternalLink href={tag.url} className="text-xs">{tag.source_title ?? t("Source")}</ExternalLink>}
                 </li>
               ))}
             </ul>
             {c.comments.length > SHOWN && (
               <button onClick={() => setAll((v) => !v)} className="px-5 pb-3 text-xs font-semibold text-primary-700 hover:underline">
-                {all ? "Show fewer" : `Show all ${c.comments.length}`}
+                {all ? t("Show fewer") : t("Show all {n}", { n: c.comments.length })}
               </button>
             )}
           </Card>

@@ -1,9 +1,11 @@
-// Size-chart helpers. Charts are stored in cm; the UI shows cm or inches.
+// Size-chart helpers. Charts are stored in cm; the UI shows cm or inches. Labels are English dictionary keys (show with t()).
+
+import { translateAny, type MsgKey } from "./i18n";
 
 export type Unit = "cm" | "in";
 export const CM_PER_IN = 2.54;
 
-export const DIMENSIONS: Record<string, string> = {
+export const DIMENSIONS: Record<string, MsgKey> = {
   height: "Height",
   bust: "Bust",
   underbust: "Underbust",
@@ -27,12 +29,12 @@ export const GARMENT_DIMENSIONS: Record<string, string[]> = {
   other: ["bust", "waist", "hip"],
 };
 
-export const GARMENT_LABEL: Record<string, string> = {
+export const GARMENT_LABEL: Record<string, MsgKey> = {
   dress: "Dress", bodysuit: "Bodysuit / leotard", top: "Top / shirt", bottom: "Skirt / trousers", shoes: "Shoes", other: "Other",
 };
 
 /** Standard measuring instructions shown to customers. */
-export const HOW_TO_MEASURE: Record<string, string> = {
+export const HOW_TO_MEASURE: Record<string, MsgKey> = {
   height: "Stand straight against a wall without shoes; measure from the floor to the top of your head.",
   bust: "Around the fullest part of the bust, keeping the tape level under the arms. Wear the bra you will dance in.",
   underbust: "Around the rib cage directly under the bust.",
@@ -47,8 +49,9 @@ export const HOW_TO_MEASURE: Record<string, string> = {
   foot_width: "Around or across the widest part of the foot (the ball), standing with weight on it - follow the chart's convention.",
 };
 
+/** A chart's own label for a measurement wins (in the chosen language when it is a standard name); otherwise the standard name. */
 export const dimLabel = (d: string, labels?: Record<string, string>) =>
-  labels?.[d] ?? DIMENSIONS[d] ?? d.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+  translateAny(labels?.[d] ?? DIMENSIONS[d] ?? d.replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()));
 
 export const fromCm = (v: number, unit: Unit) => (unit === "in" ? v / CM_PER_IN : v);
 export const toCm = (v: number, unit: Unit) => (unit === "in" ? v * CM_PER_IN : v);

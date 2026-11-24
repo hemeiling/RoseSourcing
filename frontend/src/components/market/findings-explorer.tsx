@@ -7,12 +7,14 @@ import { Alert, Badge, Button, Card, CardBody, EmptyState, Field, Input, Modal, 
 import { errorText, patch } from "@/lib/api";
 import { dateTime, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT } from "@/lib/i18n";
 import type { EvidenceType, Finding, ResearchRun, VerificationStatus } from "@/lib/types";
 import { KIND_LABEL, SECTIONS } from "./shared";
 
 const REVIEWABLE: VerificationStatus[] = ["human_verified", "disputed", "unverified"];
 
 function ReviewModal({ finding, onClose, onSaved }: { finding: Finding | null; onClose: () => void; onSaved: (f: Finding) => void }) {
+  const { t, tx } = useT();
   const [status, setStatus] = useState<VerificationStatus>("human_verified");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -39,32 +41,32 @@ function ReviewModal({ finding, onClose, onSaved }: { finding: Finding | null; o
   }
 
   return (
-    <Modal open={!!finding} onClose={onClose} title="Review finding" wide>
+    <Modal open={!!finding} onClose={onClose} title={t("Review finding")} wide>
       {finding && (
         <div className="space-y-4">
           <FindingCard finding={finding} />
           <Alert tone="blue">
-            Open the source link and confirm the claim yourself. &ldquo;Source-linked&rdquo; is set only by the automated excerpt check and cannot be chosen here.
+            {t("Open the source link and confirm the claim yourself. “{label}” is set only by the automated excerpt check and cannot be chosen here.", { label: tx(VERIFICATION_META.source_linked.label) })}
           </Alert>
-          <Field label="Your verdict">
+          <Field label={t("Your verdict")}>
             <Select value={status} onChange={(e) => setStatus(e.target.value as VerificationStatus)}>
               {REVIEWABLE.map((s) => (
                 <option key={s} value={s}>
-                  {VERIFICATION_META[s].label} - {VERIFICATION_META[s].help}
+                  {t("{label} - {help}", { label: tx(VERIFICATION_META[s].label), help: tx(VERIFICATION_META[s].help) })}
                 </option>
               ))}
             </Select>
           </Field>
-          <Field label="Note (optional)" hint="e.g. what you checked, or why the finding is wrong.">
+          <Field label={t("Note (optional)")} hint={t("e.g. what you checked, or why the finding is wrong.")}>
             <Textarea value={note} onChange={(e) => setNote(e.target.value)} />
           </Field>
           {error && <Alert tone="red">{error}</Alert>}
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={onClose} disabled={busy}>
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button onClick={save} loading={busy}>
-              Save review
+              {t("Save review")}
             </Button>
           </div>
         </div>
@@ -74,6 +76,7 @@ function ReviewModal({ finding, onClose, onSaved }: { finding: Finding | null; o
 }
 
 export function FindingsExplorer({ projectId, runs, version }: { projectId: string; runs: ResearchRun[] | undefined; version: number }) {
+  const { t, tx } = useT();
   const [section, setSection] = useState("");
   const [evidenceType, setEvidenceType] = useState("");
   const [verification, setVerification] = useState("");
@@ -83,8 +86,8 @@ export function FindingsExplorer({ projectId, runs, version }: { projectId: stri
   const [reviewing, setReviewing] = useState<Finding | null>(null);
 
   useEffect(() => {
-    const t = setTimeout(() => setQ(qInput.trim()), 300);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setQ(qInput.trim()), 300);
+    return () => clearTimeout(timer);
   }, [qInput]);
 
   const path = useMemo(() => {
@@ -117,12 +120,12 @@ export function FindingsExplorer({ projectId, runs, version }: { projectId: stri
       <Card>
         <CardBody className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <Field label="Search">
-              <Input placeholder="Keyword in claim or detail" value={qInput} onChange={(e) => setQInput(e.target.value)} />
+            <Field label={t("Search")}>
+              <Input placeholder={t("Keyword in claim or detail")} value={qInput} onChange={(e) => setQInput(e.target.value)} />
             </Field>
-            <Field label="Section">
+            <Field label={t("Section")}>
               <Select value={section} onChange={(e) => setSection(e.target.value)}>
-                <option value="">All sections</option>
+                <option value="">{t("All sections")}</option>
                 {SECTIONS.map((s) => (
                   <option key={s} value={s}>
                     {titleCase(s)}
@@ -130,32 +133,32 @@ export function FindingsExplorer({ projectId, runs, version }: { projectId: stri
                 ))}
               </Select>
             </Field>
-            <Field label="Evidence type">
+            <Field label={t("Evidence type")}>
               <Select value={evidenceType} onChange={(e) => setEvidenceType(e.target.value)}>
-                <option value="">All types</option>
-                {(Object.keys(EVIDENCE_META) as EvidenceType[]).map((t) => (
-                  <option key={t} value={t}>
-                    {EVIDENCE_META[t].label}
+                <option value="">{t("All types")}</option>
+                {(Object.keys(EVIDENCE_META) as EvidenceType[]).map((et) => (
+                  <option key={et} value={et}>
+                    {tx(EVIDENCE_META[et].label)}
                   </option>
                 ))}
               </Select>
             </Field>
-            <Field label="Verification">
+            <Field label={t("Verification")}>
               <Select value={verification} onChange={(e) => setVerification(e.target.value)}>
-                <option value="">Any status</option>
+                <option value="">{t("Any status")}</option>
                 {(Object.keys(VERIFICATION_META) as VerificationStatus[]).map((s) => (
                   <option key={s} value={s}>
-                    {VERIFICATION_META[s].label}
+                    {tx(VERIFICATION_META[s].label)}
                   </option>
                 ))}
               </Select>
             </Field>
-            <Field label="Research run">
+            <Field label={t("Research run")}>
               <Select value={runId} onChange={(e) => setRunId(e.target.value)}>
-                <option value="">All runs</option>
+                <option value="">{t("All runs")}</option>
                 {runs?.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {dateTime(r.created_at)} · {KIND_LABEL[r.kind] ?? r.kind}
+                    {dateTime(r.created_at)} · {tx(KIND_LABEL[r.kind] ?? r.kind)}
                   </option>
                 ))}
               </Select>
@@ -175,32 +178,32 @@ export function FindingsExplorer({ projectId, runs, version }: { projectId: stri
                   setQInput("");
                 }}
               >
-                Clear filters
+                {t("Clear filters")}
               </Button>
             )}
           </div>
         </CardBody>
       </Card>
 
-      {error && <Alert tone="red">Could not load findings: {errorText(error)}</Alert>}
+      {error && <Alert tone="red">{t("Could not load findings: {error}", { error: errorText(error) })}</Alert>}
       {loading && !data && <Spinner />}
       {data && (
         <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
-          <span className="font-medium text-slate-700">{data.length} findings</span>
-          {(Object.keys(EVIDENCE_META) as EvidenceType[]).map((t) =>
-            counts[t] ? (
-              <Badge key={t} tone={EVIDENCE_META[t].tone}>
-                {counts[t]} {EVIDENCE_META[t].label.toLowerCase()}
+          <span className="font-medium text-slate-700">{t("{n} findings", { n: data.length })}</span>
+          {(Object.keys(EVIDENCE_META) as EvidenceType[]).map((et) =>
+            counts[et] ? (
+              <Badge key={et} tone={EVIDENCE_META[et].tone}>
+                {counts[et]} {tx(EVIDENCE_META[et].label).toLowerCase()}
               </Badge>
             ) : null,
           )}
-          {loading && <span className="text-slate-400">Updating...</span>}
+          {loading && <span className="text-slate-400">{t("Updating...")}</span>}
         </div>
       )}
       {data && data.length === 0 && (
         <Card>
-          <EmptyState icon={<FileSearch className="h-5 w-5" />} title={filtersActive ? "No findings match these filters" : "No findings yet"}>
-            {filtersActive ? "Try clearing a filter." : "Run market research to collect evidence-linked findings."}
+          <EmptyState icon={<FileSearch className="h-5 w-5" />} title={filtersActive ? t("No findings match these filters") : t("No findings yet")}>
+            {filtersActive ? t("Try clearing a filter.") : t("Run market research to collect evidence-linked findings.")}
           </EmptyState>
         </Card>
       )}

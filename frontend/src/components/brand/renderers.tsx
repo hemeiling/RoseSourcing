@@ -4,6 +4,7 @@ import { AlertTriangle, Check, Copy } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Badge, Th, Td } from "@/components/ui";
 import { money } from "@/lib/format";
+import { useT, type MsgKey } from "@/lib/i18n";
 
 /* Kind-specific renderers for BrandConcept.content. Shapes mirror backend/app/services/agents/generators.py. */
 
@@ -13,17 +14,19 @@ const asArr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const asStr = (v: unknown): string => (typeof v === "string" ? v : v === null || v === undefined ? "" : String(v));
 const asObj = (v: unknown): Obj => (v && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, children }: { title: MsgKey; children: ReactNode }) {
+  const { t } = useT();
   return (
     <div>
-      <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{title}</h4>
+      <h4 className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t(title)}</h4>
       {children}
     </div>
   );
 }
 
 function List({ items }: { items: unknown[] }) {
-  if (!items.length) return <p className="text-sm text-slate-400">None</p>;
+  const { t } = useT();
+  if (!items.length) return <p className="text-sm text-slate-400">{t("None")}</p>;
   return (
     <ul className="list-disc space-y-0.5 pl-5 text-sm text-slate-700">
       {items.map((it, i) => (
@@ -33,7 +36,8 @@ function List({ items }: { items: unknown[] }) {
   );
 }
 
-export function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
+export function CopyButton({ text, label = "Copy" }: { text: string; label?: MsgKey }) {
+  const { t } = useT();
   const [done, setDone] = useState(false);
   return (
     <button
@@ -48,21 +52,22 @@ export function CopyButton({ text, label = "Copy" }: { text: string; label?: str
         }
       }}
       className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-800"
-      aria-label={`${label}: ${text}`}
+      aria-label={`${t(label)}: ${text}`}
     >
       {done ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
-      {done ? "Copied" : label}
+      {done ? t("Copied") : t(label)}
     </button>
   );
 }
 
 function NamesView({ c }: { c: Obj }) {
+  const { t } = useT();
   const ideas = asArr(c.ideas).map(asObj);
   return (
     <div className="space-y-3">
       <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-        Trademark and domain availability have not been checked. Search USPTO and domain registrars before using a name.
+        {t("Trademark and domain availability have not been checked. Search USPTO and domain registrars before using a name.")}
       </div>
       <div className="grid gap-2">
         {ideas.map((n, i) => (
@@ -105,15 +110,16 @@ function PositioningView({ c }: { c: Obj }) {
 }
 
 function PersonasView({ c }: { c: Obj }) {
+  const { t } = useT();
   const personas = asArr(c.personas).map(asObj);
   return (
     <div className="grid gap-3">
       {personas.map((p, i) => (
         <div key={i} className="rounded-lg border border-slate-200 p-3">
           <div className="text-sm font-semibold text-slate-900">{asStr(p.name)}</div>
-          <div className="mt-0.5 text-[11px] italic text-slate-500">Illustrative composite, not a real customer</div>
+          <div className="mt-0.5 text-[11px] italic text-slate-500">{t("Illustrative composite, not a real customer")}</div>
           <p className="mt-2 text-[13px] text-slate-700">{asStr(p.summary)}</p>
-          {asStr(p.dance_context) && <p className="mt-1 text-xs text-slate-600"><span className="font-medium">Context:</span> {asStr(p.dance_context)}</p>}
+          {asStr(p.dance_context) && <p className="mt-1 text-xs text-slate-600"><span className="font-medium">{t("Context:")}</span> {asStr(p.dance_context)}</p>}
           <div className="mt-2 space-y-2">
             <Section title="Goals"><List items={asArr(p.goals)} /></Section>
             <Section title="Frustrations"><List items={asArr(p.frustrations)} /></Section>
@@ -122,7 +128,7 @@ function PersonasView({ c }: { c: Obj }) {
           </div>
           {asStr(p.grounding) && (
             <p className="mt-2 border-t border-slate-100 pt-2 text-[11px] text-slate-500">
-              <span className="font-medium">Grounding:</span> {asStr(p.grounding)}
+              <span className="font-medium">{t("Grounding:")}</span> {asStr(p.grounding)}
             </p>
           )}
         </div>
@@ -132,6 +138,7 @@ function PersonasView({ c }: { c: Obj }) {
 }
 
 function VoiceView({ c }: { c: Obj }) {
+  const { t } = useT();
   const traits = asArr(c.traits).map(asObj);
   return (
     <div className="space-y-3">
@@ -140,17 +147,17 @@ function VoiceView({ c }: { c: Obj }) {
         <table className="min-w-full divide-y divide-slate-100">
           <thead>
             <tr>
-              <Th>Trait</Th>
-              <Th>Do</Th>
-              <Th>Don&apos;t</Th>
+              <Th>{t("Trait")}</Th>
+              <Th>{t("Do")}</Th>
+              <Th>{t("Don't")}</Th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {traits.map((t, i) => (
+            {traits.map((tr, i) => (
               <tr key={i}>
-                <Td className="font-medium text-slate-900">{asStr(t.trait)}</Td>
-                <Td>{asStr(t.do)}</Td>
-                <Td>{asStr(t.dont)}</Td>
+                <Td className="font-medium text-slate-900">{asStr(tr.trait)}</Td>
+                <Td>{asStr(tr.do)}</Td>
+                <Td>{asStr(tr.dont)}</Td>
               </tr>
             ))}
           </tbody>
@@ -165,6 +172,7 @@ function VoiceView({ c }: { c: Obj }) {
 }
 
 function CollectionsView({ c }: { c: Obj }) {
+  const { t } = useT();
   const cols = asArr(c.collections).map(asObj);
   return (
     <div className="space-y-3">
@@ -182,13 +190,13 @@ function CollectionsView({ c }: { c: Obj }) {
                   <div className="font-medium text-slate-800">{asStr(p.name)}</div>
                   <div className="text-xs text-slate-500">{asStr(p.description)}</div>
                 </div>
-                <span className="shrink-0 text-xs text-slate-600" title="Target price (assumption)">
+                <span className="shrink-0 text-xs text-slate-600" title={t("Target price (assumption)")}>
                   {typeof p.target_price === "number" ? money(p.target_price) : "-"}
                 </span>
               </li>
             ))}
           </ul>
-          {asStr(col.rationale) && <p className="mt-2 text-xs text-slate-500"><span className="font-medium">Rationale:</span> {asStr(col.rationale)}</p>}
+          {asStr(col.rationale) && <p className="mt-2 text-xs text-slate-500"><span className="font-medium">{t("Rationale:")}</span> {asStr(col.rationale)}</p>}
         </div>
       ))}
     </div>
@@ -232,7 +240,8 @@ function PalettesView({ c }: { c: Obj }) {
 }
 
 function CopyList({ items }: { items: unknown[] }) {
-  if (!items.length) return <p className="text-sm text-slate-400">None</p>;
+  const { t } = useT();
+  if (!items.length) return <p className="text-sm text-slate-400">{t("None")}</p>;
   return (
     <ul className="space-y-1">
       {items.map((it, i) => (
@@ -268,14 +277,15 @@ function MessagingView({ c }: { c: Obj }) {
 
 /** Which research a piece rests on (C buyer words, K complaints, P personas, L looks) and what to confirm before posting. */
 function Grounding({ refs, check }: { refs: unknown[]; check: unknown[] }) {
+  const { t } = useT();
   if (!refs.length && !check.length) return null;
   return (
     <div className="space-y-1 text-xs">
-      {refs.length > 0 && <p className="text-slate-500">Based on research: {refs.map(asStr).join(", ")}</p>}
+      {refs.length > 0 && <p className="text-slate-500">{t("Based on research: {refs}", { refs: refs.map(asStr).join(", ") })}</p>}
       {check.length > 0 && (
         <p className="flex items-start gap-1.5 text-amber-800">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span>Confirm before posting: {check.map(asStr).join("; ")}</span>
+          <span>{t("Confirm before posting: {items}", { items: check.map(asStr).join("; ") })}</span>
         </p>
       )}
     </div>
@@ -283,6 +293,7 @@ function Grounding({ refs, check }: { refs: unknown[]; check: unknown[] }) {
 }
 
 function SocialPostsView({ c }: { c: Obj }) {
+  const { t } = useT();
   return (
     <div className="space-y-3">
       {asArr(c.posts).map((raw, i) => {
@@ -298,7 +309,7 @@ function SocialPostsView({ c }: { c: Obj }) {
               <span className="whitespace-pre-line">{caption}</span>
               <CopyButton text={caption} />
             </div>
-            <p className="text-xs text-slate-600"><span className="font-semibold">Visual:</span> {asStr(p.visual)}</p>
+            <p className="text-xs text-slate-600"><span className="font-semibold">{t("Visual:")}</span> {asStr(p.visual)}</p>
             <Grounding refs={asArr(p.based_on)} check={asArr(p.needs_checking)} />
           </div>
         );
@@ -308,12 +319,13 @@ function SocialPostsView({ c }: { c: Obj }) {
 }
 
 function VideoScriptView({ c }: { c: Obj }) {
+  const { t } = useT();
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="font-semibold text-slate-900">{asStr(c.title)}</span>
-        <Badge tone="violet">{asStr(c.platform)}</Badge><Badge tone="slate">{asStr(c.length_seconds)} s</Badge>
-        <span className="text-xs text-slate-500">Music: {asStr(c.music_mood)}</span>
+        <Badge tone="violet">{asStr(c.platform)}</Badge><Badge tone="slate">{t("{n} s", { n: asStr(c.length_seconds) })}</Badge>
+        <span className="text-xs text-slate-500">{t("Music: {mood}", { mood: asStr(c.music_mood) })}</span>
       </div>
       <Section title="Hook"><p className="text-sm font-medium text-slate-800">{asStr(c.hook)}</p></Section>
       <Section title="Scenes">
@@ -322,9 +334,9 @@ function VideoScriptView({ c }: { c: Obj }) {
             const sc = asObj(raw);
             return (
               <li key={i} className="rounded-md bg-slate-50 px-2.5 py-1.5 text-sm text-slate-700">
-                <span className="mr-2 font-semibold text-slate-500">{asStr(sc.seconds)}s</span>{asStr(sc.shot)}
-                {asStr(sc.on_screen_text) && <div className="text-xs text-slate-600">On screen: &ldquo;{asStr(sc.on_screen_text)}&rdquo;</div>}
-                {asStr(sc.voiceover) && <div className="text-xs text-slate-600">Voice: {asStr(sc.voiceover)}</div>}
+                <span className="mr-2 font-semibold text-slate-500">{t("{n}s", { n: asStr(sc.seconds) })}</span>{asStr(sc.shot)}
+                {asStr(sc.on_screen_text) && <div className="text-xs text-slate-600">{t("On screen: “{text}”", { text: asStr(sc.on_screen_text) })}</div>}
+                {asStr(sc.voiceover) && <div className="text-xs text-slate-600">{t("Voice: {text}", { text: asStr(sc.voiceover) })}</div>}
               </li>
             );
           })}
@@ -347,6 +359,7 @@ function VideoScriptView({ c }: { c: Obj }) {
 }
 
 function ImageBriefsView({ c }: { c: Obj }) {
+  const { t } = useT();
   return (
     <div className="space-y-3">
       {asArr(c.briefs).map((raw, i) => {
@@ -360,7 +373,7 @@ function ImageBriefsView({ c }: { c: Obj }) {
             <div className="flex items-start justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm text-slate-700">
               <span>{asStr(b.prompt)}</span><CopyButton text={asStr(b.prompt)} label="Copy prompt" />
             </div>
-            {asStr(b.avoid) && <p className="text-xs text-slate-600"><span className="font-semibold">Avoid:</span> {asStr(b.avoid)}</p>}
+            {asStr(b.avoid) && <p className="text-xs text-slate-600"><span className="font-semibold">{t("Avoid:")}</span> {asStr(b.avoid)}</p>}
             <Grounding refs={asArr(b.based_on)} check={[]} />
           </div>
         );

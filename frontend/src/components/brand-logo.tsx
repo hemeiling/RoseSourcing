@@ -1,4 +1,7 @@
+"use client";
+
 import clsx from "clsx";
+import { useT } from "@/lib/i18n";
 
 /**
  * 136Sourcing mark: a friendly parcel - the product you source - with a sparkle for the winning find.
@@ -24,6 +27,7 @@ export function BoxMark({ className }: { className?: string }) {
 
 /** Mark plus wordmark: the colourful "136" house name, then the product name - 136Sourcing (and e.g. 136CRM). */
 export function BrandMark({ light, compact }: { light?: boolean; compact?: boolean }) {
+  const { t } = useT();
   return (
     <div className="flex items-center gap-2.5">
       <BoxMark className="h-10 w-10" />
@@ -35,7 +39,7 @@ export function BrandMark({ light, compact }: { light?: boolean; compact?: boole
             <span className={light ? "text-[#9ff0e6]" : "text-[#0f9e90]"}>6</span>
             <span className={clsx("font-semibold", light ? "text-white" : "text-ink")}>Sourcing</span>
           </div>
-          <div className={clsx("mt-1 text-[11px] font-medium", light ? "text-white/75" : "text-slate-500")}>Product research &amp; sourcing</div>
+          <div className={clsx("mt-1 text-[11px] font-medium", light ? "text-white/75" : "text-slate-500")}>{t("Product research & sourcing")}</div>
         </div>
       )}
     </div>

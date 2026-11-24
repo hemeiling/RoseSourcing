@@ -19,6 +19,7 @@ import {
 import { ApiError, errorText, post } from "@/lib/api";
 import { useApi, useNarrow, truncate } from "@/lib/hooks";
 import { date, dateTime, domainOf, money, titleCase } from "@/lib/format";
+import { useT, type MsgKey } from "@/lib/i18n";
 import { Alert, Badge, Button, Card, CardBody, CardHeader, ConfigNotice, EmptyState, ExternalLink, Spinner, Td, Th } from "@/components/ui";
 import { VerificationBadge } from "@/components/evidence";
 import { fmtPrice } from "./competitor-modals";
@@ -47,6 +48,7 @@ type PriceComparison = {
 const VERIFY_COLOR: Record<string, string> = { source_linked: "#8b6cf0", human_verified: "#0f9e90", unverified: "#d6cbfb", disputed: "#e8467c" };
 
 export function PriceComparisonCard({ projectId, version }: { projectId: string; version: number }) {
+  const { t } = useT();
   const narrow = useNarrow();
   const { data, error, loading, reload } = useApi<PriceComparison>(`/api/projects/${projectId}/competitors/price-comparison`);
   useEffect(() => {
@@ -60,15 +62,15 @@ export function PriceComparisonCard({ projectId, version }: { projectId: string;
   return (
     <Card>
       <CardHeader
-        title="Price comparison"
-        subtitle="Latest observed price per competitor product. Colors show how each price was verified."
+        title={t("Price comparison")}
+        subtitle={t("Latest observed price per competitor product. Colors show how each price was verified.")}
         icon={<BarChart3 className="h-4 w-4" />}
       />
       <CardBody className="space-y-4">
         {loading && !data && <Spinner />}
         {error && <Alert tone="red">{errorText(error)}</Alert>}
         {data && data.rows.length === 0 && (
-          <EmptyState title="No price observations yet">Discover competitors with AI research, import a CSV, or add prices manually from a competitor&apos;s detail view.</EmptyState>
+          <EmptyState title={t("No price observations yet")}>{t("Discover competitors with AI research, import a CSV, or add prices manually from a competitor's detail view.")}</EmptyState>
         )}
         {data && data.rows.length > 0 && (
           <>
@@ -79,20 +81,20 @@ export function PriceComparisonCard({ projectId, version }: { projectId: string;
                   ["Min", data.usd_stats ? money(data.usd_stats.min) : "-"],
                   ["Median", data.usd_stats ? money(data.usd_stats.median) : "-"],
                   ["Max", data.usd_stats ? money(data.usd_stats.max) : "-"],
-                ] as const
+                ] as [MsgKey, string][]
               ).map(([k, v]) => (
                 <div key={k} className="rounded-lg border border-slate-200 px-3 py-2">
-                  <div className="text-[11px] font-medium text-slate-500">{k}</div>
+                  <div className="text-[11px] font-medium text-slate-500">{t(k)}</div>
                   <div className="text-lg font-semibold text-slate-900">{v}</div>
                 </div>
               ))}
             </div>
             {hyp && (
               <p className="text-xs text-slate-600">
-                Shaded band: your price hypothesis {money(hyp.min, { decimals: 0 })}-{money(hyp.max, { decimals: 0 })} (an assumption to test, not market data).
+                {t("Shaded band: your price hypothesis {min}-{max} (an assumption to test, not market data).", { min: money(hyp.min, { decimals: 0 }), max: money(hyp.max, { decimals: 0 }) })}
               </p>
             )}
-            {nonUsd > 0 && <p className="text-xs text-amber-800">{nonUsd} non-USD observation(s) are excluded from the chart and statistics (no FX conversion is applied).</p>}
+            {nonUsd > 0 && <p className="text-xs text-amber-800">{t("{n} non-USD observation(s) are excluded from the chart and statistics (no FX conversion is applied).", { n: nonUsd })}</p>}
             {usdRows.length > 0 && (
               <div style={{ height: Math.max(180, usdRows.length * 34 + 50) }} className="w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -110,7 +112,7 @@ export function PriceComparisonCard({ projectId, version }: { projectId: string;
                         return (
                           <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow">
                             <div className="font-medium text-slate-900">{r.label}</div>
-                            <div>{money(r.price)} · observed {date(r.observed_at)}</div>
+                            <div>{t("{price} · observed {date}", { price: money(r.price), date: date(r.observed_at) })}</div>
                             <div className="text-slate-500">
                               {titleCase(r.verification_status)} · {titleCase(r.source_type)}
                             </div>
@@ -139,12 +141,12 @@ export function PriceComparisonCard({ projectId, version }: { projectId: string;
               <table className="w-full min-w-[640px]">
                 <thead className="border-b border-slate-200">
                   <tr>
-                    <Th>Competitor</Th>
-                    <Th>Product</Th>
-                    <Th>Latest price</Th>
-                    <Th>Observed</Th>
-                    <Th>Source</Th>
-                    <Th>Verification</Th>
+                    <Th>{t("Competitor")}</Th>
+                    <Th>{t("Product")}</Th>
+                    <Th>{t("Latest price")}</Th>
+                    <Th>{t("Observed")}</Th>
+                    <Th>{t("Source")}</Th>
+                    <Th>{t("Verification")}</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -152,16 +154,16 @@ export function PriceComparisonCard({ projectId, version }: { projectId: string;
                     <tr key={`${r.competitor_id}-${r.product}`}>
                       <Td className="font-medium text-slate-900">
                         {r.competitor}
-                        {r.on_watchlist && <span className="ml-1 text-slate-500" title="On watchlist">★</span>}
+                        {r.on_watchlist && <span className="ml-1 text-slate-500" title={t("On watchlist")}>★</span>}
                       </Td>
                       <Td>
                         {r.product}
-                        {r.observations > 1 && <div className="text-[11px] text-slate-400">{r.observations} observations</div>}
+                        {r.observations > 1 && <div className="text-[11px] text-slate-400">{t("{n} observations", { n: r.observations })}</div>}
                       </Td>
                       <Td className="whitespace-nowrap font-medium">{fmtPrice(r.price, r.currency)}</Td>
                       <Td className="whitespace-nowrap text-xs">{date(r.observed_at)}</Td>
                       <Td className="text-xs">
-                        {r.source_url ? <ExternalLink href={r.source_url}>{domainOf(r.source_url)}</ExternalLink> : <span className="text-slate-400">no link</span>}
+                        {r.source_url ? <ExternalLink href={r.source_url}>{domainOf(r.source_url)}</ExternalLink> : <span className="text-slate-400">{t("no link")}</span>}
                         <div className="text-slate-400">{titleCase(r.source_type)}</div>
                       </Td>
                       <Td>
@@ -191,13 +193,14 @@ type Position = {
 type PositioningContent = { summary: string; positions: Position[]; white_space: string[]; differentiation_options: string[]; caveats: string[] };
 type Snapshot = { id: string; created_at: string; content: PositioningContent };
 
-const BASIS: Record<Position["basis"], { label: string; color: string }> = {
+const BASIS: Record<Position["basis"], { label: MsgKey; color: string }> = {
   observed_prices: { label: "Observed prices", color: "#0f9e90" },
   stated_positioning: { label: "Stated positioning", color: "#5b3bc9" },
   inference: { label: "AI inference", color: "#b9a7f6" },
 };
 
 export function PositioningCard({ projectId, hasCompetitors }: { projectId: string; hasCompetitors: boolean }) {
+  const { t } = useT();
   const { data, error, loading, setData } = useApi<Snapshot | null>(`/api/projects/${projectId}/competitors/positioning`);
   const [busy, setBusy] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
@@ -232,27 +235,27 @@ export function PositioningCard({ projectId, hasCompetitors }: { projectId: stri
   return (
     <Card>
       <CardHeader
-        title="Positioning analysis"
-        subtitle="AI analysis of your stored competitor records - not independent market data."
+        title={t("Positioning analysis")}
+        subtitle={t("AI analysis of your stored competitor records - not independent market data.")}
         icon={<Compass className="h-4 w-4" />}
         actions={
           <Button size="sm" onClick={run} loading={busy} disabled={!hasCompetitors}>
             <Sparkles className="h-3.5 w-3.5" aria-hidden />
-            {data ? "Re-run analysis" : "Run analysis"}
+            {data ? t("Re-run analysis") : t("Run analysis")}
           </Button>
         }
       />
       <CardBody className="space-y-4">
-        {!hasCompetitors && <p className="text-sm text-slate-500">Add or discover competitors first - the analysis only uses records you have stored.</p>}
+        {!hasCompetitors && <p className="text-sm text-slate-500">{t("Add or discover competitors first - the analysis only uses records you have stored.")}</p>}
         {configMsg && <ConfigNotice message={configMsg} />}
         {runError && <Alert tone="red">{runError}</Alert>}
         {loading && data === undefined && <Spinner />}
         {error && <Alert tone="red">{errorText(error)}</Alert>}
-        {data === null && hasCompetitors && !busy && <p className="text-sm text-slate-500">No analysis yet. Run one to map competitors by price position and specialization.</p>}
+        {data === null && hasCompetitors && !busy && <p className="text-sm text-slate-500">{t("No analysis yet. Run one to map competitors by price position and specialization.")}</p>}
         {c && (
           <>
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <Badge tone="violet">AI analysis</Badge> generated {dateTime(data!.created_at)}
+              <Badge tone="violet">{t("AI analysis")}</Badge> {t("generated {date}", { date: dateTime(data!.created_at) })}
             </div>
             <p className="text-sm leading-relaxed text-slate-700">{c.summary}</p>
             {points.length > 0 && (
@@ -263,20 +266,20 @@ export function PositioningCard({ projectId, hasCompetitors }: { projectId: stri
                     <XAxis
                       type="number"
                       dataKey="x"
-                      name="Price position"
+                      name={t("Price position")}
                       domain={[0.5, 5.5]}
                       ticks={[1, 2, 3, 4, 5]}
                       tick={{ fontSize: 11 }}
-                      label={{ value: "Price position (1 = lowest, 5 = highest)", position: "bottom", offset: 10, fontSize: 11, fill: "#64748b" }}
+                      label={{ value: t("Price position (1 = lowest, 5 = highest)"), position: "bottom", offset: 10, fontSize: 11, fill: "#64748b" }}
                     />
                     <YAxis
                       type="number"
                       dataKey="y"
-                      name="Specialization"
+                      name={t("Specialization")}
                       domain={[0.5, 5.5]}
                       ticks={[1, 2, 3, 4, 5]}
                       tick={{ fontSize: 11 }}
-                      label={{ value: "Specialization", angle: -90, position: "insideLeft", fontSize: 11, fill: "#64748b" }}
+                      label={{ value: t("Specialization"), angle: -90, position: "insideLeft", fontSize: 11, fill: "#64748b" }}
                     />
                     <Tooltip
                       content={({ active, payload }) => {
@@ -286,7 +289,7 @@ export function PositioningCard({ projectId, hasCompetitors }: { projectId: stri
                           <div className="max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow">
                             <div className="font-medium text-slate-900">{p.name}</div>
                             <div className="text-slate-500">
-                              Price {p.price_position}/5 · Specialization {p.specialization}/5 · basis: {BASIS[p.basis]?.label ?? p.basis}
+                              {t("Price {price}/5 · Specialization {spec}/5 · basis: {basis}", { price: p.price_position, spec: p.specialization, basis: BASIS[p.basis] ? t(BASIS[p.basis].label) : p.basis })}
                             </div>
                             <div className="mt-1 text-slate-700">{p.rationale}</div>
                           </div>
@@ -304,17 +307,17 @@ export function PositioningCard({ projectId, hasCompetitors }: { projectId: stri
               </div>
             )}
             <div className="flex flex-wrap gap-3 text-[11px] text-slate-600">
-              <span className="font-medium">Basis of each position:</span>
+              <span className="font-medium">{t("Basis of each position:")}</span>
               {Object.values(BASIS).map((b) => (
                 <span key={b.label} className="flex items-center gap-1">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} /> {b.label}
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} /> {t(b.label)}
                 </span>
               ))}
             </div>
             <div className="grid gap-4">
-              <ListBlock title="White space" items={c.white_space} />
-              <ListBlock title="Differentiation options" items={c.differentiation_options} />
-              <ListBlock title="Caveats & data gaps" items={c.caveats} tone="amber" />
+              <ListBlock title={t("White space")} items={c.white_space} />
+              <ListBlock title={t("Differentiation options")} items={c.differentiation_options} />
+              <ListBlock title={t("Caveats & data gaps")} items={c.caveats} tone="amber" />
             </div>
           </>
         )}
@@ -324,17 +327,18 @@ export function PositioningCard({ projectId, hasCompetitors }: { projectId: stri
 }
 
 function ListBlock({ title, items, tone }: { title: string; items: string[]; tone?: "amber" }) {
+  const { t } = useT();
   return (
     <div className={tone === "amber" ? "rounded-lg border border-amber-200 bg-amber-50/60 p-3" : "rounded-lg border border-slate-200 p-3"}>
       <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-600">{title}</h4>
       {items.length ? (
         <ul className="list-disc space-y-1 pl-4 text-sm text-slate-700">
-          {items.map((t, i) => (
-            <li key={i}>{t}</li>
+          {items.map((item, i) => (
+            <li key={i}>{item}</li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-slate-400">None noted.</p>
+        <p className="text-sm text-slate-400">{t("None noted.")}</p>
       )}
     </div>
   );

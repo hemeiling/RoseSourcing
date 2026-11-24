@@ -18,6 +18,7 @@ import { useProjects } from "@/components/providers";
 import { Button, Card, CardHeader, EmbedContext, EmptyState, Modal, Spinner } from "@/components/ui";
 import { money } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT } from "@/lib/i18n";
 import { AGENTS } from "@/lib/agents";
 import { errorText, post } from "@/lib/api";
 import { ago } from "@/lib/format";
@@ -57,6 +58,7 @@ const agentName = (kind: string) => AGENTS.find((a) => a.kind === kind)?.name ??
 /** One click runs every agent this product is missing, one after another on the server. Finished agents are skipped
  *  and interrupted ones resume where they stopped, so nothing is paid for twice. */
 function RunAll({ projectId, plan, onChange }: { projectId: string; plan: RunAllPlan | undefined; onChange: () => void }) {
+  const { t, tx } = useT();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,41 +84,41 @@ function RunAll({ projectId, plan, onChange }: { projectId: string; plan: RunAll
     <>
       {chainRunning ? (
         <span className="flex items-center gap-2 text-xs text-slate-600">
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-600" aria-hidden /> Running {Math.min(prog.finished + 1, prog.total)} of {prog.total}{prog.current ? `: ${agentName(prog.current)}` : ""}
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-600" aria-hidden /> {prog.current
+            ? t("Running {n} of {total}: {agent}", { n: Math.min(prog.finished + 1, prog.total), total: prog.total, agent: tx(agentName(prog.current)) })
+            : t("Running {n} of {total}", { n: Math.min(prog.finished + 1, prog.total), total: prog.total })}
         </span>
       ) : todo.length === 0 ? (
-        <span className="text-xs text-slate-500">All agents have run</span>
+        <span className="text-xs text-slate-500">{t("All agents have run")}</span>
       ) : (
-        <Button size="sm" onClick={() => setOpen(true)} disabled={anyRunning} title={anyRunning ? "An agent is running - wait for it to finish" : undefined}>
-          <PlayCircle className="h-3.5 w-3.5" /> Run all missing ({todo.length}, ~{money(todo.reduce((t, s) => t + s.estimate_usd, 0))})
+        <Button size="sm" onClick={() => setOpen(true)} disabled={anyRunning} title={anyRunning ? t("An agent is running - wait for it to finish") : undefined}>
+          <PlayCircle className="h-3.5 w-3.5" /> {t("Run all missing ({n}, ~{cost})", { n: todo.length, cost: money(todo.reduce((sum, s) => sum + s.estimate_usd, 0)) })}
         </Button>
       )}
-      <Modal open={open} onClose={() => setOpen(false)} title="Run all missing agents">
+      <Modal open={open} onClose={() => setOpen(false)} title={t("Run all missing agents")}>
         <p className="text-sm text-slate-600">
-          They run one after another on the server, in an order where later agents use earlier results. Agents that already
-          finished are skipped; interrupted or failed ones continue where they stopped, so finished work is not paid for again.
+          {t("They run one after another on the server, in an order where later agents use earlier results. Agents that already finished are skipped; interrupted or failed ones continue where they stopped, so finished work is not paid for again.")}
         </p>
         <ul className="mt-3 divide-y divide-slate-100 text-sm">
           {plan.steps.map((s) => (
             <li key={s.kind} className="flex items-center justify-between gap-3 py-1.5">
-              <span className={clsx("min-w-0", s.action === "done" ? "text-slate-400" : "text-ink")}>{agentName(s.kind)}</span>
+              <span className={clsx("min-w-0", s.action === "done" ? "text-slate-400" : "text-ink")}>{tx(agentName(s.kind))}</span>
               <span className="whitespace-nowrap text-xs">
-                {s.action === "done" ? <span className="text-slate-400">Done - skipped</span>
-                  : s.action === "running" ? <span className="text-amber-700">Running now</span>
-                  : <span className="text-slate-600">{s.action === "resume" ? "Continue" : "New run"} · ~{money(s.estimate_usd)}</span>}
+                {s.action === "done" ? <span className="text-slate-400">{t("Done - skipped")}</span>
+                  : s.action === "running" ? <span className="text-amber-700">{t("Running now")}</span>
+                  : <span className="text-slate-600">{s.action === "resume" ? t("Continue") : t("New run")} · ~{money(s.estimate_usd)}</span>}
               </span>
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-sm font-semibold text-ink">Estimated cost: ~{money(todo.reduce((t, s) => t + s.estimate_usd, 0))}</p>
+        <p className="mt-3 text-sm font-semibold text-ink">{t("Estimated cost: ~{cost}", { cost: money(todo.reduce((sum, s) => sum + s.estimate_usd, 0)) })}</p>
         <p className="mt-1 text-xs text-slate-500">
-          Estimates come from earlier runs; each run stops at the cost cap. If the server restarts or sleeps mid-way, click
-          Run all again - it picks up where it stopped. Keep this page open while it runs.
+          {t("Estimates come from earlier runs; each run stops at the cost cap. If the server restarts or sleeps mid-way, click Run all again - it picks up where it stopped. Keep this page open while it runs.")}
         </p>
         {error && <p className="mt-2 text-sm text-red-700">{error}</p>}
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={start} loading={busy}>Run {todo.length} agent{todo.length === 1 ? "" : "s"}</Button>
+          <Button variant="secondary" onClick={() => setOpen(false)}>{t("Cancel")}</Button>
+          <Button onClick={start} loading={busy}>{t(todo.length === 1 ? "Run {n} agent" : "Run {n} agents", { n: todo.length })}</Button>
         </div>
       </Modal>
     </>
@@ -132,6 +134,7 @@ function AgentRow({ projectId, agent, last, estimate, otherRunning, onChange }: 
   projectId: string; agent: (typeof AGENTS)[number]; last: ResearchRun | undefined; estimate: number | undefined; otherRunning: boolean;
   onChange: () => void;
 }) {
+  const { t, tx } = useT();
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,17 +161,17 @@ function AgentRow({ projectId, agent, last, estimate, otherRunning, onChange }: 
   return (
     <li className="flex flex-col gap-1.5 px-5 py-2.5 sm:flex-row sm:items-start sm:gap-4">
       <div className="min-w-0 flex-1">
-        <a href={`#${agent.section}`} className="font-semibold text-ink hover:text-primary-700 hover:underline" title="Open its results">{agent.name}</a>
-        <div className="text-xs text-slate-500">{agent.does}</div>
+        <a href={`#${agent.section}`} className="font-semibold text-ink hover:text-primary-700 hover:underline" title={t("Open its results")}>{t(agent.name)}</a>
+        <div className="text-xs text-slate-500">{t(agent.does)}</div>
         {running && (
           <div className="mt-2" aria-live="polite">
             <div className="h-1.5 overflow-hidden rounded-full bg-canvas" role="progressbar" aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={done}
-              aria-label={`${agent.name} progress`}>
+              aria-label={t("{agent} progress", { agent: t(agent.name) })}>
               <div className="h-1.5 rounded-full bg-primary-500 transition-[width] duration-500"
                 style={{ width: `${Math.max(6, Math.round((100 * done) / Math.max(1, steps.length)))}%` }} />
             </div>
             <div className="mt-1 text-[11px] text-slate-600">
-              Step {Math.min(done + 1, steps.length)} of {steps.length}{current ? ` · ${current.label}` : ""} · {fmtCost(last?.cost_usd)} so far
+              {t("Step {n} of {total}", { n: Math.min(done + 1, steps.length), total: steps.length })}{current ? ` · ${tx(current.label)}` : ""} · {t("{cost} so far", { cost: fmtCost(last?.cost_usd) })}
             </div>
           </div>
         )}
@@ -176,23 +179,25 @@ function AgentRow({ projectId, agent, last, estimate, otherRunning, onChange }: 
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-xs text-slate-600 sm:justify-end">
         <span className="whitespace-nowrap">
-          {last ? <><RunStatusBadge status={last.status} /> <span className="ml-1">{ago(last.created_at)} · {fmtCost(last.cost_usd)}</span></> : <span className="text-slate-400">Not run yet</span>}
+          {last ? <><RunStatusBadge status={last.status} /> <span className="ml-1">{ago(last.created_at)} · {fmtCost(last.cost_usd)}</span></> : <span className="text-slate-400">{t("Not run yet")}</span>}
         </span>
         {running ? (
-          <span className="flex items-center gap-1 whitespace-nowrap font-semibold text-primary-700"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />Running</span>
+          <span className="flex items-center gap-1 whitespace-nowrap font-semibold text-primary-700"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />{t("Running")}</span>
         ) : confirm ? (
           <span className="flex items-center gap-1.5 whitespace-nowrap">
-            <span className="text-slate-700">{resume ? "Continue" : "Run"}{cost !== undefined ? ` (~${fmtCost(cost)})` : ""}?</span>
-            <Button size="sm" onClick={start} loading={busy}>Yes</Button>
-            <Button size="sm" variant="ghost" onClick={() => setConfirm(false)}>Cancel</Button>
+            <span className="text-slate-700">{cost !== undefined
+              ? t(resume ? "Continue (~{cost})?" : "Run (~{cost})?", { cost: fmtCost(cost) })
+              : t(resume ? "Continue?" : "Run?")}</span>
+            <Button size="sm" onClick={start} loading={busy}>{t("Yes")}</Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirm(false)}>{t("Cancel")}</Button>
           </span>
         ) : (
           <button onClick={() => setConfirm(true)} disabled={otherRunning}
-            title={otherRunning ? "Another agent is running for this product - this one can start when it finishes" : undefined}
+            title={otherRunning ? t("Another agent is running for this product - this one can start when it finishes") : undefined}
             className={clsx("flex items-center gap-1 whitespace-nowrap font-semibold hover:underline disabled:text-slate-300 disabled:no-underline",
               last && !resume ? "text-slate-600" : "text-primary-700")}>
             {last && !resume ? <RotateCw className="h-3.5 w-3.5" aria-hidden /> : <PlayCircle className="h-3.5 w-3.5" aria-hidden />}
-            {resume ? "Continue" : last ? "Run again" : "Run"}
+            {resume ? t("Continue") : last ? t("Run again") : t("Run")}
           </button>
         )}
       </div>
@@ -202,6 +207,7 @@ function AgentRow({ projectId, agent, last, estimate, otherRunning, onChange }: 
 
 /** Every research agent, with its latest run for this product, a Run button and live progress. */
 function AgentsPanel({ projectId }: { projectId: string }) {
+  const { t, tx } = useT();
   const runs = useApi<ResearchRun[]>(`/api/projects/${projectId}/research-runs`);
   const plan = useApi<RunAllPlan>(`/api/projects/${projectId}/research-runs/run-all`);
   const { reload: reloadRuns } = runs;
@@ -211,8 +217,8 @@ function AgentsPanel({ projectId }: { projectId: string }) {
   // While anything runs, refresh every 5 s so the progress bars move.
   useEffect(() => {
     if (!active) return;
-    const t = setInterval(() => { reloadRuns(); reloadPlan(); }, 5000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => { reloadRuns(); reloadPlan(); }, 5000);
+    return () => clearInterval(timer);
   }, [active, reloadRuns, reloadPlan]);
   // When an agent finishes, the report's sections reload to show what it saved.
   const runningIds = useRef<Set<string>>(new Set());
@@ -224,11 +230,11 @@ function AgentsPanel({ projectId }: { projectId: string }) {
   }, [runs.data]);
   return (
     <Card >
-      <CardHeader title="Agents" icon={<Bot className="h-4 w-4" />}
-        subtitle="Run them one by one, or all at once in this order - each reads what the ones before it saved."
+      <CardHeader title={t("Agents")} icon={<Bot className="h-4 w-4" />}
+        subtitle={t("Run them one by one, or all at once in this order - each reads what the ones before it saved.")}
         actions={<RunAll projectId={projectId} plan={plan.data} onChange={() => { reloadRuns(); reloadPlan(); }} />} />
       {plan.data?.progress?.done && plan.data.progress.stopped && (
-        <p className="mx-5 mb-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{plan.data.progress.stopped}</p>
+        <p className="mx-5 mb-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{tx(plan.data.progress.stopped)}</p>
       )}
       {/* A list rather than a table, so on a phone the status and link wrap under the agent instead of scrolling sideways. */}
       <ul className="divide-y divide-slate-100 text-sm">
@@ -253,6 +259,7 @@ function Review({ projectId }: { projectId: string }) {
 }
 
 function ProductReport({ id }: { id: string }) {
+  const { t } = useT();
   const { projects, project, select, loading } = useProjects();
   const router = useRouter();
   const [suppliersVersion, setSuppliersVersion] = useState(0);
@@ -261,8 +268,8 @@ function ProductReport({ id }: { id: string }) {
   const dash = useApi<{ counts: Record<string, number> }>(`/api/projects/${id}/dashboard`);
   const { reload: reloadCounts } = dash;
   const has = (when?: string[]) => !when || !dash.data || when.some((k) => (dash.data!.counts[k] ?? 0) > 0);
-  const shown = SECTIONS.map((t) => ({ ...t, parts: t.parts?.filter((p) => has(p.shownWhen)) }))
-    .filter((t) => has(t.shownWhen) && (!t.parts || t.parts.length > 0));
+  const shown = SECTIONS.map((tab) => ({ ...tab, parts: tab.parts?.filter((p) => has(p.shownWhen)) }))
+    .filter((tab) => has(tab.shownWhen) && (!tab.parts || tab.parts.length > 0));
   // Bumped when any agent finishes, so every open section re-reads its data (runs are started from the agents card).
   const [dataVersion, setDataVersion] = useState(0);
   useEffect(() => {
@@ -275,8 +282,11 @@ function ProductReport({ id }: { id: string }) {
     try {
       const r = await post<{ updated: number; prices_added: number }>(`/api/projects/${id}/competitors/assign-tiers`);
       setTierNote(r.updated || r.prices_added
-        ? `Placed ${r.updated} competitor${r.updated === 1 ? "" : "s"} in a price tier; added ${r.prices_added} price${r.prices_added === 1 ? "" : "s"} from marketplace listings.`
-        : "No changes: competitors without prices did not match any listing found by the Price Range Finder.");
+        ? t(r.updated === 1
+          ? (r.prices_added === 1 ? "Placed {n} competitor in a price tier; added {m} price from marketplace listings." : "Placed {n} competitor in a price tier; added {m} prices from marketplace listings.")
+          : (r.prices_added === 1 ? "Placed {n} competitors in a price tier; added {m} price from marketplace listings." : "Placed {n} competitors in a price tier; added {m} prices from marketplace listings."),
+        { n: r.updated, m: r.prices_added })
+        : t("No changes: competitors without prices did not match any listing found by the Price Range Finder."));
       setCompetitorsVersion((v) => v + 1);
     } catch (e) {
       setTierNote(errorText(e));
@@ -360,9 +370,11 @@ function ProductReport({ id }: { id: string }) {
     if (Custom) return <Custom key={dataVersion} projectId={id} />;
     const Page = PAGES[sid];
     if (!Page) return null;
-    const tab = SECTIONS.find((t) => t.id === sid);
+    const tab = SECTIONS.find((x) => x.id === sid);
+    const title = part?.title ?? tab?.title;
+    const description = part?.description ?? tab?.description;
     return (
-      <EmbedContext.Provider value={{ id: sid, title: part?.title ?? tab?.title ?? "", description: part?.description ?? tab?.description }}>
+      <EmbedContext.Provider value={{ id: sid, title: title ? t(title) : "", description: description ? t(description) : undefined }}>
         {sid === "supplier-list" && (
           <div className="mb-4">
             <AddListingLinks projectId={id} onAdded={() => setSuppliersVersion((v) => v + 1)} />
@@ -370,8 +382,8 @@ function ProductReport({ id }: { id: string }) {
         )}
         {sid === "brands" && (
           <div className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm">
-            <span className="text-slate-600">Place each competitor in the budget / mid / premium / luxury tiers found by the Price Range Finder, using its prices or matching listings.</span>
-            <Button size="sm" variant="secondary" onClick={assignTiers}>Assign price tiers</Button>
+            <span className="text-slate-600">{t("Place each competitor in the budget / mid / premium / luxury tiers found by the Price Range Finder, using its prices or matching listings.")}</span>
+            <Button size="sm" variant="secondary" onClick={assignTiers}>{t("Assign price tiers")}</Button>
             {tierNote && <span className="w-full text-xs text-slate-500">{tierNote}</span>}
           </div>
         )}
@@ -382,26 +394,26 @@ function ProductReport({ id }: { id: string }) {
 
   if (loading) return <Spinner />;
   if (!exists)
-    return <EmptyState title="Product not found" action={<Link href="/products"><Button>See all products</Button></Link>}>It may have been deleted, or the link is incomplete.</EmptyState>;
+    return <EmptyState title={t("Product not found")} action={<Link href="/products"><Button>{t("See all products")}</Button></Link>}>{t("It may have been deleted, or the link is incomplete.")}</EmptyState>;
   if (!ready || !project) return <Spinner />;
 
   return (
     <div onClickCapture={onClickCapture}>
       <div className="mb-4">
-        <Link href="/products" className="text-xs font-semibold text-primary-700 hover:underline">← All products</Link>
+        <Link href="/products" className="text-xs font-semibold text-primary-700 hover:underline">{t("← All products")}</Link>
         {/* Title row: name and actions share the top line; the facts and decision sit underneath, all on one left edge. */}
         <div className="mt-2 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <h1 className="min-w-0 text-2xl font-semibold leading-tight text-ink sm:text-[1.75rem]">{project.name}</h1>
           <div className="flex shrink-0 flex-wrap gap-2">
-            <Link href="/copilot"><Button size="sm" variant="secondary"><Bot className="h-3.5 w-3.5" /> Ask the copilot</Button></Link>
-            <Link href="/projects"><Button size="sm" variant="ghost"><Pencil className="h-3.5 w-3.5" /> Edit details</Button></Link>
+            <Link href="/copilot"><Button size="sm" variant="secondary"><Bot className="h-3.5 w-3.5" /> {t("Ask the copilot")}</Button></Link>
+            <Link href="/projects"><Button size="sm" variant="ghost"><Pencil className="h-3.5 w-3.5" /> {t("Edit details")}</Button></Link>
           </div>
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-slate-600">
           <DecisionBadge decision={project.decision} />
           <span>
-            {project.product_category} · {project.target_country}{project.sourcing_country ? ` · sourcing from ${project.sourcing_country}` : ""}
-            {project.budget_usd !== null ? ` · budget ${money(project.budget_usd, { decimals: 0 })}` : ""}
+            {project.product_category} · {project.target_country}{project.sourcing_country ? ` · ${t("sourcing from {country}", { country: project.sourcing_country })}` : ""}
+            {project.budget_usd !== null ? ` · ${t("budget {amount}", { amount: money(project.budget_usd, { decimals: 0 }) })}` : ""}
           </span>
         </div>
         <AiRecommendationLine projectId={id} />
@@ -413,7 +425,7 @@ function ProductReport({ id }: { id: string }) {
         <button type="button" onClick={() => saveFolded(allFolded ? new Set() : new Set(SECTIONS.map((s) => s.id)))}
           className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-50">
           {allFolded ? <ChevronsUpDown className="h-3.5 w-3.5" aria-hidden /> : <ChevronsDownUp className="h-3.5 w-3.5" aria-hidden />}
-          {allFolded ? "Unfold all" : "Fold all"}
+          {allFolded ? t("Unfold all") : t("Fold all")}
         </button>
       </div>
 
@@ -422,24 +434,24 @@ function ProductReport({ id }: { id: string }) {
         {shown.map((s) => {
           const isFolded = folded.has(s.id);
           return (
-          <section key={s.id} id={s.id} className="scroll-mt-16" aria-label={s.title}>
+          <section key={s.id} id={s.id} className="scroll-mt-16" aria-label={t(s.title)}>
             <div className={clsx("flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2.5", !isFolded && "pb-1")}>
               <h2 className="text-xl font-semibold leading-tight text-ink">
                 <button type="button" onClick={() => toggle(s.id)} aria-expanded={!isFolded} aria-controls={`${s.id}-body`}
                   className="group flex items-center gap-1.5 text-left hover:text-primary-700">
-                  <span>{s.title}</span>
+                  <span>{t(s.title)}</span>
                   <ChevronDown className={clsx("h-5 w-5 shrink-0 text-slate-400 transition-transform group-hover:text-primary-700", isFolded && "-rotate-90")} aria-hidden />
                 </button>
               </h2>
-              <span className="text-sm text-slate-500">{s.parts ? s.parts.map((p) => p.title).join(" · ") : isFolded ? "" : s.description}</span>
+              <span className="text-sm text-slate-500">{s.parts ? s.parts.map((p) => t(p.title)).join(" · ") : isFolded || !s.description ? "" : t(s.description)}</span>
             </div>
             {!isFolded && (
               <div id={`${s.id}-body`} className="space-y-8 pb-8 pt-3">
                 {s.parts
                   ? s.parts.map((part) => (
                     <div key={part.id} id={part.id} className="scroll-mt-16">
-                      <h3 className="text-base font-semibold text-ink">{part.title}</h3>
-                      {part.description && <p className="mb-3 mt-0.5 max-w-3xl text-sm text-slate-600">{part.description}</p>}
+                      <h3 className="text-base font-semibold text-ink">{t(part.title)}</h3>
+                      {part.description && <p className="mb-3 mt-0.5 max-w-3xl text-sm text-slate-600">{t(part.description)}</p>}
                       {body(part.id, part)}
                     </div>
                   ))
@@ -455,8 +467,9 @@ function ProductReport({ id }: { id: string }) {
 }
 
 function ProductFromUrl() {
+  const { t } = useT();
   const id = useSearchParams().get("id");
-  if (!id) return <EmptyState title="Choose a product" action={<Link href="/products"><Button>See all products</Button></Link>}>Open a product from the list to see its full report.</EmptyState>;
+  if (!id) return <EmptyState title={t("Choose a product")} action={<Link href="/products"><Button>{t("See all products")}</Button></Link>}>{t("Open a product from the list to see its full report.")}</EmptyState>;
   return <ProductReport key={id} id={id} />;
 }
 

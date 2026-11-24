@@ -11,6 +11,7 @@ import type { Snapshot, Tracker } from "@/components/listing-insights";
 import { Alert, Button, Card, EmptyState, PageHeader, Spinner, Tabs } from "@/components/ui";
 import { del, errorText, patch } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
+import { useT } from "@/lib/i18n";
 import type { Competitor } from "@/lib/types";
 
 type Tab = "list" | "prices" | "positioning" | "import";
@@ -20,6 +21,7 @@ export default function CompetitorsPage() {
 }
 
 function Competitors({ projectId }: { projectId: string }) {
+  const { t, tr } = useT();
   const [tab, setTab] = useState<Tab>("list");
   const [editing, setEditing] = useState<Competitor | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -48,7 +50,7 @@ function Competitors({ projectId }: { projectId: string }) {
   }
 
   async function remove(c: Competitor) {
-    if (!window.confirm(`Delete ${c.name} and all of its products and price observations? This cannot be undone.`)) return;
+    if (!window.confirm(t("Delete {name} and all of its products and price observations? This cannot be undone.", { name: c.name }))) return;
     setError(null);
     try {
       await del(`/api/competitors/${c.id}`);
@@ -61,8 +63,8 @@ function Competitors({ projectId }: { projectId: string }) {
   return (
     <div>
       <PageHeader
-        title="Competitor Intelligence"
-        description="Track competitors, their products and observed prices - every price keeps its source link, observation date and verification status."
+        title={t("Competitor Intelligence")}
+        description={t("Track competitors, their products and observed prices - every price keeps its source link, observation date and verification status.")}
         actions={
           <Button
             onClick={() => {
@@ -70,7 +72,7 @@ function Competitors({ projectId }: { projectId: string }) {
               setFormOpen(true);
             }}
           >
-            <Plus className="h-4 w-4" aria-hidden /> Add competitor
+            <Plus className="h-4 w-4" aria-hidden /> {t("Add competitor")}
           </Button>
         }
       />
@@ -78,10 +80,10 @@ function Competitors({ projectId }: { projectId: string }) {
         value={tab}
         onChange={setTab}
         tabs={[
-          { value: "list", label: `Competitors & listings${data ? ` (${data.length})` : ""}` },
-          { value: "prices", label: "Price comparison" },
-          { value: "positioning", label: "Positioning" },
-          { value: "import", label: "Import CSV" },
+          { value: "list", label: `${t("Competitors & listings")}${data ? ` (${data.length})` : ""}` },
+          { value: "prices", label: t("Price comparison") },
+          { value: "positioning", label: t("Positioning") },
+          { value: "import", label: t("Import CSV") },
         ]}
       />
 
@@ -93,8 +95,8 @@ function Competitors({ projectId }: { projectId: string }) {
           {loadError && <Alert tone="red">{errorText(loadError)}</Alert>}
           {loading && !data ? <Spinner /> : data && data.length === 0 ? (
             <Card>
-              <EmptyState icon={<Swords className="h-5 w-5" />} title="No competitors yet">
-                Discover competitors with AI research or track comparable listings above, import a CSV, or add one manually.
+              <EmptyState icon={<Swords className="h-5 w-5" />} title={t("No competitors yet")}>
+                {t("Discover competitors with AI research or track comparable listings above, import a CSV, or add one manually.")}
               </EmptyState>
             </Card>
           ) : data && (
@@ -109,15 +111,17 @@ function Competitors({ projectId }: { projectId: string }) {
       {tab === "positioning" && <PositioningCard projectId={projectId} hasCompetitors={(data?.length ?? 0) > 0} />}
       {tab === "import" && (
         <CsvImportCard
-          title="Import competitors & price observations"
-          description="One row per product price. Rows for the same competitor are merged; imported prices are marked unverified until you check them."
+          title={t("Import competitors & price observations")}
+          description={t("One row per product price. Rows for the same competitor are merged; imported prices are marked unverified until you check them.")}
           templateKind="competitors"
           uploadPath={`/api/projects/${projectId}/competitors/import`}
           onDone={refreshAll}
         >
+          {/* The column names are what the importer reads: they stay in English. */}
           <p className="text-xs text-slate-600">
-            Columns: <code className="rounded bg-slate-100 px-1">competitor</code> (required), website, price_tier (budget/mid/premium/luxury), channels, product,
-            product_url, price, currency, observed_at (YYYY-MM-DD), notes. Only import data you are permitted to collect.
+            {tr("Columns: {competitor} (required), website, price_tier (budget/mid/premium/luxury), channels, product, product_url, price, currency, observed_at (YYYY-MM-DD), notes. Only import data you are permitted to collect.", {
+              competitor: <code className="rounded bg-slate-100 px-1">competitor</code>,
+            })}
           </p>
         </CsvImportCard>
       )}

@@ -7,10 +7,12 @@ import { Alert, Badge, Card, CardBody, EmptyState, ExternalLink, Field, Input, S
 import { errorText } from "@/lib/api";
 import { date, domainOf, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT } from "@/lib/i18n";
 import type { EvidenceSource, ResearchRun, Segment } from "@/lib/types";
 import { KIND_LABEL } from "./shared";
 
 export function SegmentsTab({ projectId, version }: { projectId: string; version: number }) {
+  const { t } = useT();
   const segs = useApi<Segment[]>(`/api/projects/${projectId}/segments`);
   const sources = useApi<EvidenceSource[]>(`/api/projects/${projectId}/sources`);
   const { reload: reloadSegs } = segs;
@@ -26,12 +28,12 @@ export function SegmentsTab({ projectId, version }: { projectId: string; version
   const sourceById = useMemo(() => new Map((sources.data ?? []).map((s) => [s.id, s])), [sources.data]);
 
   if (segs.loading && !segs.data) return <Spinner />;
-  if (segs.error) return <Alert tone="red">Could not load segments: {errorText(segs.error)}</Alert>;
+  if (segs.error) return <Alert tone="red">{t("Could not load segments: {error}", { error: errorText(segs.error) })}</Alert>;
   if (!segs.data?.length)
     return (
       <Card>
-        <EmptyState icon={<Users className="h-5 w-5" />} title="No customer segments yet">
-          Segments are identified during the &ldquo;Customer segments &amp; unmet needs&rdquo; research step.
+        <EmptyState icon={<Users className="h-5 w-5" />} title={t("No customer segments yet")}>
+          {t("Segments are identified during the “Customer segments & unmet needs” research step.")}
         </EmptyState>
       </Card>
     );
@@ -49,7 +51,7 @@ export function SegmentsTab({ projectId, version }: { projectId: string; version
             {s.description && <p className="text-sm text-slate-600">{s.description}</p>}
             {s.needs.length > 0 && (
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Needs</div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Needs")}</div>
                 <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-slate-700">
                   {s.needs.map((n, i) => (
                     <li key={i}>{n}</li>
@@ -59,7 +61,7 @@ export function SegmentsTab({ projectId, version }: { projectId: string; version
             )}
             {s.unmet_needs.length > 0 && (
               <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Unmet needs</div>
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{t("Unmet needs")}</div>
                 <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-slate-700">
                   {s.unmet_needs.map((n, i) => (
                     <li key={i}>{n}</li>
@@ -68,7 +70,7 @@ export function SegmentsTab({ projectId, version }: { projectId: string; version
               </div>
             )}
             <p className="text-xs text-slate-600">
-              <span className="font-medium text-slate-700">Size indicator:</span> {s.size_indicator ?? "No size evidence found"}
+              <span className="font-medium text-slate-700">{t("Size indicator:")}</span> {s.size_indicator ?? t("No size evidence found")}
             </p>
             {s.source_ids.length > 0 ? (
               <div className="space-y-0.5 border-t border-slate-100 pt-2 text-xs">
@@ -78,13 +80,13 @@ export function SegmentsTab({ projectId, version }: { projectId: string; version
                   return (
                     <div key={id} className="text-slate-500">
                       {src.url ? <ExternalLink href={src.url}>{src.title || domainOf(src.url)}</ExternalLink> : src.title}
-                      <span className="ml-1.5">· retrieved {date(src.retrieved_at)}</span>
+                      <span className="ml-1.5">· {t("retrieved {date}", { date: date(src.retrieved_at) })}</span>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="border-t border-slate-100 pt-2 text-xs text-slate-500">No sources linked - treat as a hypothesis.</p>
+              <p className="border-t border-slate-100 pt-2 text-xs text-slate-500">{t("No sources linked - treat as a hypothesis.")}</p>
             )}
           </CardBody>
         </Card>
@@ -94,6 +96,7 @@ export function SegmentsTab({ projectId, version }: { projectId: string; version
 }
 
 export function SourcesTab({ projectId, runs, version }: { projectId: string; runs: ResearchRun[] | undefined; version: number }) {
+  const { t, tx } = useT();
   const [runId, setRunId] = useState("");
   const [q, setQ] = useState("");
   const { data, error, loading, reload } = useApi<EvidenceSource[]>(`/api/projects/${projectId}/sources${runId ? `?run_id=${runId}` : ""}`);
@@ -114,32 +117,32 @@ export function SourcesTab({ projectId, runs, version }: { projectId: string; ru
     <div className="space-y-4">
       <Card>
         <CardBody className="grid gap-3 sm:grid-cols-2">
-          <Field label="Search sources">
-            <Input placeholder="Title, URL or excerpt text" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Field label={t("Search sources")}>
+            <Input placeholder={t("Title, URL or excerpt text")} value={q} onChange={(e) => setQ(e.target.value)} />
           </Field>
-          <Field label="Research run">
+          <Field label={t("Research run")}>
             <Select value={runId} onChange={(e) => setRunId(e.target.value)}>
-              <option value="">All runs</option>
+              <option value="">{t("All runs")}</option>
               {runs?.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {date(r.created_at)} · {KIND_LABEL[r.kind] ?? r.kind}
+                  {date(r.created_at)} · {tx(KIND_LABEL[r.kind] ?? r.kind)}
                 </option>
               ))}
             </Select>
           </Field>
         </CardBody>
       </Card>
-      {error && <Alert tone="red">Could not load sources: {errorText(error)}</Alert>}
+      {error && <Alert tone="red">{t("Could not load sources: {error}", { error: errorText(error) })}</Alert>}
       {loading && !data && <Spinner />}
       {data && (
         <p className="text-xs text-slate-600">
-          {filtered.length} sources · {withExcerpts} with verbatim excerpts. Excerpts are exactly what the provider returned - not written by the model.
+          {t("{n} sources · {m} with verbatim excerpts. Excerpts are exactly what the provider returned - not written by the model.", { n: filtered.length, m: withExcerpts })}
         </p>
       )}
       {data && filtered.length === 0 && (
         <Card>
-          <EmptyState icon={<Globe className="h-5 w-5" />} title="No sources">
-            {q || runId ? "No sources match these filters." : "Sources appear here after a research run retrieves them."}
+          <EmptyState icon={<Globe className="h-5 w-5" />} title={t("No sources")}>
+            {q || runId ? t("No sources match these filters.") : t("Sources appear here after a research run retrieves them.")}
           </EmptyState>
         </Card>
       )}
@@ -154,11 +157,11 @@ export function SourcesTab({ projectId, runs, version }: { projectId: string; ru
                       {s.title || s.url}
                     </ExternalLink>
                   ) : (
-                    <span className="text-sm font-medium text-slate-900">{s.title ?? "Untitled source"}</span>
+                    <span className="text-sm font-medium text-slate-900">{s.title ?? t("Untitled source")}</span>
                   )}
                   <p className="mt-0.5 text-xs text-slate-500">
-                    {domainOf(s.url)} · retrieved {date(s.retrieved_at)}
-                    {s.published_hint ? ` · page age: ${s.published_hint}` : ""}
+                    {domainOf(s.url)} · {t("retrieved {date}", { date: date(s.retrieved_at) })}
+                    {s.published_hint ? ` · ${t("page age: {age}", { age: s.published_hint })}` : ""}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-1">
@@ -175,7 +178,7 @@ export function SourcesTab({ projectId, runs, version }: { projectId: string; ru
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-slate-500">No excerpt captured (search result title only).</p>
+                <p className="text-xs text-slate-500">{t("No excerpt captured (search result title only).")}</p>
               )}
             </CardBody>
           </Card>

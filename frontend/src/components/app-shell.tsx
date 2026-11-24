@@ -5,29 +5,32 @@ import { FolderKanban, LayoutGrid, LogOut, Menu, PanelLeftClose, PanelLeftOpen, 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useT, type MsgKey } from "@/lib/i18n";
 import { SECTION_BY_ROUTE, productHref } from "@/lib/sections";
+import { LanguageSwitch } from "./language-switch";
 import { useAuth, useProjects, useStatus } from "./providers";
 import { BrandMark } from "./brand-logo";
 import { Button, EmptyState, Spinner } from "./ui";
 
 export { BrandMark } from "./brand-logo";
 
-const DECISION_LABEL: Record<string, string> = { go: "Go", no_go: "No-go", on_hold: "On hold", undecided: "" };
+const DECISION_LABEL: Record<string, MsgKey | ""> = { go: "Go", no_go: "No-go", on_hold: "On hold", undecided: "" };
 // The decision is the only status shown in the list, in the logo colours: teal = go, yellow = on hold, pink = no-go.
 const DECISION_COLOR: Record<string, string> = { go: "text-green-700", no_go: "text-red-700", on_hold: "text-amber-700", undecided: "" };
 
 function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () => void; collapsed?: boolean; onToggle?: () => void }) {
   const pathname = usePathname();
+  const { t } = useT();
   const { status } = useStatus();
   const { projects, project } = useProjects();
   const [q, setQ] = useState("");
   const shown = projects.filter((p) => !q.trim() || `${p.short_name ?? ""} ${p.name} ${p.product_category}`.toLowerCase().includes(q.trim().toLowerCase()));
   return (
-    <nav className="flex h-full flex-col" aria-label="Main">
+    <nav className="flex h-full flex-col" aria-label={t("Main")}>
       <div className={clsx("flex items-center border-b border-line pb-4 pt-5", collapsed ? "flex-col gap-3 px-2" : "justify-between gap-2 px-4")}>
-        <Link href="/products" onClick={onNavigate} aria-label="136Sourcing home"><BrandMark compact={collapsed} /></Link>
+        <Link href="/products" onClick={onNavigate} aria-label={t("136Sourcing home")}><BrandMark compact={collapsed} /></Link>
         {onToggle && (
-          <button onClick={onToggle} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          <button onClick={onToggle} aria-label={collapsed ? t("Expand sidebar") : t("Collapse sidebar")} title={collapsed ? t("Expand sidebar") : t("Collapse sidebar")}
             className="rounded-md p-1.5 text-primary-700 hover:bg-primary-50">
             {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
           </button>
@@ -37,7 +40,7 @@ function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () 
         <Link
           href="/products"
           onClick={onNavigate}
-          title="Products"
+          title={t("Products")}
           className={clsx(
             "flex items-center gap-2.5 rounded-lg border-l-4 py-2 text-[14px] font-semibold transition-colors",
             collapsed ? "justify-center px-0" : "px-3",
@@ -46,12 +49,12 @@ function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () 
           aria-current={pathname === "/products" ? "page" : undefined}
         >
           <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden />
-          {!collapsed && <>Products<span className="ml-auto text-[11px] font-normal text-primary-400">{projects.length || ""}</span></>}
+          {!collapsed && <>{t("Products")}<span className="ml-auto text-[11px] font-normal text-primary-400">{projects.length || ""}</span></>}
         </Link>
         {!collapsed && projects.length > 4 && (
           <label className="mx-1 mt-2 flex items-center gap-1.5 rounded-md border border-line bg-white px-2 py-1.5 text-primary-400 focus-within:border-primary-400">
             <Search className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Find a product" aria-label="Find a product"
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Find a product")} aria-label={t("Find a product")}
               className="w-full bg-transparent text-[13px] text-primary-800 placeholder:text-primary-300 focus:outline-none" />
           </label>
         )}
@@ -78,25 +81,25 @@ function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () 
                     <>
                       <span className="min-w-0 flex-1">{p.short_name || p.name}</span>
                       {DECISION_LABEL[p.decision] && <span className={clsx("mt-0.5 shrink-0 text-[10px] font-semibold",
-                        active ? "text-white/85" : DECISION_COLOR[p.decision])}>{DECISION_LABEL[p.decision]}</span>}
+                        active ? "text-white/85" : DECISION_COLOR[p.decision])}>{t(DECISION_LABEL[p.decision] as MsgKey)}</span>}
                     </>
                   )}
                 </Link>
               </li>
             );
           })}
-          {!collapsed && q && shown.length === 0 && <li className="px-3 py-2 text-xs text-slate-500">No product matches "{q}".</li>}
+          {!collapsed && q && shown.length === 0 && <li className="px-3 py-2 text-xs text-slate-500">{t("No product matches \"{q}\".", { q })}</li>}
         </ul>
       </div>
       <div className={clsx("border-t border-line py-3 text-[11px] text-slate-500", collapsed ? "flex justify-center px-2" : "px-5")}>
         {status ? (
           status.ai.configured ? (
-            <span className="flex items-center gap-1.5" title={`AI connected · ${status.ai.model}`}>
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{!collapsed && <>AI connected · {status.ai.model}</>}
+            <span className="flex items-center gap-1.5" title={t("AI connected · {model}", { model: status.ai.model })}>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />{!collapsed && t("AI connected · {model}", { model: status.ai.model })}
             </span>
           ) : (
-            <Link href="/settings" className="flex items-center gap-1.5 text-primary-700 hover:underline" title="AI not configured">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />{!collapsed && "AI not configured"}
+            <Link href="/settings" className="flex items-center gap-1.5 text-primary-700 hover:underline" title={t("AI not configured")}>
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />{!collapsed && t("AI not configured")}
             </Link>
           )
         ) : (
@@ -122,16 +125,17 @@ const clampW = (w: number) => Math.min(MAX_W, Math.max(MIN_W, Math.round(w)));
 
 function ProjectSwitcher() {
   const { projects, project, select } = useProjects();
+  const { t } = useT();
   if (!projects.length) {
     return (
       <Link href="/projects" className="text-sm font-medium text-primary-700 hover:underline">
-        Create your first project
+        {t("Create your first project")}
       </Link>
     );
   }
   return (
     <label className="flex min-w-0 items-center gap-2">
-      <span className="hidden text-[11px] font-bold uppercase tracking-[0.06em] text-brand-700 sm:inline">Project</span>
+      <span className="hidden text-[11px] font-bold uppercase tracking-[0.06em] text-brand-700 sm:inline">{t("Project")}</span>
       <select
         value={project?.id ?? ""}
         onChange={(e) => select(e.target.value)}
@@ -149,6 +153,7 @@ function ProjectSwitcher() {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, loading, logout } = useAuth();
+  const { t } = useT();
   const { project, loading: projectsLoading } = useProjects();
   const pathname = usePathname();
   const router = useRouter();
@@ -237,9 +242,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className={clsx("min-h-screen", dragging && "cursor-col-resize select-none")} style={{ "--sidebar-w": `${collapsed ? RAIL_W : width}px` } as CSSProperties}>
       <aside className={clsx("fixed inset-y-0 left-0 z-30 hidden w-(--sidebar-w) border-r border-line bg-white lg:block", !dragging && "transition-[width] duration-200")}>
         <Sidebar collapsed={collapsed} onToggle={toggle} />
-        <div role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabIndex={0}
+        <div role="separator" aria-orientation="vertical" aria-label={t("Resize sidebar")} tabIndex={0}
           aria-valuemin={RAIL_W} aria-valuemax={MAX_W} aria-valuenow={collapsed ? RAIL_W : width}
-          title="Drag to resize · double-click to reset"
+          title={t("Drag to resize · double-click to reset")}
           onPointerDown={startDrag} onPointerMove={onDrag} onPointerUp={endDrag} onPointerCancel={endDrag} onDoubleClick={resetWidth} onKeyDown={keyResize}
           className="group absolute inset-y-0 -right-1.5 z-10 w-3 cursor-col-resize touch-none outline-none">
           <span className={clsx("absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors",
@@ -250,7 +255,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-slate-900/40" onClick={() => setOpen(false)} />
           <aside className="absolute inset-y-0 left-0 w-72 border-r border-line bg-white">
-            <button className="absolute right-2 top-3 z-10 rounded p-1.5 text-primary-700 hover:bg-primary-50" onClick={() => setOpen(false)} aria-label="Close menu">
+            <button className="absolute right-2 top-3 z-10 rounded p-1.5 text-primary-700 hover:bg-primary-50" onClick={() => setOpen(false)} aria-label={t("Close menu")}>
               <X className="h-4 w-4" />
             </button>
             <Sidebar onNavigate={() => setOpen(false)} />
@@ -259,19 +264,20 @@ export function AppShell({ children }: { children: ReactNode }) {
       )}
       <div className={clsx("lg:pl-(--sidebar-w)", !dragging && "transition-[padding] duration-200")}>
         <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-line bg-white px-4 sm:px-6">
-          <button className="rounded p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" onClick={() => setOpen(true)} aria-label="Open menu">
+          <button className="rounded p-1.5 text-slate-600 hover:bg-slate-100 lg:hidden" onClick={() => setOpen(true)} aria-label={t("Open menu")}>
             <Menu className="h-5 w-5" />
           </button>
           {pathname !== "/product" && pathname !== "/products" && <ProjectSwitcher />}
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <span className="hidden text-xs text-slate-500 md:inline">{user.email}</span>
-            <Link href="/settings" aria-label="Settings"
+            <LanguageSwitch showIcon={false} />
+            <Link href="/settings" aria-label={t("Settings")}
               className={clsx("inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-medium text-slate-600 hover:bg-slate-100 hover:text-ink", pathname === "/settings" && "bg-slate-100 text-ink")}>
-              <Settings className="h-4 w-4" /><span className="hidden sm:inline">Settings</span>
+              <Settings className="h-4 w-4" /><span className="hidden sm:inline">{t("Settings")}</span>
             </Link>
-            <Button variant="ghost" size="sm" onClick={logout} aria-label="Sign out">
+            <Button variant="ghost" size="sm" onClick={logout} aria-label={t("Sign out")}>
               <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Sign out</span>
+              <span className="hidden sm:inline">{t("Sign out")}</span>
             </Button>
           </div>
         </header>
@@ -284,24 +290,25 @@ export function AppShell({ children }: { children: ReactNode }) {
 /** Renders children only when a project is selected; otherwise guides the user to create one. */
 export function RequireProject({ children }: { children: (projectId: string) => ReactNode }) {
   const { project, loading } = useProjects();
+  const { t } = useT();
   if (loading) return <Spinner />;
   if (!project)
     return (
       <EmptyState
         icon={<FolderKanban className="h-5 w-5" />}
-        title="No business project yet"
+        title={t("No business project yet")}
         action={
           <div className="flex flex-wrap justify-center gap-2">
             <Link href="/products">
-              <Button>Snap a product photo</Button>
+              <Button>{t("Snap a product photo")}</Button>
             </Link>
             <Link href="/projects?new=1">
-              <Button variant="secondary">Create a project</Button>
+              <Button variant="secondary">{t("Create a project")}</Button>
             </Link>
           </div>
         }
       >
-        Projects hold your category, target market, budget and assumptions. Every module works inside a project. Snap a photo of something you might sell and a project is created for you.
+        {t("Projects hold your category, target market, budget and assumptions. Every module works inside a project. Snap a photo of something you might sell and a project is created for you.")}
       </EmptyState>
     );
   return <>{children(project.id)}</>;

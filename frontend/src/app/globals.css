@@ -2,7 +2,7 @@
 
 @theme {
   /* One clean industrial sans (Barlow) for everything; headings are set by weight, not a second typeface. */
-  --font-sans: var(--font-barlow), "Barlow", Arial, "Helvetica Neue", Helvetica, sans-serif;
+  --font-sans: var(--font-barlow), "Barlow", Arial, "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   --font-serif: var(--font-sans);
 
   /* The logo's four colours, one job each (kept simple):

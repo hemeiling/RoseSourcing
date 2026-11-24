@@ -4,12 +4,14 @@ import { Link2 } from "lucide-react";
 import { useState } from "react";
 import { Button, Input } from "@/components/ui";
 import { errorText, post } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 
 type Result = { added: { id: string; name: string }[]; already_saved: string[]; invalid: string[] };
 
 /** Listing links the founder found (Alibaba, 1688, Made-in-China...): each is saved straight away as an unverified supplier
  *  lead with its link - no AI, no cost. Price and MOQ can be added on the quote later. */
 export function AddListingLinks({ projectId, onAdded }: { projectId: string; onAdded: () => void }) {
+  const { t } = useT();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
@@ -20,9 +22,9 @@ export function AddListingLinks({ projectId, onAdded }: { projectId: string; onA
     setNote(null);
     try {
       const r = await post<Result>(`/api/projects/${projectId}/suppliers/from-links`, { urls: urls.slice(0, 20) });
-      const parts = [`Added ${r.added.length}`];
-      if (r.already_saved.length) parts.push(`${r.already_saved.length} already saved`);
-      if (r.invalid.length) parts.push(`${r.invalid.length} not a link`);
+      const parts = [t("Added {n}", { n: r.added.length })];
+      if (r.already_saved.length) parts.push(t("{n} already saved", { n: r.already_saved.length }));
+      if (r.invalid.length) parts.push(t("{n} not a link", { n: r.invalid.length }));
       setNote({ tone: "ok", text: parts.join(" · ") });
       if (r.added.length) {
         setText("");
@@ -37,11 +39,11 @@ export function AddListingLinks({ projectId, onAdded }: { projectId: string; onA
 
   return (
     <div className="mt-2 flex flex-col gap-2 rounded-lg border border-line bg-white px-3 py-2 sm:flex-row sm:items-center">
-      <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-ink"><Link2 className="h-4 w-4 text-primary-600" aria-hidden />Add links you found</span>
-      <Input className="h-8 min-w-0 flex-1 py-1" value={text} onChange={(e) => setText(e.target.value)} aria-label="Supplier listing links"
-        placeholder="Paste Alibaba, 1688, Made-in-China... listing links, separated by spaces" onKeyDown={(e) => e.key === "Enter" && urls.length && add()} />
+      <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-ink"><Link2 className="h-4 w-4 text-primary-600" aria-hidden />{t("Add links you found")}</span>
+      <Input className="h-8 min-w-0 flex-1 py-1" value={text} onChange={(e) => setText(e.target.value)} aria-label={t("Supplier listing links")}
+        placeholder={t("Paste Alibaba, 1688, Made-in-China... listing links, separated by spaces")} onKeyDown={(e) => e.key === "Enter" && urls.length && add()} />
       <Button size="sm" onClick={add} loading={busy} disabled={!urls.length} className="shrink-0">
-        Add{urls.length > 1 ? ` ${urls.length}` : ""}
+        {t("Add")}{urls.length > 1 ? ` ${urls.length}` : ""}
       </Button>
       {note && <span className={note.tone === "ok" ? "shrink-0 text-xs text-slate-600" : "text-xs text-red-700"}>{note.text}</span>}
     </div>

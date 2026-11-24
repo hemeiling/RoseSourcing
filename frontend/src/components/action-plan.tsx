@@ -10,6 +10,7 @@ import { Badge, Button, Card, CardBody, CardHeader, Modal, Spinner } from "./ui"
 import { patch } from "@/lib/api";
 import { date, money, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT } from "@/lib/i18n";
 import type { ChannelPlan, Finding, Opportunity } from "@/lib/types";
 
 type Rec = { id: string; source: string; title: string; body: string | null; priority: string; status: string; created_at: string };
@@ -27,6 +28,7 @@ type Todo = { text: string; detail?: string; section: string; tone: "red" | "amb
 
 /** What is still missing that no agent fills - work for after the research, so it sits at the very end. */
 function AlsoToDo({ projectId }: { projectId: string }) {
+  const { t } = useT();
   const dash = useApi<Dashboard>(`/api/projects/${projectId}/dashboard`);
   const { projects } = useProjects();
   const decision = projects.find((p) => p.id === projectId)?.decision ?? "undecided";
@@ -37,28 +39,28 @@ function AlsoToDo({ projectId }: { projectId: string }) {
   const sc = dash.data.latest_scenario;
   const cm = sc?.contribution_margin;
   if (!sc || sc.costs_assumed)
-    todos.push({ text: "Margin not worked out yet", detail: sc ? "The research estimate uses assumed factory, freight and fee costs. Work out the margin in Unit economics with supplier quotes." : "Model cost, price and margin.", section: "economics", tone: "slate" });
+    todos.push({ text: t("Margin not worked out yet"), detail: sc ? t("The research estimate uses assumed factory, freight and fee costs. Work out the margin in Unit economics with supplier quotes.") : t("Model cost, price and margin."), section: "economics", tone: "slate" });
   else if (cm !== null && cm !== undefined && cm < 0)
-    todos.push({ text: `Unit contribution is negative (${money(cm)})`, detail: `At ${money(sc.retail_price)} retail you lose money on each sale - revisit price or costs.`, section: "economics", tone: "red" });
-  if (c.suppliers && !c.spec_sheets) todos.push({ text: "No spec sheet yet", detail: "Draft the spec sheet suppliers will quote against.", section: "outreach", tone: "amber" });
+    todos.push({ text: t("Unit contribution is negative ({amount})", { amount: money(cm) }), detail: t("At {price} retail you lose money on each sale - revisit price or costs.", { price: money(sc.retail_price) }), section: "economics", tone: "red" });
+  if (c.suppliers && !c.spec_sheets) todos.push({ text: t("No spec sheet yet"), detail: t("Draft the spec sheet suppliers will quote against."), section: "outreach", tone: "amber" });
   if (c.suppliers && c.rfqs_sent < 5)
-    todos.push({ text: c.rfqs_sent ? `Only ${c.rfqs_sent} supplier${c.rfqs_sent === 1 ? "" : "s"} asked for quotes` : "No supplier asked for quotes yet",
-      detail: "Send the spec sheet to 5+ suppliers for prices at 100 / 300 / 500 units.", section: "outreach", tone: "amber" });
-  if (c.rfq_quotes && c.sample_orders < 2) todos.push({ text: "Order 2-3 samples", detail: "Pick the best quotes and track each sample until you have scored it.", section: "outreach", tone: "slate" });
-  if (unavailable) todos.push({ text: `${unavailable} research questions had no reliable data`, detail: "Listed as 'data unavailable' findings - these are your evidence gaps.", section: "research", tone: "slate" });
-  if (decision === "undecided") todos.push({ text: "Record your go / no-go decision", detail: "Your decision is saved with a snapshot of the evidence.", section: "decision", tone: "slate" });
+    todos.push({ text: c.rfqs_sent ? t(c.rfqs_sent === 1 ? "Only {n} supplier asked for quotes" : "Only {n} suppliers asked for quotes", { n: c.rfqs_sent }) : t("No supplier asked for quotes yet"),
+      detail: t("Send the spec sheet to 5+ suppliers for prices at 100 / 300 / 500 units."), section: "outreach", tone: "amber" });
+  if (c.rfq_quotes && c.sample_orders < 2) todos.push({ text: t("Order 2-3 samples"), detail: t("Pick the best quotes and track each sample until you have scored it."), section: "outreach", tone: "slate" });
+  if (unavailable) todos.push({ text: t("{n} research questions had no reliable data", { n: unavailable }), detail: t("Listed as 'data unavailable' findings - these are your evidence gaps."), section: "research", tone: "slate" });
+  if (decision === "undecided") todos.push({ text: t("Record your go / no-go decision"), detail: t("Your decision is saved with a snapshot of the evidence."), section: "decision", tone: "slate" });
   if (!todos.length) return null;
   return (
     <Card>
-      <CardHeader title="Also to do" icon={<ListTodo className="h-4 w-4" />} subtitle="What is still missing that no agent fills. Each item jumps to where you do it." />
+      <CardHeader title={t("Also to do")} icon={<ListTodo className="h-4 w-4" />} subtitle={t("What is still missing that no agent fills. Each item jumps to where you do it.")} />
       <ul className="px-5 py-1">
-        {todos.map((t) => (
-          <li key={t.text} className="border-b border-slate-100 last:border-b-0">
-            <a href={`#${t.section}`} className="group flex items-start gap-2.5 py-2">
-              <AlertTriangle className={clsx("mt-0.5 h-4 w-4 shrink-0", t.tone === "red" ? "text-red-600" : t.tone === "amber" ? "text-amber-600" : "text-slate-400")} aria-hidden />
+        {todos.map((td) => (
+          <li key={td.text} className="border-b border-slate-100 last:border-b-0">
+            <a href={`#${td.section}`} className="group flex items-start gap-2.5 py-2">
+              <AlertTriangle className={clsx("mt-0.5 h-4 w-4 shrink-0", td.tone === "red" ? "text-red-600" : td.tone === "amber" ? "text-amber-600" : "text-slate-400")} aria-hidden />
               <span className="min-w-0 flex-1">
-                <span className={clsx("block text-sm font-medium", t.tone === "red" ? "text-red-700" : "text-ink")}>{t.text}</span>
-                {t.detail && <span className="block text-xs text-slate-500">{t.detail}</span>}
+                <span className={clsx("block text-sm font-medium", td.tone === "red" ? "text-red-700" : "text-ink")}>{td.text}</span>
+                {td.detail && <span className="block text-xs text-slate-500">{td.detail}</span>}
               </span>
               <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-primary-600 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
             </a>
@@ -71,11 +73,12 @@ function AlsoToDo({ projectId }: { projectId: string }) {
 
 /** Evidence links for an item; each opens the finding it rests on. */
 function Evidence({ ids, byId, onOpen }: { ids: string[]; byId: Map<string, Finding>; onOpen: (f: Finding) => void }) {
+  const { t } = useT();
   const items = ids.map((id) => byId.get(id)).filter((f): f is Finding => !!f);
   if (!items.length) return null;
   return (
     <span className="mt-1 flex flex-wrap items-center gap-1">
-      <span className="text-xs text-slate-500">Evidence:</span>
+      <span className="text-xs text-slate-500">{t("Evidence:")}</span>
       {items.map((f, i) => (
         <button key={f.id} onClick={() => onOpen(f)} title={f.claim}
           className="rounded border border-line px-1.5 py-0.5 text-[11px] font-medium text-slate-600 hover:border-primary-300 hover:text-primary-700">
@@ -91,6 +94,7 @@ function Evidence({ ids, byId, onOpen }: { ids: string[]; byId: Map<string, Find
  * recommendations (each agent adds its own, without repeats), so marking one done here is the only place to do it.
  */
 export function ActionPlan({ projectId }: { projectId: string }) {
+  const { t } = useT();
   const reports = useApi<Opportunity[]>(`/api/projects/${projectId}/opportunities`);
   const plan = useApi<ChannelPlan | null>(`/api/projects/${projectId}/channels/plan`);
   const recs = useApi<Rec[]>(`/api/projects/${projectId}/recommendations`);
@@ -100,8 +104,8 @@ export function ActionPlan({ projectId }: { projectId: string }) {
 
   if (!reports.data || plan.data === undefined || !recs.data) return <Spinner />;
   const report = reports.data[0];
-  const reportFrom = report ? `Market research, ${date(report.created_at)}` : "";
-  const planFrom = plan.data ? `Channel & shipping plan, ${date(plan.data.created_at)}` : "";
+  const reportFrom = report ? t("Market research, {date}", { date: date(report.created_at) }) : "";
+  const planFrom = plan.data ? t("Channel & shipping plan, {date}", { date: date(plan.data.created_at) }) : "";
   const c = plan.data?.content;
 
   const risks: Risk[] = [
@@ -111,7 +115,7 @@ export function ActionPlan({ projectId }: { projectId: string }) {
   const questions: Question[] = [
     ...(report?.report.evidence_gaps ?? []).map((g) => ({ ...g, from: reportFrom })),
     ...(c?.open_questions ?? []).map((g) => ({ ...g, from: planFrom })),
-    ...(c?.customs_and_compliance ?? []).map((x) => ({ gap: x, from: `${planFrom} - confirm with a customs broker or the official source` })),
+    ...(c?.customs_and_compliance ?? []).map((x) => ({ gap: x, from: t("{from} - confirm with a customs broker or the official source", { from: planFrom }) })),
   ];
   const steps = recs.data.filter((r) => r.status === "open" || r.status === "accepted")
     .sort((a, b) => (RANK[a.priority] ?? 1) - (RANK[b.priority] ?? 1));
@@ -123,12 +127,12 @@ export function ActionPlan({ projectId }: { projectId: string }) {
   return (
     <div className="grid gap-4">
       {!steps.length && !risks.length && !questions.length && (
-        <p className="text-sm text-slate-500">Risks, open questions and next steps appear here once the Market Analyst or the Sales &amp; Shipping Planner has run.</p>
+        <p className="text-sm text-slate-500">{t("Risks, open questions and next steps appear here once the Market Analyst or the Sales & Shipping Planner has run.")}</p>
       )}
       {steps.length > 0 && (
         <Card>
-          <CardHeader title="Next steps" icon={<ListChecks className="h-4 w-4" />}
-            subtitle="What every agent and the copilot recommend, most urgent first. Mark each done or dismiss it." />
+          <CardHeader title={t("Next steps")} icon={<ListChecks className="h-4 w-4" />}
+            subtitle={t("What every agent and the copilot recommend, most urgent first. Mark each done or dismiss it.")} />
           <CardBody>
             <ul className="divide-y divide-line">
               {steps.map((r) => (
@@ -139,10 +143,10 @@ export function ActionPlan({ projectId }: { projectId: string }) {
                   </div>
                   {r.body && <p className="mt-1 text-sm text-slate-600">{r.body}</p>}
                   <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-slate-500">{titleCase(r.source)}, {date(r.created_at)}</span>
+                    <span className="text-xs text-slate-500">{t("{source}, {date}", { source: titleCase(r.source), date: date(r.created_at) })}</span>
                     <span className="ml-auto flex gap-1">
-                      <Button size="sm" variant="secondary" onClick={() => setStatus(r.id, "done")}>Done</Button>
-                      <Button size="sm" variant="ghost" onClick={() => setStatus(r.id, "dismissed")}>Dismiss</Button>
+                      <Button size="sm" variant="secondary" onClick={() => setStatus(r.id, "done")}>{t("Done")}</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setStatus(r.id, "dismissed")}>{t("Dismiss")}</Button>
                     </span>
                   </div>
                 </li>
@@ -154,7 +158,7 @@ export function ActionPlan({ projectId }: { projectId: string }) {
 
       {risks.length > 0 && (
         <Card>
-          <CardHeader title="Risks" icon={<AlertTriangle className="h-4 w-4" />} subtitle="From the market research and the channel & shipping plan, most severe first." />
+          <CardHeader title={t("Risks")} icon={<AlertTriangle className="h-4 w-4" />} subtitle={t("From the market research and the channel & shipping plan, most severe first.")} />
           <CardBody>
             <ul className="divide-y divide-line">
               {risks.map((r, i) => (
@@ -163,7 +167,7 @@ export function ActionPlan({ projectId }: { projectId: string }) {
                     <Badge tone={SEVERITY_TONE[r.severity] ?? "slate"}>{titleCase(r.severity)}</Badge>
                     <span className="min-w-0 flex-1 text-sm font-medium text-slate-900">{r.risk}</span>
                   </div>
-                  <p className="mt-1 text-sm text-slate-600"><span className="font-medium text-slate-700">Mitigation:</span> {r.mitigation}</p>
+                  <p className="mt-1 text-sm text-slate-600"><span className="font-medium text-slate-700">{t("Mitigation:")}</span> {r.mitigation}</p>
                   <Evidence ids={r.finding_ids} byId={byId} onOpen={setOpen} />
                   <p className="mt-1 text-xs text-slate-500">{r.from}</p>
                 </li>
@@ -175,14 +179,14 @@ export function ActionPlan({ projectId }: { projectId: string }) {
 
       {questions.length > 0 && (
         <Card>
-          <CardHeader title="Open questions" icon={<CircleHelp className="h-4 w-4" />} subtitle="What you still need to know or confirm before investing." />
+          <CardHeader title={t("Open questions")} icon={<CircleHelp className="h-4 w-4" />} subtitle={t("What you still need to know or confirm before investing.")} />
           <CardBody>
             <ul className="divide-y divide-line">
               {questions.map((q, i) => (
                 <li key={`${q.from}-${i}`} className="py-2.5 text-sm first:pt-0 last:pb-0">
                   <p className="font-medium text-slate-900">{q.gap}</p>
-                  {q.why_it_matters && <p className="mt-0.5 text-slate-600"><span className="text-slate-500">Why it matters:</span> {q.why_it_matters}</p>}
-                  {q.how_to_close && <p className="mt-0.5 text-slate-600"><span className="text-slate-500">How to close it:</span> {q.how_to_close}</p>}
+                  {q.why_it_matters && <p className="mt-0.5 text-slate-600"><span className="text-slate-500">{t("Why it matters:")}</span> {q.why_it_matters}</p>}
+                  {q.how_to_close && <p className="mt-0.5 text-slate-600"><span className="text-slate-500">{t("How to close it:")}</span> {q.how_to_close}</p>}
                   <p className="mt-1 text-xs text-slate-500">{q.from}</p>
                 </li>
               ))}
@@ -193,7 +197,7 @@ export function ActionPlan({ projectId }: { projectId: string }) {
 
       <AlsoToDo projectId={projectId} />
 
-      <Modal open={!!open} onClose={() => setOpen(null)} title="Evidence" wide>
+      <Modal open={!!open} onClose={() => setOpen(null)} title={t("Evidence")} wide>
         {open && <FindingCard finding={open} />}
       </Modal>
     </div>

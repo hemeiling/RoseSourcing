@@ -4,11 +4,12 @@ import type { ReactNode } from "react";
 import { Badge, Button, Modal, type Tone } from "@/components/ui";
 import type { ResearchRun } from "@/lib/types";
 import { AGENTS } from "@/lib/agents";
+import { useT, type MsgKey } from "@/lib/i18n";
 
 export const isActive = (s: string) => s === "queued" || s === "running";
 export const RESUMABLE_STATUSES = ["interrupted", "failed", "completed_with_errors", "cancelled"];
 
-export const RUN_STATUS_META: Record<ResearchRun["status"], { label: string; tone: Tone }> = {
+export const RUN_STATUS_META: Record<ResearchRun["status"], { label: MsgKey; tone: Tone }> = {
   queued: { label: "Queued", tone: "slate" },
   running: { label: "Running", tone: "blue" },
   completed: { label: "Completed", tone: "green" },
@@ -19,14 +20,15 @@ export const RUN_STATUS_META: Record<ResearchRun["status"], { label: string; ton
 };
 
 export function RunStatusBadge({ status }: { status: ResearchRun["status"] }) {
+  const { tx } = useT();
   const m = RUN_STATUS_META[status] ?? { label: status, tone: "slate" as Tone };
-  return <Badge tone={m.tone}>{m.label}</Badge>;
+  return <Badge tone={m.tone}>{tx(m.label)}</Badge>;
 }
 
 /** A run's agent, by the same name the agents list uses. */
 export const KIND_LABEL: Record<string, string> = Object.fromEntries(AGENTS.map((a) => [a.kind, a.name]));
 
-export const ATTRACTIVENESS_META: Record<string, { label: string; tone: Tone; help: string }> = {
+export const ATTRACTIVENESS_META: Record<string, { label: MsgKey; tone: Tone; help: MsgKey }> = {
   promising: { label: "Promising", tone: "green", help: "AI judgment based on the linked findings" },
   mixed: { label: "Mixed", tone: "amber", help: "AI judgment based on the linked findings" },
   weak: { label: "Weak", tone: "red", help: "AI judgment based on the linked findings" },
@@ -34,11 +36,12 @@ export const ATTRACTIVENESS_META: Record<string, { label: string; tone: Tone; he
 };
 
 export function AttractivenessBadge({ value }: { value: string | null | undefined }) {
-  if (!value) return <Badge tone="slate">Not assessed</Badge>;
+  const { tx, t } = useT();
+  if (!value) return <Badge tone="slate">{t("Not assessed")}</Badge>;
   const m = ATTRACTIVENESS_META[value] ?? { label: value, tone: "slate" as Tone, help: "" };
   return (
-    <Badge tone={m.tone} title={m.help}>
-      {m.label} <span className="font-normal opacity-70">· AI judgment</span>
+    <Badge tone={m.tone} title={tx(m.help)}>
+      {tx(m.label)} <span className="font-normal opacity-70">{t("· AI judgment")}</span>
     </Badge>
   );
 }
@@ -87,12 +90,13 @@ export function ConfirmModal({
   busy?: boolean;
   danger?: boolean;
 }) {
+  const { t } = useT();
   return (
     <Modal open={open} onClose={onClose} title={title}>
       <div className="space-y-4 text-sm text-slate-700">{children}</div>
       <div className="mt-5 flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose} disabled={busy}>
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button variant={danger ? "danger" : "primary"} onClick={onConfirm} loading={busy}>
           {confirmLabel}

@@ -14,6 +14,7 @@ import { Alert, Card, EmptyState, PageHeader, Spinner, Tabs, useEmbedded } from 
 import { errorText } from "@/lib/api";
 import { date } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT } from "@/lib/i18n";
 import type { Opportunity, ResearchRun } from "@/lib/types";
 
 // Runs are started and followed from the agents list at the top of the product report.
@@ -22,6 +23,7 @@ const TAB_KEYS: TabKey[] = ["reports", "findings", "segments", "sources", "compa
 
 function MarketPage({ projectId }: { projectId: string }) {
   const { project } = useProjects();
+  const { t } = useT();
   const embed = useEmbedded();
   const router = useRouter();
   const pathname = usePathname();
@@ -58,9 +60,9 @@ function MarketPage({ projectId }: { projectId: string }) {
     [params, pathname, router],
   );
 
-  const changeTab = (t: TabKey) => {
-    setTab(t);
-    setUrl({ tab: t, report: t === "reports" ? undefined : null });
+  const changeTab = (next: TabKey) => {
+    setTab(next);
+    setUrl({ tab: next, report: next === "reports" ? undefined : null });
   };
 
   const openReport = useCallback(
@@ -87,29 +89,29 @@ function MarketPage({ projectId }: { projectId: string }) {
   return (
     <div>
       <PageHeader
-        title="Market Opportunity"
-        description="Evidence-linked research on demand, market size, customers and risks. Every finding records its source, retrieval date, evidence type, confidence and verification status."
+        title={t("Market Opportunity")}
+        description={t("Evidence-linked research on demand, market size, customers and risks. Every finding records its source, retrieval date, evidence type, confidence and verification status.")}
       />
       <Tabs<TabKey>
         value={tab}
         onChange={changeTab}
         tabs={[
-          { value: "reports", label: `Reports${reports.data ? ` (${reports.data.length})` : ""}` },
-          { value: "findings", label: "Findings" },
-          { value: "segments", label: "Segments" },
-          { value: "sources", label: "Sources" },
-          { value: "compare", label: "Compare" },
+          { value: "reports", label: reports.data ? t("Reports ({n})", { n: reports.data.length }) : t("Reports") },
+          { value: "findings", label: t("Findings") },
+          { value: "segments", label: t("Segments") },
+          { value: "sources", label: t("Sources") },
+          { value: "compare", label: t("Compare") },
         ]}
       />
 
       {tab === "reports" && (
         <>
           {reports.loading && !reports.data && <Spinner />}
-          {reports.error && <Alert tone="red">Could not load reports: {errorText(reports.error)}</Alert>}
+          {reports.error && <Alert tone="red">{t("Could not load reports: {error}", { error: errorText(reports.error) })}</Alert>}
           {reports.data && reports.data.length === 0 && (
             <Card>
-              <EmptyState icon={<FileText className="h-5 w-5" />} title="No opportunity reports yet">
-                A report is produced at the end of each completed market research run.
+              <EmptyState icon={<FileText className="h-5 w-5" />} title={t("No opportunity reports yet")}>
+                {t("A report is produced at the end of each completed market research run.")}
               </EmptyState>
             </Card>
           )}
@@ -117,7 +119,7 @@ function MarketPage({ projectId }: { projectId: string }) {
             // Report picker sits above the report (only when there is more than one), so the report keeps the full width.
             <div className="space-y-4">
               {reports.data.length > 1 && (
-              <nav aria-label="Reports" className="flex gap-2 overflow-x-auto pb-1">
+              <nav aria-label={t("Reports")} className="flex gap-2 overflow-x-auto pb-1">
                 {reports.data.map((r) => {
                   const active = r.id === selectedReport.id;
                   return (

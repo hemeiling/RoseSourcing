@@ -5,6 +5,7 @@ import { EvidenceBadge } from "./evidence";
 import { Card, CardBody, CardHeader, ExternalLink, Spinner } from "./ui";
 import { domainOf } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT } from "@/lib/i18n";
 import type { Competitor, Finding } from "@/lib/types";
 
 type Figure = { value_low: number | null; value_high: number | null; unit: string };
@@ -29,6 +30,7 @@ const usdValue = (m: Figure) => {
 
 /** How big the industry and the category are, and what competitors sell - only figures a retrieved source states. */
 export function MarketSizeSection({ projectId }: { projectId: string }) {
+  const { t, tr } = useT();
   const size = useApi<Finding[]>(`/api/projects/${projectId}/findings?section=market_size`);
   const growth = useApi<Finding[]>(`/api/projects/${projectId}/findings?section=growth`);
   const comps = useApi<Competitor[]>(`/api/projects/${projectId}/competitors`);
@@ -50,12 +52,14 @@ export function MarketSizeSection({ projectId }: { projectId: string }) {
   return (
     <div className="grid gap-4">
       <Card>
-        <CardHeader title="Industry & category size" icon={<Globe2 className="h-4 w-4" />}
-          subtitle="From the Market Analyst. Each figure says what it covers, its year and who published it." />
+        <CardHeader title={t("Industry & category size")} icon={<Globe2 className="h-4 w-4" />}
+          subtitle={t("From the Market Analyst. Each figure says what it covers, its year and who published it.")} />
         <CardBody>
           {figures.length === 0 ? (
             <p className="text-sm text-slate-500">
-              No market-size figures yet. The Market Analyst looks for them (<a href="#research" className="font-semibold text-primary-700 underline">Market research</a>).
+              {tr("No market-size figures yet. The Market Analyst looks for them ({link}).", {
+                link: <a href="#research" className="font-semibold text-primary-700 underline">{t("Market research")}</a>,
+              })}
             </p>
           ) : (
             <ul className="divide-y divide-line">
@@ -68,7 +72,7 @@ export function MarketSizeSection({ projectId }: { projectId: string }) {
                       <span className="min-w-0 text-sm text-slate-700">{f.metric!.name}</span>
                     </div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
-                      <span>{f.metric!.year || "Year not stated"}</span>
+                      <span>{f.metric!.year || t("Year not stated")}</span>
                       {src?.url && <><span aria-hidden>·</span><ExternalLink href={src.url}>{src.domain || domainOf(src.url)}</ExternalLink></>}
                       <EvidenceBadge type={f.evidence_type} />
                     </div>
@@ -80,19 +84,20 @@ export function MarketSizeSection({ projectId }: { projectId: string }) {
           )}
           {gaps.length > 0 && (
             <div className="mt-3 rounded-md bg-canvas px-3 py-2 text-xs text-slate-600">
-              <span className="font-semibold">Not found:</span> {gaps.map((g) => g.claim).join(" · ")}
+              <span className="font-semibold">{t("Not found:")}</span> {gaps.map((g) => g.claim).join(" · ")}
             </div>
           )}
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Competitor revenue" icon={<Building2 className="h-4 w-4" />}
-          subtitle="From the Competitor Finder - only a figure a filing, press article or named estimate states." />
+        <CardHeader title={t("Competitor revenue")} icon={<Building2 className="h-4 w-4" />}
+          subtitle={t("From the Competitor Finder - only a figure a filing, press article or named estimate states.")} />
         <CardBody>
           {revenues.length === 0 ? (
             <p className="text-sm text-slate-500">
-              No competitor revenue found yet. Most small brands do not publish it; competitor research saves it when a source
-              states it (<a href="#brands" className="font-semibold text-primary-700 underline">Competitors</a>).
+              {tr("No competitor revenue found yet. Most small brands do not publish it; competitor research saves it when a source states it ({link}).", {
+                link: <a href="#brands" className="font-semibold text-primary-700 underline">{t("Competitors")}</a>,
+              })}
             </p>
           ) : (
             <ul className="divide-y divide-line">
@@ -107,7 +112,7 @@ export function MarketSizeSection({ projectId }: { projectId: string }) {
                     <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                       <span>{r.name}</span>
                       <span aria-hidden>·</span>
-                      <span>{r.year || "Year not stated"}</span>
+                      <span>{r.year || t("Year not stated")}</span>
                       {r.source_url && <><span aria-hidden>·</span><ExternalLink href={r.source_url}>{domainOf(r.source_url)}</ExternalLink></>}
                     </div>
                   </li>

@@ -8,6 +8,7 @@ import { Alert, Badge, Button, Card, CardBody, CardHeader, Modal } from "@/compo
 import { del, errorText } from "@/lib/api";
 import { date, dateTime, money } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT } from "@/lib/i18n";
 import type { EvidenceType, Finding, Opportunity } from "@/lib/types";
 import { AttractivenessBadge, ConfirmModal } from "./shared";
 
@@ -37,16 +38,17 @@ const chipTone: Record<EvidenceType, string> = {
 };
 
 export function FindingChips({ ids, index, loading, onOpen }: { ids: string[] | undefined; index: FindingIndex; loading: boolean; onOpen: (f: Finding) => void }) {
+  const { t, tx } = useT();
   if (!ids || ids.length === 0) return null;
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-1">
-      <span className="text-[11px] text-slate-400">Evidence:</span>
+      <span className="text-[11px] text-slate-400">{t("Evidence:")}</span>
       {ids.map((id) => {
         const hit = index.get(id);
         if (!hit) {
           return (
-            <span key={id} className="rounded border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-400" title="Finding not found (it may have been deleted)">
-              {loading ? "..." : "missing"}
+            <span key={id} className="rounded border border-slate-200 px-1.5 py-0.5 text-[11px] text-slate-400" title={t("Finding not found (it may have been deleted)")}>
+              {loading ? "..." : t("missing")}
             </span>
           );
         }
@@ -54,7 +56,7 @@ export function FindingChips({ ids, index, loading, onOpen }: { ids: string[] | 
           <button
             key={id}
             onClick={() => onOpen(hit.finding)}
-            title={`${EVIDENCE_META[hit.finding.evidence_type]?.label ?? hit.finding.evidence_type}: ${hit.finding.claim}`}
+            title={t("{label}: {claim}", { label: tx(EVIDENCE_META[hit.finding.evidence_type]?.label ?? hit.finding.evidence_type), claim: hit.finding.claim })}
             className={clsx("rounded border px-1.5 py-0.5 text-[11px] font-medium transition-colors", chipTone[hit.finding.evidence_type])}
           >
             F{hit.n}
@@ -75,6 +77,7 @@ function Section({ icon, title, subtitle, children, actions }: { icon: ReactNode
 }
 
 export function ReportView({ projectId, report, onDeleted }: { projectId: string; report: Opportunity; onDeleted: () => void }) {
+  const { t, tx, tr } = useT();
   const r = report.report ?? ({} as Opportunity["report"]);
   const { index, loading: findingsLoading } = useReportFindings(projectId, report);
   const [open, setOpen] = useState<Finding | null>(null);
@@ -108,39 +111,38 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
             <div className="min-w-0">
               <h2 className="text-lg font-semibold text-slate-900">{report.title}</h2>
               <p className="mt-0.5 text-xs text-slate-500">
-                Generated {dateTime(r.generated_by?.generated_at ?? report.created_at)}
+                {t("Generated {date}", { date: dateTime(r.generated_by?.generated_at ?? report.created_at) })}
                 {r.generated_by?.model ? ` · ${r.generated_by.model}` : ""}
-                {report.budget_usd !== null ? ` · budget ${money(report.budget_usd)}` : ""}
+                {report.budget_usd !== null ? ` · ${t("budget {amount}", { amount: money(report.budget_usd) })}` : ""}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <AttractivenessBadge value={r.attractiveness ?? report.attractiveness} />
-              <Button size="sm" variant="danger" onClick={() => setConfirmDelete(true)} aria-label="Delete report">
+              <Button size="sm" variant="danger" onClick={() => setConfirmDelete(true)} aria-label={t("Delete report")}>
                 <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                Delete
+                {t("Delete")}
               </Button>
             </div>
           </div>
-          <Alert tone="blue" title="AI synthesis - check the evidence">
-            This report is written by AI from the research findings. Judgments (attractiveness, recommendations) are AI inference, not facts. Click an
-            evidence chip (F1, F2...) to see the underlying finding, its evidence type, verification status and source.
+          <Alert tone="blue" title={t("AI synthesis - check the evidence")}>
+            {t("This report is written by AI from the research findings. Judgments (attractiveness, recommendations) are AI inference, not facts. Click an evidence chip (F1, F2...) to see the underlying finding, its evidence type, verification status and source.")}
           </Alert>
           {r.executive_summary && <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{r.executive_summary}</p>}
           {r.evidence_summary && (
             <div className="flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-3 text-xs text-slate-600">
-              <span className="font-medium text-slate-700">{r.evidence_summary.findings} findings:</span>
-              {(Object.keys(EVIDENCE_META) as EvidenceType[]).map((t) => (
-                <Badge key={t} tone={EVIDENCE_META[t].tone}>
-                  {byType[t] ?? 0} {EVIDENCE_META[t].label.toLowerCase()}
+              <span className="font-medium text-slate-700">{t("{n} findings:", { n: r.evidence_summary.findings })}</span>
+              {(Object.keys(EVIDENCE_META) as EvidenceType[]).map((et) => (
+                <Badge key={et} tone={EVIDENCE_META[et].tone}>
+                  {byType[et] ?? 0} {tx(EVIDENCE_META[et].label).toLowerCase()}
                 </Badge>
               ))}
-              <Badge tone="teal">{r.evidence_summary.source_linked} source-linked</Badge>
+              <Badge tone="teal">{t("{n} source-linked", { n: r.evidence_summary.source_linked })}</Badge>
             </div>
           )}
         </CardBody>
       </Card>
 
-      <Section icon={<Compass className="h-4 w-4" />} title="Opportunity assessment" subtitle="AI judgment based on the linked findings">
+      <Section icon={<Compass className="h-4 w-4" />} title={t("Opportunity assessment")} subtitle={t("AI judgment based on the linked findings")}>
         <div className="flex items-center gap-2">
           <AttractivenessBadge value={r.attractiveness ?? report.attractiveness} />
         </div>
@@ -149,26 +151,26 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
       </Section>
 
       <div className="grid gap-4">
-        <Section icon={<Users className="h-4 w-4" />} title="Recommended first segment">
+        <Section icon={<Users className="h-4 w-4" />} title={t("Recommended first segment")}>
           {r.recommended_segment?.name ? (
             <p className="text-sm font-medium text-slate-900">{r.recommended_segment.name}</p>
           ) : (
-            <p className="text-sm text-slate-500">No segment recommended - evidence was insufficient.</p>
+            <p className="text-sm text-slate-500">{t("No segment recommended - evidence was insufficient.")}</p>
           )}
           {r.recommended_segment?.rationale && <p className="mt-1 text-sm text-slate-700">{r.recommended_segment.rationale}</p>}
           {chips(r.recommended_segment?.finding_ids)}
         </Section>
-        <Section icon={<Tag className="h-4 w-4" />} title="Pricing">
+        <Section icon={<Tag className="h-4 w-4" />} title={t("Pricing")}>
           {r.pricing?.summary && <p className="text-sm text-slate-700">{r.pricing.summary}</p>}
           <div className="mt-2 text-sm">
-            <span className="text-slate-500">Suggested test price range: </span>
+            <span className="text-slate-500">{t("Suggested test price range:")} </span>
             {r.pricing?.test_price_low !== null && r.pricing?.test_price_low !== undefined ? (
               <span className="font-semibold text-slate-900">
                 {money(r.pricing.test_price_low)}
                 {r.pricing.test_price_high !== null && r.pricing.test_price_high !== undefined ? ` - ${money(r.pricing.test_price_high)}` : ""}
               </span>
             ) : (
-              <span className="text-slate-500">not proposed</span>
+              <span className="text-slate-500">{t("not proposed")}</span>
             )}
           </div>
           {chips(r.pricing?.finding_ids)}
@@ -176,7 +178,7 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
       </div>
 
       {r.differentiation?.length > 0 && (
-        <Section icon={<Lightbulb className="h-4 w-4" />} title="Differentiation opportunities">
+        <Section icon={<Lightbulb className="h-4 w-4" />} title={t("Differentiation opportunities")}>
           <ul className="space-y-3">
             {r.differentiation.map((d, i) => (
               <li key={i}>
@@ -191,28 +193,29 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
 
 
       <p className="text-sm text-slate-600">
-        This report&apos;s cost estimate, with the reasoning for each number, is in{" "}
-        <a href="#economics" className="font-semibold text-primary-700 underline">Unit economics</a>; its risks, evidence gaps and next
-        steps are with every other agent&apos;s in <a href="#actions" className="font-semibold text-primary-700 underline">Risks &amp; next steps</a>.
+        {tr("This report's cost estimate, with the reasoning for each number, is in {economics}; its risks, evidence gaps and next steps are with every other agent's in {actions}.", {
+          economics: <a href="#economics" className="font-semibold text-primary-700 underline">{t("Unit economics")}</a>,
+          actions: <a href="#actions" className="font-semibold text-primary-700 underline">{t("Risks & next steps")}</a>,
+        })}
       </p>
 
       <p className="text-center text-[11px] text-slate-400">
-        Report created {date(report.created_at)} · {report.category} · {report.geography}
+        {t("Report created {date}", { date: date(report.created_at) })} · {report.category} · {report.geography}
       </p>
 
-      <Modal open={!!open} onClose={() => setOpen(null)} title={open && index.get(open.id) ? `Finding F${index.get(open.id)!.n}` : "Finding"} wide>
+      <Modal open={!!open} onClose={() => setOpen(null)} title={open && index.get(open.id) ? t("Finding F{n}", { n: index.get(open.id)!.n }) : t("Finding")} wide>
         {open && <FindingCard finding={open} />}
       </Modal>
       <ConfirmModal
         open={confirmDelete}
-        title="Delete this report?"
-        confirmLabel="Delete report"
+        title={t("Delete this report?")}
+        confirmLabel={t("Delete report")}
         danger
         busy={deleting}
         onClose={() => setConfirmDelete(false)}
         onConfirm={remove}
       >
-        <p>The report will be removed. Its research findings, sources and the generated cost scenario are kept.</p>
+        <p>{t("The report will be removed. Its research findings, sources and the generated cost scenario are kept.")}</p>
         {deleteError && <Alert tone="red">{deleteError}</Alert>}
       </ConfirmModal>
     </div>

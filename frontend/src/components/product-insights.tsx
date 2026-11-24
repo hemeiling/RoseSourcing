@@ -6,6 +6,7 @@ import { Badge, Button, Card, CardBody, ExternalLink, ProductThumb, Spinner, typ
 import { errorText, post } from "@/lib/api";
 import { date, domainOf, money, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
+import { useT, type MsgKey } from "@/lib/i18n";
 
 type Snapshot<T> = { id: string; content: T; created_at: string } | null;
 
@@ -24,71 +25,82 @@ type Tier = {
   sources: { url: string; title: string | null }[];
 };
 
+// English labels; in Chinese the tier value itself is looked up ("budget" -> 平价), since "Budget" means a money budget elsewhere.
 const TIER_LABEL: Record<Tier["tier"], string> = { budget: "Budget", mid: "Mid-range", premium: "Premium", luxury: "Luxury / designer" };
 
-function range(t: Tier): string {
-  if (t.price_low === null) return "Price range not found";
-  const cur = t.currency === "USD" ? {} : { currency: t.currency };
-  return t.price_low === t.price_high ? money(t.price_low, cur) : `${money(t.price_low, cur)} – ${money(t.price_high, cur)}`;
+function range(tier: Tier, t: ReturnType<typeof useT>["t"]): string {
+  if (tier.price_low === null) return t("Price range not found");
+  const cur = tier.currency === "USD" ? {} : { currency: tier.currency };
+  return tier.price_low === tier.price_high ? money(tier.price_low, cur) : `${money(tier.price_low, cur)} – ${money(tier.price_high, cur)}`;
 }
 
 /** Price tiers from budget to luxury, with what buyers in each tier want and complain about. */
 export function PriceTiersSection({ projectId }: { projectId: string }) {
+  const { t, tx, tr, lang } = useT();
   const snap = useApi<Snapshot<{ tiers: Tier[] }>>(`/api/projects/${projectId}/snapshots/price_tiers`);
   const tiers = snap.data?.content.tiers ?? [];
-  const noPicture = tiers.reduce((n, t) => n + t.examples.filter((e) => !e.image).length, 0);
+  const noPicture = tiers.reduce((n, tier) => n + tier.examples.filter((e) => !e.image).length, 0);
   const [pics, setPics] = useState<{ busy: boolean; note: string | null }>({ busy: false, note: null });
   const findPictures = async () => {
     setPics({ busy: true, note: null });
     try {
       const r = await post<{ found: number; still_missing: number; serpapi_calls: number }>(`/api/projects/${projectId}/snapshots/price_tiers/pictures`);
-      setPics({ busy: false, note: `Found ${r.found} picture${r.found === 1 ? "" : "s"} (${r.serpapi_calls} SerpApi searches)${r.still_missing ? `; ${r.still_missing} example${r.still_missing === 1 ? " is" : "s are"} not in today's listings` : ""}.` });
+      const key: MsgKey = r.found === 1
+        ? (!r.still_missing ? "Found {n} picture ({calls} SerpApi searches)." : r.still_missing === 1
+          ? "Found {n} picture ({calls} SerpApi searches); {m} example is not in today's listings."
+          : "Found {n} picture ({calls} SerpApi searches); {m} examples are not in today's listings.")
+        : (!r.still_missing ? "Found {n} pictures ({calls} SerpApi searches)." : r.still_missing === 1
+          ? "Found {n} pictures ({calls} SerpApi searches); {m} example is not in today's listings."
+          : "Found {n} pictures ({calls} SerpApi searches); {m} examples are not in today's listings.");
+      setPics({ busy: false, note: t(key, { n: r.found, calls: r.serpapi_calls, m: r.still_missing }) });
       snap.reload();
     } catch (e) { setPics({ busy: false, note: errorText(e) }); }
   };
   return (
     <div className="space-y-4">
       {snap.loading && !snap.data ? <Spinner /> : !snap.data ? (
-        <p className="text-sm text-slate-500">Not researched yet. Run the Price Range Finder from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>.</p>
+        <p className="text-sm text-slate-500">{tr("Not researched yet. Run the Price Range Finder from the {link}.", {
+          link: <a href="#review" className="font-semibold text-primary-700 underline">{t("agents list at the top")}</a>,
+        })}</p>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-3">
-            <p className="text-xs text-slate-500">From the run on {date(snap.data.created_at)}. Example prices are shown only when they appeared on the source page.</p>
+            <p className="text-xs text-slate-500">{t("From the run on {date}. Example prices are shown only when they appeared on the source page.", { date: date(snap.data.created_at) })}</p>
             {noPicture > 0 && (
-              <Button size="sm" variant="ghost" onClick={findPictures} loading={pics.busy} title="Looks the examples up in Amazon and Google Shopping listings (up to 4 SerpApi searches, no AI)">
-                <ImageIcon className="h-3.5 w-3.5" /> Find {noPicture} missing picture{noPicture === 1 ? "" : "s"}
+              <Button size="sm" variant="ghost" onClick={findPictures} loading={pics.busy} title={t("Looks the examples up in Amazon and Google Shopping listings (up to 4 SerpApi searches, no AI)")}>
+                <ImageIcon className="h-3.5 w-3.5" /> {t(noPicture === 1 ? "Find {n} missing picture" : "Find {n} missing pictures", { n: noPicture })}
               </Button>
             )}
             {pics.note && <span className="text-xs text-slate-600">{pics.note}</span>}
           </div>
           <div className="grid gap-3">
-            {tiers.map((t) => (
-              <Card key={t.tier} className="flex flex-col">
+            {tiers.map((tier) => (
+              <Card key={tier.tier} className="flex flex-col">
                 <div className="border-b border-line px-4 py-3">
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-serif text-lg font-semibold text-ink">{TIER_LABEL[t.tier]}</h3>
-                    {t.evidence_type === "ai_inference" && <Badge title="No retrieved source supports this tier directly">AI inference</Badge>}
+                    <h3 className="font-serif text-lg font-semibold text-ink">{lang === "zh" ? tx(tier.tier) : TIER_LABEL[tier.tier]}</h3>
+                    {tier.evidence_type === "ai_inference" && <Badge title={t("No retrieved source supports this tier directly")}>{t("AI inference")}</Badge>}
                   </div>
-                  <div className="mt-0.5 text-sm font-medium text-slate-700">{range(t)}</div>
-                  {t.range_basis === "from_examples" && <div className="text-[11px] text-slate-500">Range of the example prices below</div>}
+                  <div className="mt-0.5 text-sm font-medium text-slate-700">{range(tier, t)}</div>
+                  {tier.range_basis === "from_examples" && <div className="text-[11px] text-slate-500">{t("Range of the example prices below")}</div>}
                 </div>
                 <CardBody className="flex-1 space-y-3 text-sm">
-                  {t.buyer_profile && <p className="text-slate-700">{t.buyer_profile}</p>}
-                  {t.materials_and_quality.length > 0 && (
-                    <div><div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Quality & materials</div>
-                      <ul className="list-disc space-y-0.5 pl-4 text-slate-700">{t.materials_and_quality.map((m) => <li key={m}>{m}</li>)}</ul></div>
+                  {tier.buyer_profile && <p className="text-slate-700">{tier.buyer_profile}</p>}
+                  {tier.materials_and_quality.length > 0 && (
+                    <div><div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">{t("Quality & materials")}</div>
+                      <ul className="list-disc space-y-0.5 pl-4 text-slate-700">{tier.materials_and_quality.map((m) => <li key={m}>{m}</li>)}</ul></div>
                   )}
-                  {t.customer_needs.length > 0 && (
-                    <div><div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">What buyers want</div>
-                      <ul className="space-y-1">{t.customer_needs.map((n) => <li key={n} className="flex gap-1.5 text-slate-700"><ThumbsUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />{n}</li>)}</ul></div>
+                  {tier.customer_needs.length > 0 && (
+                    <div><div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">{t("What buyers want")}</div>
+                      <ul className="space-y-1">{tier.customer_needs.map((n) => <li key={n} className="flex gap-1.5 text-slate-700"><ThumbsUp className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />{n}</li>)}</ul></div>
                   )}
-                  {t.complaints.length > 0 && (
-                    <div><div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Complaints</div>
-                      <ul className="space-y-1">{t.complaints.map((n) => <li key={n} className="flex gap-1.5 text-slate-700"><ThumbsDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />{n}</li>)}</ul></div>
+                  {tier.complaints.length > 0 && (
+                    <div><div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">{t("Complaints")}</div>
+                      <ul className="space-y-1">{tier.complaints.map((n) => <li key={n} className="flex gap-1.5 text-slate-700"><ThumbsDown className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />{n}</li>)}</ul></div>
                   )}
-                  {t.examples.length > 0 && (
-                    <div><div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">Examples</div>
-                      <ul className="space-y-2">{t.examples.map((e) => (
+                  {tier.examples.length > 0 && (
+                    <div><div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">{t("Examples")}</div>
+                      <ul className="space-y-2">{tier.examples.map((e) => (
                         <li key={`${e.product}-${e.price}`} className="flex items-start gap-2.5">
                           <ProductThumb src={e.image} href={e.url} alt={e.product} size={44} />
                           <span className="min-w-0 flex-1">{e.url ? <ExternalLink href={e.url}>{e.product}</ExternalLink> : e.product}</span>
@@ -96,9 +108,9 @@ export function PriceTiersSection({ projectId }: { projectId: string }) {
                         </li>
                       ))}</ul></div>
                   )}
-                  {t.sources.length > 0 && (
-                    <details className="text-xs text-slate-500"><summary className="cursor-pointer">Sources ({t.sources.length})</summary>
-                      <ul className="mt-1 space-y-0.5">{t.sources.map((s) => <li key={s.url}><ExternalLink href={s.url}>{s.title || s.url}</ExternalLink></li>)}</ul></details>
+                  {tier.sources.length > 0 && (
+                    <details className="text-xs text-slate-500"><summary className="cursor-pointer">{t("Sources ({n})", { n: tier.sources.length })}</summary>
+                      <ul className="mt-1 space-y-0.5">{tier.sources.map((s) => <li key={s.url}><ExternalLink href={s.url}>{s.title || s.url}</ExternalLink></li>)}</ul></details>
                   )}
                 </CardBody>
               </Card>
@@ -118,35 +130,38 @@ type Checklist = {
   supplier_drafts: number;
 };
 
-const STATUS: Record<Checklist["items"][number]["status"], { label: string; tone: Tone; Icon: typeof CheckCircle2 }> = {
+const STATUS: Record<Checklist["items"][number]["status"], { label: MsgKey; tone: Tone; Icon: typeof CheckCircle2 }> = {
   action_needed: { label: "Action needed", tone: "amber", Icon: AlertTriangle },
   likely_ok: { label: "Likely OK", tone: "green", Icon: CheckCircle2 },
   unknown: { label: "Unknown", tone: "slate", Icon: CircleHelp },
 };
-const AREA_LABEL: Record<string, string> = { design_ip: "Design patents & IP", labeling: "Labelling", forced_labor: "Forced labour (UFLPA)", safety: "Product safety", other: "Other" };
+const AREA_LABEL: Record<string, MsgKey> = { design_ip: "Design patents & IP", labeling: "Labelling", forced_labor: "Forced labour (UFLPA)", safety: "Product safety", other: "Other" };
 
 /** Design-patent, labelling and UFLPA check, with supplier questions drafted (never sent) for each supplier on file. */
 export function ComplianceSection({ projectId }: { projectId: string }) {
+  const { t, tr } = useT();
   const snap = useApi<Snapshot<Checklist>>(`/api/projects/${projectId}/snapshots/compliance_checklist`);
   const c = snap.data?.content;
   const areas = c ? [...new Set(c.items.map((i) => i.area))] : [];
   return (
     <div className="space-y-4">
       {snap.loading && !snap.data ? <Spinner /> : !c ? (
-        <p className="text-sm text-slate-500">Not researched yet. Run the Rules &amp; Patent Checker from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>.</p>
+        <p className="text-sm text-slate-500">{tr("Not researched yet. Run the Rules & Patent Checker from the {link}.", {
+          link: <a href="#review" className="font-semibold text-primary-700 underline">{t("agents list at the top")}</a>,
+        })}</p>
       ) : (
         <Card>
           <CardBody className="space-y-4">
             <p className="text-sm text-ink">{c.summary}</p>
             {areas.map((a) => (
               <div key={a}>
-                <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">{AREA_LABEL[a] ?? titleCase(a)}</h3>
+                <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">{AREA_LABEL[a] ? t(AREA_LABEL[a]) : titleCase(a)}</h3>
                 <ul className="divide-y divide-slate-100 rounded-lg border border-line">
                   {c.items.filter((i) => i.area === a).map((i) => {
                     const s = STATUS[i.status];
                     return (
                       <li key={i.requirement} className="flex flex-col gap-1 px-3 py-2.5 sm:flex-row sm:items-start sm:gap-3">
-                        <Badge tone={s.tone} className="w-fit"><s.Icon className="h-3 w-3" /> {s.label}</Badge>
+                        <Badge tone={s.tone} className="w-fit"><s.Icon className="h-3 w-3" /> {t(s.label)}</Badge>
                         <div className="min-w-0 text-sm">
                           <div className="font-medium text-ink">{i.requirement}</div>
                           <div className="text-slate-600">{i.what_to_do}</div>
@@ -164,12 +179,14 @@ export function ComplianceSection({ projectId }: { projectId: string }) {
             ))}
             {c.supplier_questions.length > 0 && (
               <div>
-                <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">Questions for your supplier</h3>
+                <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wide text-slate-500">{t("Questions for your supplier")}</h3>
                 <ol className="list-decimal space-y-1 pl-5 text-sm text-ink">{c.supplier_questions.map((q) => <li key={q}>{q}</li>)}</ol>
                 <p className="mt-2 text-xs text-slate-500">
                   {c.supplier_drafts
-                    ? `Drafted in the communication log of ${c.supplier_drafts} supplier${c.supplier_drafts === 1 ? "" : "s"} (see Suppliers). Nothing was sent - review and send them yourself.`
-                    : "No suppliers on file yet, so no drafts were saved. Add a supplier and run the check again, or copy these questions."}
+                    ? t(c.supplier_drafts === 1
+                      ? "Drafted in the communication log of {n} supplier (see Suppliers). Nothing was sent - review and send them yourself."
+                      : "Drafted in the communication log of {n} suppliers (see Suppliers). Nothing was sent - review and send them yourself.", { n: c.supplier_drafts })
+                    : t("No suppliers on file yet, so no drafts were saved. Add a supplier and run the check again, or copy these questions.")}
                 </p>
               </div>
             )}

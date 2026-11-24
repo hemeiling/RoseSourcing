@@ -3,6 +3,7 @@
 import clsx from "clsx";
 import { AlertTriangle, Info, KeyRound, Loader2, X } from "lucide-react";
 import Link from "next/link";
+import { useT } from "@/lib/i18n";
 import { createContext, useContext, useEffect, useState, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
@@ -86,7 +87,8 @@ export function Badge({ tone = "slate", children, title, className }: { tone?: T
 }
 
 export function PlannedBadge() {
-  return <Badge tone="violet" title="Designed in the architecture; not available in this release">Planned</Badge>;
+  const { t } = useT();
+  return <Badge tone="violet" title={t("Designed in the architecture; not available in this release")}>{t("Planned")}</Badge>;
 }
 
 export function Field({ label, hint, children, className }: { label: string; hint?: ReactNode; children: ReactNode; className?: string }) {
@@ -115,10 +117,11 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
 }
 
 export function Spinner({ label }: { label?: string }) {
+  const { t } = useT();
   return (
     <div className="flex items-center gap-2 text-sm text-slate-500" role="status">
       <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-      {label ?? "Loading..."}
+      {label ?? t("Loading...")}
     </div>
   );
 }
@@ -192,15 +195,16 @@ export function ErrorText({ error }: { error: string | null | undefined }) {
 
 /** Shown wherever an AI feature is unavailable because the server lacks credentials. */
 export function ConfigNotice({ message }: { message?: string | null }) {
+  const { t } = useT();
   return (
     <div className="flex gap-2.5 rounded-lg border border-l-4 border-line border-l-accent-600 bg-white px-3.5 py-3 text-sm text-slate-700">
       <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" aria-hidden />
       <div>
-        <div className="font-medium text-slate-900">Configuration required</div>
+        <div className="font-medium text-slate-900">{t("Configuration required")}</div>
         <div className="mt-0.5 text-[13px]">
-          {message ?? "This feature needs an AI provider key on the server."} No results are generated or simulated until it is configured.{" "}
+          {message ?? t("This feature needs an AI provider key on the server.")} {t("No results are generated or simulated until it is configured.")}{" "}
           <Link href="/settings" className="font-medium text-primary-700 underline">
-            View settings
+            {t("View settings")}
           </Link>
         </div>
       </div>
@@ -209,6 +213,7 @@ export function ConfigNotice({ message }: { message?: string | null }) {
 }
 
 export function Modal({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title: string; children: ReactNode; wide?: boolean }) {
+  const { t } = useT();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -227,7 +232,7 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
       >
         <div className="flex items-center justify-between border-b border-line px-5 py-3.5">
           <h2 className="text-xl font-semibold text-ink">{title}</h2>
-          <button onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="Close">
+          <button onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={t("Close")}>
             <X className="h-4 w-4" />
           </button>
         </div>

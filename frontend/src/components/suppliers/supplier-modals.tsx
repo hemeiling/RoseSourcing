@@ -7,6 +7,7 @@ import { ApiError, del, errorText, patch, post } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type { Communication, Product, Quote, Scenario, Supplier } from "@/lib/types";
 import { date, dateTime, domainOf, money, num, titleCase } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import { Alert, Badge, Button, ConfigNotice, ExternalLink, Field, Input, Modal, ProductThumb, Select, Spinner, Tabs, Td, Textarea, Th, type Tone } from "@/components/ui";
 
 export const VERIFICATION_TONE: Record<string, Tone> = {
@@ -22,18 +23,20 @@ export function shortLabel(full: string): string {
 }
 
 export function SupplierVerificationBadge({ status, labels }: { status: string; labels: Record<string, string> | undefined }) {
+  const { tx } = useT();
   const full = labels?.[status] ?? titleCase(status);
   return (
-    <Badge tone={VERIFICATION_TONE[status] ?? "slate"} title={full}>
-      {shortLabel(full)}
+    <Badge tone={VERIFICATION_TONE[status] ?? "slate"} title={tx(full)}>
+      {tx(shortLabel(full))}
     </Badge>
   );
 }
 
 export function QualityStars({ rating }: { rating: number | null }) {
-  if (!rating) return <span className="text-xs text-slate-400">Not rated</span>;
+  const { t } = useT();
+  if (!rating) return <span className="text-xs text-slate-400">{t("Not rated")}</span>;
   return (
-    <span className="whitespace-nowrap text-sm text-slate-500" aria-label={`${rating} out of 5`} title="Your quality evaluation">
+    <span className="whitespace-nowrap text-sm text-slate-500" aria-label={t("{n} out of 5", { n: rating })} title={t("Your quality evaluation")}>
       {"★".repeat(rating)}
       <span className="text-slate-300">{"★".repeat(5 - rating)}</span>
     </span>
@@ -57,7 +60,7 @@ const nOrNull = (s: string): number | null => {
 };
 const splitList = (s: string) =>
   s
-    .split(/[,;]/)
+    .split(/[,;，；、]/) // Chinese commas too
     .map((x) => x.trim())
     .filter(Boolean);
 
@@ -80,6 +83,7 @@ export function SupplierFormModal({
   labels: Record<string, string> | undefined;
   onSaved: () => void;
 }) {
+  const { t, tx } = useT();
   const empty = {
     name: "",
     country: "",
@@ -160,15 +164,15 @@ export function SupplierFormModal({
   const levels = labels ? Object.entries(labels) : [["unverified", "Unverified - no checks done"]];
 
   return (
-    <Modal open={open} onClose={onClose} title={supplier ? `Edit ${supplier.name}` : "Add supplier"} wide>
+    <Modal open={open} onClose={onClose} title={supplier ? t("Edit {name}", { name: supplier.name }) : t("Add supplier")} wide>
       <form onSubmit={submit} className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Supplier name">
+          <Field label={t("Supplier name")}>
             <Input required value={form.name} onChange={set("name")} maxLength={300} />
           </Field>
-          <Field label="Platform / how you found them">
+          <Field label={t("Platform / how you found them")}>
             <Select value={form.platform} onChange={set("platform")}>
-              <option value="">Not specified</option>
+              <option value="">{t("Not specified")}</option>
               {PLATFORMS.map((p) => (
                 <option key={p} value={p}>
                   {p === "1688" ? "1688.com" : p === "alibaba" ? "Alibaba.com" : titleCase(p)}
@@ -176,41 +180,41 @@ export function SupplierFormModal({
               ))}
             </Select>
           </Field>
-          <Field label="Country">
+          <Field label={t("Country")}>
             <Input value={form.country} onChange={set("country")} />
           </Field>
-          <Field label="City">
+          <Field label={t("City")}>
             <Input value={form.city} onChange={set("city")} />
           </Field>
-          <Field label="Website / store page">
+          <Field label={t("Website / store page")}>
             <Input type="url" value={form.website} onChange={set("website")} placeholder="https://" />
           </Field>
-          <Field label="Contact name">
+          <Field label={t("Contact name")}>
             <Input value={form.contact_name} onChange={set("contact_name")} />
           </Field>
-          <Field label="Contact email">
+          <Field label={t("Contact email")}>
             <Input type="email" value={form.contact_email} onChange={set("contact_email")} />
           </Field>
-          <Field label="Manufacturing capabilities" hint="Comma-separated, e.g. knit dresses, sublimation printing">
+          <Field label={t("Manufacturing capabilities")} hint={t("Comma-separated, e.g. knit dresses, sublimation printing")}>
             <Input value={form.capabilities} onChange={set("capabilities")} />
           </Field>
         </div>
-        <Field label="Certifications the supplier claims" hint="Recorded as claims only. 136Sourcing never shows these as verified.">
-          <Input value={form.certifications_claimed} onChange={set("certifications_claimed")} placeholder="e.g. ISO 9001, BSCI, OEKO-TEX" />
+        <Field label={t("Certifications the supplier claims")} hint={t("Recorded as claims only. 136Sourcing never shows these as verified.")}>
+          <Input value={form.certifications_claimed} onChange={set("certifications_claimed")} placeholder={t("e.g. ISO 9001, BSCI, OEKO-TEX")} />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Verification status (set by you)" hint={labels?.[form.verification_status]}>
+          <Field label={t("Verification status (set by you)")} hint={tx(labels?.[form.verification_status])}>
             <Select value={form.verification_status} onChange={set("verification_status")}>
               {levels.map(([k, v]) => (
                 <option key={k} value={k}>
-                  {v}
+                  {tx(v)}
                 </option>
               ))}
             </Select>
           </Field>
-          <Field label="Your quality rating">
+          <Field label={t("Your quality rating")}>
             <Select value={form.quality_rating} onChange={set("quality_rating")}>
-              <option value="">Not rated</option>
+              <option value="">{t("Not rated")}</option>
               {[1, 2, 3, 4, 5].map((n) => (
                 <option key={n} value={n}>
                   {n} / 5
@@ -219,19 +223,19 @@ export function SupplierFormModal({
             </Select>
           </Field>
         </div>
-        <Field label="Quality notes" hint="e.g. sample stitching, fabric weight, communication responsiveness">
+        <Field label={t("Quality notes")} hint={t("e.g. sample stitching, fabric weight, communication responsiveness")}>
           <Textarea value={form.quality_notes} onChange={set("quality_notes")} rows={2} />
         </Field>
-        <Field label="Notes">
+        <Field label={t("Notes")}>
           <Textarea value={form.notes} onChange={set("notes")} rows={2} />
         </Field>
         {error && <Alert tone="red">{error}</Alert>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="secondary" onClick={onClose}>
-            Cancel
+            {t("Cancel")}
           </Button>
           <Button type="submit" loading={busy}>
-            {supplier ? "Save changes" : "Add supplier"}
+            {supplier ? t("Save changes") : t("Add supplier")}
           </Button>
         </div>
       </form>
@@ -256,6 +260,7 @@ function QuoteForm({
   onDone: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useT();
   const [f, setF] = useState({
     product_name: quote?.product_name ?? "",
     product_concept_id: quote?.product_concept_id ?? "",
@@ -279,7 +284,7 @@ function QuoteForm({
     const numeric = { moq: f.moq, unit_price: f.unit_price, sample_cost: f.sample_cost, lead_time_days: f.lead_time_days, est_freight_per_unit: f.est_freight_per_unit };
     for (const [k, v] of Object.entries(numeric)) {
       if (v.trim() && nOrNull(v) === null) {
-        setError(`${titleCase(k)} must be a number.`);
+        setError(t("{field} must be a number.", { field: titleCase(k) }));
         return;
       }
     }
@@ -314,14 +319,14 @@ function QuoteForm({
 
   return (
     <form onSubmit={submit} className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <div className="text-xs font-semibold text-slate-700">{quote ? "Edit quote" : "Add quote"}</div>
+      <div className="text-xs font-semibold text-slate-700">{quote ? t("Edit quote") : t("Add quote")}</div>
       <div className="grid gap-2 sm:grid-cols-2">
-        <Field label="Product">
+        <Field label={t("Product")}>
           <Input required value={f.product_name} onChange={set("product_name")} maxLength={300} />
         </Field>
-        <Field label="Linked product concept (optional)">
+        <Field label={t("Linked product concept (optional)")}>
           <Select value={f.product_concept_id} onChange={set("product_concept_id")}>
-            <option value="">None</option>
+            <option value="">{t("None")}</option>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -331,24 +336,24 @@ function QuoteForm({
         </Field>
       </div>
       <div className="grid gap-2 sm:grid-cols-4">
-        <Field label="Unit price">
+        <Field label={t("Unit price")}>
           <Input inputMode="decimal" value={f.unit_price} onChange={set("unit_price")} />
         </Field>
-        <Field label="Currency">
+        <Field label={t("Currency")}>
           <Input value={f.currency} onChange={set("currency")} maxLength={8} />
         </Field>
-        <Field label="MOQ (units)">
+        <Field label={t("MOQ (units)")}>
           <Input inputMode="numeric" value={f.moq} onChange={set("moq")} />
         </Field>
-        <Field label="Sample cost">
+        <Field label={t("Sample cost")}>
           <Input inputMode="decimal" value={f.sample_cost} onChange={set("sample_cost")} />
         </Field>
-        <Field label="Lead time (days)">
+        <Field label={t("Lead time (days)")}>
           <Input inputMode="numeric" value={f.lead_time_days} onChange={set("lead_time_days")} />
         </Field>
-        <Field label="Incoterm">
+        <Field label={t("Incoterm")}>
           <Select value={f.incoterm} onChange={set("incoterm")}>
-            <option value="">Not stated</option>
+            <option value="">{t("Not stated")}</option>
             {INCOTERMS.map((i) => (
               <option key={i} value={i}>
                 {i}
@@ -356,26 +361,26 @@ function QuoteForm({
             ))}
           </Select>
         </Field>
-        <Field label="Est. freight / unit" hint="Leave blank to use your scenario's assumption.">
+        <Field label={t("Est. freight / unit")} hint={t("Leave blank to use your scenario's assumption.")}>
           <Input inputMode="decimal" value={f.est_freight_per_unit} onChange={set("est_freight_per_unit")} />
         </Field>
-        <Field label="Quote date">
+        <Field label={t("Quote date")}>
           <Input type="date" value={f.quote_date} onChange={set("quote_date")} />
         </Field>
-        <Field label="Valid until">
+        <Field label={t("Valid until")}>
           <Input type="date" value={f.valid_until} onChange={set("valid_until")} />
         </Field>
-        <Field label="Notes" className="sm:col-span-3">
+        <Field label={t("Notes")} className="sm:col-span-3">
           <Input value={f.notes} onChange={set("notes")} />
         </Field>
       </div>
       {error && <Alert tone="red">{error}</Alert>}
       <div className="flex justify-end gap-2">
         <Button type="button" size="sm" variant="secondary" onClick={onCancel}>
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button type="submit" size="sm" loading={busy}>
-          {quote ? "Save quote" : "Add quote"}
+          {quote ? t("Save quote") : t("Add quote")}
         </Button>
       </div>
     </form>
@@ -383,13 +388,14 @@ function QuoteForm({
 }
 
 function QuotesTab({ supplier, projectId, products, onChanged }: { supplier: Supplier; projectId: string; products: Product[]; onChanged: () => void }) {
+  const { t, tr } = useT();
   const [editing, setEditing] = useState<Quote | "new" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [scenario, setScenario] = useState<Scenario | null>(null);
   const [building, setBuilding] = useState<string | null>(null);
 
   async function remove(q: Quote) {
-    if (!window.confirm(`Delete the quote for ${q.product_name}?`)) return;
+    if (!window.confirm(t("Delete the quote for {name}?", { name: q.product_name }))) return;
     setError(null);
     try {
       await del(`/api/supplier-quotes/${q.id}`);
@@ -416,28 +422,32 @@ function QuotesTab({ supplier, projectId, products, onChanged }: { supplier: Sup
     <div className="space-y-3">
       {error && <Alert tone="red">{error}</Alert>}
       {scenario && (
-        <Alert tone="blue" title="Cost scenario created">
-          &ldquo;{scenario.name}&rdquo; uses this quote&apos;s factory cost/MOQ; other inputs come from your latest scenario and remain assumptions until you replace them.{" "}
-          <Link href="/analytics" className="font-medium underline">
-            Open in Analytics
-          </Link>
+        <Alert tone="blue" title={t("Cost scenario created")}>
+          {tr("“{name}” uses this quote's factory cost/MOQ; other inputs come from your latest scenario and remain assumptions until you replace them. {link}", {
+            name: scenario.name,
+            link: (
+              <Link href="/analytics" className="font-medium underline">
+                {t("Open in Analytics")}
+              </Link>
+            ),
+          })}
         </Alert>
       )}
-      {supplier.quotes.length === 0 && editing === null && <p className="text-sm text-slate-500">No quotes recorded for this supplier.</p>}
+      {supplier.quotes.length === 0 && editing === null && <p className="text-sm text-slate-500">{t("No quotes recorded for this supplier.")}</p>}
       {supplier.quotes.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[760px]">
             <thead className="border-b border-slate-200">
               <tr>
-                <Th>Product</Th>
-                <Th>Unit price</Th>
-                <Th>MOQ</Th>
-                <Th>Sample</Th>
-                <Th>Lead time</Th>
-                <Th>Incoterm</Th>
-                <Th>Freight/unit</Th>
-                <Th>Quoted</Th>
-                <Th className="text-right">Actions</Th>
+                <Th>{t("Product")}</Th>
+                <Th>{t("Unit price")}</Th>
+                <Th>{t("MOQ")}</Th>
+                <Th>{t("Sample")}</Th>
+                <Th>{t("Lead time")}</Th>
+                <Th>{t("Incoterm")}</Th>
+                <Th>{t("Freight/unit")}</Th>
+                <Th>{t("Quoted")}</Th>
+                <Th className="text-right">{t("Actions")}</Th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -450,7 +460,7 @@ function QuotesTab({ supplier, projectId, products, onChanged }: { supplier: Sup
                         {q.source_url ? <ExternalLink href={q.source_url}>{q.product_name}</ExternalLink> : q.product_name}
                         <div className="text-[11px] font-normal text-slate-400">
                           {titleCase(q.source)}
-                          {q.source_url && <> · listing on {domainOf(q.source_url)}</>}
+                          {q.source_url && <> · {t("listing on {domain}", { domain: domainOf(q.source_url) })}</>}
                           {/* The listing link is shown above, so the "Source: <url>" tail of research notes is dropped. */}
                           {q.notes ? ` · ${q.source_url ? q.notes.replace(/\s*Source: \S+$/, "") : q.notes}` : ""}
                         </div>
@@ -460,21 +470,21 @@ function QuotesTab({ supplier, projectId, products, onChanged }: { supplier: Sup
                   <Td className="whitespace-nowrap">{fmtMoney(q.unit_price, q.currency)}</Td>
                   <Td>{num(q.moq)}</Td>
                   <Td className="whitespace-nowrap">{fmtMoney(q.sample_cost, q.currency)}</Td>
-                  <Td className="whitespace-nowrap">{q.lead_time_days !== null ? `${q.lead_time_days} days` : "-"}</Td>
+                  <Td className="whitespace-nowrap">{q.lead_time_days !== null ? t("{n} days", { n: q.lead_time_days }) : "-"}</Td>
                   <Td>{q.incoterm ?? "-"}</Td>
-                  <Td className="whitespace-nowrap">{q.est_freight_per_unit !== null ? fmtMoney(q.est_freight_per_unit, q.currency) : <span className="text-xs text-slate-400">assumed</span>}</Td>
+                  <Td className="whitespace-nowrap">{q.est_freight_per_unit !== null ? fmtMoney(q.est_freight_per_unit, q.currency) : <span className="text-xs text-slate-400">{t("assumed")}</span>}</Td>
                   <Td className="whitespace-nowrap text-xs">
                     {date(q.quote_date)}
-                    {q.valid_until && <div className="text-slate-400">valid to {date(q.valid_until)}</div>}
+                    {q.valid_until && <div className="text-slate-400">{t("valid to {date}", { date: date(q.valid_until) })}</div>}
                   </Td>
                   <Td className="whitespace-nowrap text-right">
-                    <Button size="sm" variant="secondary" onClick={() => buildScenario(q)} loading={building === q.id} title="Create a quote-based unit economics scenario">
-                      <Calculator className="h-3.5 w-3.5" aria-hidden /> Build cost scenario
+                    <Button size="sm" variant="secondary" onClick={() => buildScenario(q)} loading={building === q.id} title={t("Create a quote-based unit economics scenario")}>
+                      <Calculator className="h-3.5 w-3.5" aria-hidden /> {t("Build cost scenario")}
                     </Button>
-                    <button onClick={() => setEditing(q)} className="ml-1 rounded p-1.5 text-slate-500 hover:bg-slate-100" aria-label={`Edit quote for ${q.product_name}`}>
+                    <button onClick={() => setEditing(q)} className="ml-1 rounded p-1.5 text-slate-500 hover:bg-slate-100" aria-label={t("Edit quote for {name}", { name: q.product_name })}>
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={() => remove(q)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Delete quote for ${q.product_name}`}>
+                    <button onClick={() => remove(q)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={t("Delete quote for {name}", { name: q.product_name })}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </Td>
@@ -498,7 +508,7 @@ function QuotesTab({ supplier, projectId, products, onChanged }: { supplier: Sup
         />
       ) : (
         <Button size="sm" variant="secondary" onClick={() => setEditing("new")}>
-          <Plus className="h-3.5 w-3.5" aria-hidden /> Add quote
+          <Plus className="h-3.5 w-3.5" aria-hidden /> {t("Add quote")}
         </Button>
       )}
     </div>
@@ -511,6 +521,7 @@ const CHANNELS = ["email", "alibaba_chat", "wechat", "whatsapp", "call", "video"
 const DIRECTION_TONE: Record<string, Tone> = { inbound: "slate", outbound: "slate", draft: "slate" };
 
 function CommunicationsTab({ supplier, onChanged }: { supplier: Supplier; onChanged: () => void }) {
+  const { t } = useT();
   const [f, setF] = useState({ occurred_at: "", channel: "email", direction: "outbound", subject: "", summary: "", next_action: "" });
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -541,7 +552,7 @@ function CommunicationsTab({ supplier, onChanged }: { supplier: Supplier; onChan
   }
 
   async function remove(c: Communication) {
-    if (!window.confirm("Delete this communication entry?")) return;
+    if (!window.confirm(t("Delete this communication entry?"))) return;
     try {
       await del(`/api/supplier-communications/${c.id}`);
       onChanged();
@@ -556,10 +567,10 @@ function CommunicationsTab({ supplier, onChanged }: { supplier: Supplier; onChan
       {open ? (
         <form onSubmit={submit} className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
           <div className="grid gap-2 sm:grid-cols-3">
-            <Field label="When">
+            <Field label={t("When")}>
               <Input type="datetime-local" value={f.occurred_at} onChange={set("occurred_at")} />
             </Field>
-            <Field label="Channel">
+            <Field label={t("Channel")}>
               <Select value={f.channel} onChange={set("channel")}>
                 {CHANNELS.map((c) => (
                   <option key={c} value={c}>
@@ -568,46 +579,46 @@ function CommunicationsTab({ supplier, onChanged }: { supplier: Supplier; onChan
                 ))}
               </Select>
             </Field>
-            <Field label="Direction">
+            <Field label={t("Direction")}>
               <Select value={f.direction} onChange={set("direction")}>
-                <option value="outbound">Outbound (you sent)</option>
-                <option value="inbound">Inbound (they sent)</option>
-                <option value="draft">Draft (not sent)</option>
+                <option value="outbound">{t("Outbound (you sent)")}</option>
+                <option value="inbound">{t("Inbound (they sent)")}</option>
+                <option value="draft">{t("Draft (not sent)")}</option>
               </Select>
             </Field>
           </div>
-          <Field label="Subject">
+          <Field label={t("Subject")}>
             <Input value={f.subject} onChange={set("subject")} maxLength={300} />
           </Field>
-          <Field label="Summary">
+          <Field label={t("Summary")}>
             <Textarea required value={f.summary} onChange={set("summary")} rows={3} />
           </Field>
-          <Field label="Next action">
-            <Input value={f.next_action} onChange={set("next_action")} placeholder="e.g. Follow up on sample lead time by Friday" />
+          <Field label={t("Next action")}>
+            <Input value={f.next_action} onChange={set("next_action")} placeholder={t("e.g. Follow up on sample lead time by Friday")} />
           </Field>
           <div className="flex justify-end gap-2">
             <Button type="button" size="sm" variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button type="submit" size="sm" loading={busy}>
-              Save entry
+              {t("Save entry")}
             </Button>
           </div>
         </form>
       ) : (
         <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
-          <Plus className="h-3.5 w-3.5" aria-hidden /> Log communication
+          <Plus className="h-3.5 w-3.5" aria-hidden /> {t("Log communication")}
         </Button>
       )}
-      {supplier.communications.length === 0 && <p className="text-sm text-slate-500">No communication history yet.</p>}
+      {supplier.communications.length === 0 && <p className="text-sm text-slate-500">{t("No communication history yet.")}</p>}
       <ul className="space-y-2">
         {supplier.communications.map((c) => (
           <li key={c.id} className="rounded-lg border border-slate-200 p-3">
             <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-              <Badge tone={DIRECTION_TONE[c.direction] ?? "slate"}>{c.direction === "draft" ? "Draft - not sent" : titleCase(c.direction)}</Badge>
+              <Badge tone={DIRECTION_TONE[c.direction] ?? "slate"}>{c.direction === "draft" ? t("Draft - not sent") : titleCase(c.direction)}</Badge>
               <span>{titleCase(c.channel)}</span>
               <span>· {dateTime(c.occurred_at)}</span>
-              <button onClick={() => remove(c)} className="ml-auto rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label="Delete communication">
+              <button onClick={() => remove(c)} className="ml-auto rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={t("Delete communication")}>
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -615,7 +626,7 @@ function CommunicationsTab({ supplier, onChanged }: { supplier: Supplier; onChan
             <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{c.summary}</p>
             {c.next_action && (
               <p className="mt-1.5 text-xs text-slate-600">
-                <span className="font-medium">Next:</span> {c.next_action}
+                <span className="font-medium">{t("Next:")}</span> {c.next_action}
               </p>
             )}
           </li>
@@ -628,6 +639,7 @@ function CommunicationsTab({ supplier, onChanged }: { supplier: Supplier; onChan
 // ----------------------------------------------------------------------------- RFQ draft
 
 function RfqTab({ supplier, products, onChanged }: { supplier: Supplier; products: Product[]; onChanged: () => void }) {
+  const { t } = useT();
   const [productId, setProductId] = useState("");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
@@ -659,20 +671,20 @@ function RfqTab({ supplier, products, onChanged }: { supplier: Supplier; product
       await navigator.clipboard.writeText(`Subject: ${draft.subject ?? ""}\n\n${draft.summary}`);
       setCopied(true);
     } catch {
-      setError("Could not access the clipboard. Select the text and copy it manually.");
+      setError(t("Could not access the clipboard. Select the text and copy it manually."));
     }
   }
 
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-600">
-        The Sourcing Agent drafts a request-for-quotation email using your project and product details. It is saved to the communications log as a draft.{" "}
-        <span className="font-medium">136Sourcing never sends messages to suppliers.</span>
+        {t("The Sourcing Agent drafts a request-for-quotation email using your project and product details. It is saved to the communications log as a draft.")}{" "}
+        <span className="font-medium">{t("136Sourcing never sends messages to suppliers.")}</span>
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
-        <Field label="Product (optional)">
+        <Field label={t("Product (optional)")}>
           <Select value={productId} onChange={(e) => setProductId(e.target.value)}>
-            <option value="">General inquiry for the project category</option>
+            <option value="">{t("General inquiry for the project category")}</option>
             {products.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -680,12 +692,12 @@ function RfqTab({ supplier, products, onChanged }: { supplier: Supplier; product
             ))}
           </Select>
         </Field>
-        <Field label="Notes for the draft (optional)">
-          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. ask for quotes at 100 and 300 units" />
+        <Field label={t("Notes for the draft (optional)")}>
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={t("e.g. ask for quotes at 100 and 300 units")} />
         </Field>
       </div>
       <Button onClick={generate} loading={busy}>
-        <Sparkles className="h-4 w-4" aria-hidden /> Draft RFQ with AI
+        <Sparkles className="h-4 w-4" aria-hidden /> {t("Draft RFQ with AI")}
       </Button>
       {configMsg && <ConfigNotice message={configMsg} />}
       {error && <Alert tone="red">{error}</Alert>}
@@ -693,17 +705,17 @@ function RfqTab({ supplier, products, onChanged }: { supplier: Supplier; product
         <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3">
           <div className="mb-2 flex flex-wrap items-center gap-2">
             <Badge tone="amber">
-              <Mail className="h-3 w-3" aria-hidden /> Not sent - copy and send it yourself
+              <Mail className="h-3 w-3" aria-hidden /> {t("Not sent - copy and send it yourself")}
             </Badge>
-            <Badge tone="violet">AI draft</Badge>
+            <Badge tone="violet">{t("AI draft")}</Badge>
             <Button size="sm" variant="secondary" className="ml-auto" onClick={copy}>
               {copied ? <Check className="h-3.5 w-3.5" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
-              {copied ? "Copied" : "Copy"}
+              {copied ? t("Copied") : t("Copy")}
             </Button>
           </div>
-          {draft.subject && <div className="text-sm font-medium text-slate-900">Subject: {draft.subject}</div>}
+          {draft.subject && <div className="text-sm font-medium text-slate-900">{t("Subject:")} {draft.subject}</div>}
           <pre className="mt-2 whitespace-pre-wrap font-sans text-sm text-slate-800">{draft.summary}</pre>
-          <p className="mt-2 text-xs text-slate-500">Review every detail before sending - the draft must not state volumes, budgets or facts you have not confirmed.</p>
+          <p className="mt-2 text-xs text-slate-500">{t("Review every detail before sending - the draft must not state volumes, budgets or facts you have not confirmed.")}</p>
         </div>
       )}
     </div>
@@ -729,6 +741,7 @@ export function SupplierDetailModal({
   onChanged: () => void;
   onEdit: (s: Supplier) => void;
 }) {
+  const { t, tx } = useT();
   const { data: s, error, loading, reload } = useApi<Supplier>(supplierId ? `/api/suppliers/${supplierId}` : null);
   const products = useApi<Product[]>(supplierId ? `/api/projects/${projectId}/products` : null);
   const [tab, setTab] = useState<DetailTab>("quotes");
@@ -744,7 +757,7 @@ export function SupplierDetailModal({
   };
 
   return (
-    <Modal open onClose={onClose} title={s?.name ?? "Supplier"} wide>
+    <Modal open onClose={onClose} title={s?.name ?? t("Supplier")} wide>
       {loading && !s && <Spinner />}
       {error && <Alert tone="red">{errorText(error)}</Alert>}
       {s && (
@@ -756,31 +769,31 @@ export function SupplierDetailModal({
             <span className="text-xs text-slate-500">{[s.city, s.country].filter(Boolean).join(", ")}</span>
             {s.website && <ExternalLink href={s.website}>{domainOf(s.website)}</ExternalLink>}
             <Button size="sm" variant="ghost" className="ml-auto" onClick={() => onEdit(s)}>
-              <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit supplier
+              <Pencil className="h-3.5 w-3.5" aria-hidden /> {t("Edit supplier")}
             </Button>
           </div>
           <div className="grid gap-2 text-sm text-slate-700">
             <div>
-              <span className="font-medium">Verification:</span> {labels?.[s.verification_status] ?? titleCase(s.verification_status)}
+              <span className="font-medium">{t("Verification:")}</span> {tx(labels?.[s.verification_status] ?? titleCase(s.verification_status))}
             </div>
             <div>
-              <span className="font-medium">Contact:</span> {[s.contact_name, s.contact_email].filter(Boolean).join(" · ") || "-"}
+              <span className="font-medium">{t("Contact:")}</span> {[s.contact_name, s.contact_email].filter(Boolean).join(" · ") || "-"}
             </div>
             <div>
-              <span className="font-medium">Capabilities:</span> {s.capabilities.join(", ") || "-"}
+              <span className="font-medium">{t("Capabilities:")}</span> {s.capabilities.join(", ") || "-"}
             </div>
             <div>
-              <span className="font-medium">Certifications:</span>{" "}
-              {s.certifications_claimed.length ? `Claimed: ${s.certifications_claimed.join(", ")} (not verified)` : "None claimed"}
+              <span className="font-medium">{t("Certifications:")}</span>{" "}
+              {s.certifications_claimed.length ? t("Claimed: {list} (not verified)", { list: s.certifications_claimed.join(", ") }) : t("None claimed")}
             </div>
             {s.quality_notes && (
               <div className="sm:col-span-2">
-                <span className="font-medium">Quality notes:</span> {s.quality_notes}
+                <span className="font-medium">{t("Quality notes:")}</span> {s.quality_notes}
               </div>
             )}
             {s.notes && (
               <div className="sm:col-span-2">
-                <span className="font-medium">Notes:</span> {s.notes}
+                <span className="font-medium">{t("Notes:")}</span> {s.notes}
               </div>
             )}
           </div>
@@ -788,9 +801,9 @@ export function SupplierDetailModal({
             value={tab}
             onChange={setTab}
             tabs={[
-              { value: "quotes", label: `Quotes (${s.quotes.length})` },
-              { value: "comms", label: `Communications (${s.communications.length})` },
-              { value: "rfq", label: "Draft RFQ" },
+              { value: "quotes", label: t("Quotes ({n})", { n: s.quotes.length }) },
+              { value: "comms", label: t("Communications ({n})", { n: s.communications.length }) },
+              { value: "rfq", label: t("Draft RFQ") },
             ]}
           />
           {tab === "quotes" && <QuotesTab supplier={s} projectId={projectId} products={products.data ?? []} onChanged={changed} />}

@@ -1,6 +1,8 @@
 // A product report: 10 tabs in review order - the market, then customers, then what to make and sell, then how to source it, and last what to do about it. A tab can hold several parts; every tab and part has its own anchor
 // (e.g. #listings), so links and deep links reach the exact part. `route` is the old standalone page it replaces.
 
+import type { MsgKey } from "./i18n";
+
 export type TabId = "overview" | "market" | "competitors" | "fit" | "suppliers" | "compliance" | "channels" | "economics" | "brand" | "actions";
 export type PartId = "review" | "decision" | "market-size" | "research" | "buyers" | "trends" | "pricing" | "listings" | "brands" | "reviews" | "sizing"
   | "supplier-list" | "outreach" | "brand-concepts" | "commerce";
@@ -8,8 +10,9 @@ export type SectionId = TabId | PartId;
 
 /** `shownWhen`: dashboard counts, any of which above zero means an agent has saved something here. Parts without it are
  * ones you fill in yourself (suppliers, size charts, scenarios...) and always show; a tab hides when all its parts do. */
-export type Part = { id: PartId; title: string; route?: string; description?: string; shownWhen?: string[] };
-export type Tab = { id: TabId; title: string; route?: string; description?: string; parts?: Part[]; shownWhen?: string[] };
+/** `title` and `description` are English dictionary keys: show them with t(). */
+export type Part = { id: PartId; title: MsgKey; route?: string; description?: MsgKey; shownWhen?: string[] };
+export type Tab = { id: TabId; title: MsgKey; route?: string; description?: MsgKey; parts?: Part[]; shownWhen?: string[] };
 
 export const SECTIONS: Tab[] = [
   { id: "overview", title: "Overview", parts: [

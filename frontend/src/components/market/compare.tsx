@@ -5,12 +5,14 @@ import { useEffect, useState, type ReactNode } from "react";
 import { EVIDENCE_META } from "@/components/evidence";
 import { Badge, Card, CardBody, CardHeader, EmptyState, Td, Th } from "@/components/ui";
 import { date, money, pct, titleCase } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { EvidenceType, Opportunity } from "@/lib/types";
 import { AttractivenessBadge, SEVERITY_TONE } from "./shared";
 
 const MAX = 3;
 
 export function CompareTab({ reports }: { reports: Opportunity[] | undefined }) {
+  const { t, tx } = useT();
   const [selected, setSelected] = useState<string[]>([]);
 
   useEffect(() => {
@@ -24,8 +26,8 @@ export function CompareTab({ reports }: { reports: Opportunity[] | undefined }) 
   if (!reports || reports.length < 2)
     return (
       <Card>
-        <EmptyState icon={<GitCompare className="h-5 w-5" />} title="Need at least two reports">
-          Run market research more than once (for example with a different category, market or budget) to compare reports side by side.
+        <EmptyState icon={<GitCompare className="h-5 w-5" />} title={t("Need at least two reports")}>
+          {t("Run market research more than once (for example with a different category, market or budget) to compare reports side by side.")}
         </EmptyState>
       </Card>
     );
@@ -35,47 +37,47 @@ export function CompareTab({ reports }: { reports: Opportunity[] | undefined }) 
   const cols = reports.filter((r) => selected.includes(r.id));
 
   const rows: { label: string; render: (o: Opportunity) => ReactNode }[] = [
-    { label: "Created", render: (o) => date(o.created_at) },
-    { label: "Category / market", render: (o) => `${o.category} · ${o.geography}` },
-    { label: "Budget", render: (o) => money(o.budget_usd) },
-    { label: "Attractiveness (AI judgment)", render: (o) => <AttractivenessBadge value={o.report?.attractiveness ?? o.attractiveness} /> },
-    { label: "Recommended segment", render: (o) => o.report?.recommended_segment?.name ?? <span className="text-slate-400">None</span> },
+    { label: t("Created"), render: (o) => date(o.created_at) },
+    { label: t("Category / market"), render: (o) => `${o.category} · ${o.geography}` },
+    { label: t("Budget"), render: (o) => money(o.budget_usd) },
+    { label: t("Attractiveness (AI judgment)"), render: (o) => <AttractivenessBadge value={o.report?.attractiveness ?? o.attractiveness} /> },
+    { label: t("Recommended segment"), render: (o) => o.report?.recommended_segment?.name ?? <span className="text-slate-400">{t("None")}</span> },
     {
-      label: "Test price range",
+      label: t("Test price range"),
       render: (o) =>
         o.report?.pricing?.test_price_low !== null && o.report?.pricing?.test_price_low !== undefined
           ? `${money(o.report.pricing.test_price_low)}${o.report.pricing.test_price_high !== null && o.report.pricing.test_price_high !== undefined ? ` - ${money(o.report.pricing.test_price_high)}` : ""}`
           : "-",
     },
-    { label: "Contribution margin / unit", render: (o) => money(o.report?.unit_economics?.results?.contribution_margin) },
-    { label: "Contribution margin %", render: (o) => pct(o.report?.unit_economics?.results?.contribution_margin_pct) },
+    { label: t("Contribution margin / unit"), render: (o) => money(o.report?.unit_economics?.results?.contribution_margin) },
+    { label: t("Contribution margin %"), render: (o) => pct(o.report?.unit_economics?.results?.contribution_margin_pct) },
     {
-      label: "Assumption-based UE inputs",
+      label: t("Assumption-based UE inputs"),
       render: (o) => {
         const inputs = Object.values(o.report?.unit_economics?.inputs ?? {});
         if (!inputs.length) return "-";
-        return `${inputs.filter((i) => i.basis === "assumption").length} of ${inputs.length}`;
+        return t("{n} of {total}", { n: inputs.filter((i) => i.basis === "assumption").length, total: inputs.length });
       },
     },
     {
-      label: "Evidence",
+      label: t("Evidence"),
       render: (o) => {
         const s = o.report?.evidence_summary;
         if (!s) return "-";
         return (
           <div className="flex flex-wrap gap-1">
-            {(Object.keys(EVIDENCE_META) as EvidenceType[]).map((t) => (
-              <Badge key={t} tone={EVIDENCE_META[t].tone}>
-                {s.by_type?.[t] ?? 0} {EVIDENCE_META[t].label.toLowerCase()}
+            {(Object.keys(EVIDENCE_META) as EvidenceType[]).map((et) => (
+              <Badge key={et} tone={EVIDENCE_META[et].tone}>
+                {s.by_type?.[et] ?? 0} {tx(EVIDENCE_META[et].label).toLowerCase()}
               </Badge>
             ))}
-            <Badge tone="teal">{s.source_linked} source-linked</Badge>
+            <Badge tone="teal">{t("{n} source-linked", { n: s.source_linked })}</Badge>
           </div>
         );
       },
     },
     {
-      label: "Top risks",
+      label: t("Top risks"),
       render: (o) => {
         const order = { high: 0, medium: 1, low: 2 } as Record<string, number>;
         const risks = [...(o.report?.risks ?? [])].sort((a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3)).slice(0, 3);
@@ -92,13 +94,13 @@ export function CompareTab({ reports }: { reports: Opportunity[] | undefined }) 
         );
       },
     },
-    { label: "Evidence gaps", render: (o) => String(o.report?.evidence_gaps?.length ?? 0) },
+    { label: t("Evidence gaps"), render: (o) => String(o.report?.evidence_gaps?.length ?? 0) },
   ];
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader title="Choose reports to compare" subtitle={`Select up to ${MAX}.`} />
+        <CardHeader title={t("Choose reports to compare")} subtitle={t("Select up to {n}.", { n: MAX })} />
         <CardBody className="flex flex-wrap gap-2">
           {reports.map((r) => {
             const on = selected.includes(r.id);
@@ -117,13 +119,13 @@ export function CompareTab({ reports }: { reports: Opportunity[] | undefined }) 
         </CardBody>
       </Card>
       {cols.length < 2 ? (
-        <p className="text-sm text-slate-500">Select at least two reports.</p>
+        <p className="text-sm text-slate-500">{t("Select at least two reports.")}</p>
       ) : (
         <Card className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-100">
             <thead className="bg-slate-50">
               <tr>
-                <Th className="w-48">Metric</Th>
+                <Th className="w-48">{t("Metric")}</Th>
                 {cols.map((c) => (
                   <Th key={c.id} className="min-w-[14rem] normal-case tracking-normal text-slate-700">
                     {c.title}
@@ -144,7 +146,7 @@ export function CompareTab({ reports }: { reports: Opportunity[] | undefined }) 
           </table>
         </Card>
       )}
-      <p className="text-[11px] text-slate-500">Values come from each saved report. Attractiveness and recommendations are AI judgments; assumption-based inputs are unverified.</p>
+      <p className="text-[11px] text-slate-500">{t("Values come from each saved report. Attractiveness and recommendations are AI judgments; assumption-based inputs are unverified.")}</p>
     </div>
   );
 }

@@ -4,12 +4,21 @@ import { CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { api, errorText, get } from "@/lib/api";
+import { useT, type MsgKey } from "@/lib/i18n";
+import { LanguageSwitch } from "./language-switch";
 import { BrandMark } from "./brand-logo";
 import { useAuth } from "./providers";
 import { Alert, Button, Field, Input } from "./ui";
 
+const SELLING_POINTS: MsgKey[] = [
+  "Market research where every finding links to its source",
+  "Competitor prices, supplier quotes and landed cost in one place",
+  "Unit economics, channels and shipping you can defend",
+];
+
 export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const { refresh } = useAuth();
+  const { t } = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -50,36 +59,33 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
         <BrandMark light />
         <div className="my-auto max-w-lg">
           <div className="mb-5 h-1 w-14 rounded-full bg-white/60" aria-hidden />
-          <h2 className="text-[2.6rem] font-semibold leading-[1.1]">Launch product businesses on evidence, not guesswork.</h2>
-          <p className="mt-4 text-xl font-medium text-white/80">Sourced, checked, decided.</p>
+          <h2 className="text-[2.6rem] font-semibold leading-[1.1]">{t("Launch product businesses on evidence, not guesswork.")}</h2>
+          <p className="mt-4 text-xl font-medium text-white/80">{t("Sourced, checked, decided.")}</p>
           <ul className="mt-8 space-y-3 text-[15px] text-white/85">
-            {[
-              "Market research where every finding links to its source",
-              "Competitor prices, supplier quotes and landed cost in one place",
-              "Unit economics, channels and shipping you can defend",
-            ].map((t) => (
-              <li key={t} className="flex gap-2.5">
+            {SELLING_POINTS.map((point) => (
+              <li key={point} className="flex gap-2.5">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-white/70" aria-hidden />
-                {t}
+                {t(point)}
               </li>
             ))}
           </ul>
         </div>
         <div aria-hidden className="pointer-events-none absolute -bottom-24 -right-24 h-72 w-72 rotate-12 rounded-[28px] border-[28px] border-white/5" />
       </aside>
-      <div className="flex items-center justify-center px-4 py-12">
+      <div className="relative flex items-center justify-center px-4 py-12">
+      <LanguageSwitch className="absolute right-4 top-4" />
       <div className="w-full max-w-sm">
         <div className="mb-6">
           <div className="mb-6 lg:hidden"><BrandMark /></div>
           <div className="mb-3 h-1 w-12 rounded-full bg-accent-600" aria-hidden />
-          <h1 className="text-3xl font-semibold text-brand-700">{mode === "login" ? "Welcome back" : "Create your account"}</h1>
+          <h1 className="text-3xl font-semibold text-brand-700">{mode === "login" ? t("Welcome back") : t("Create your account")}</h1>
           <p className="mt-1.5 text-[15px] text-slate-600">
-            {mode === "login" ? "Sign in to your workspace" : signup?.first_user ? "This first account becomes the workspace owner" : "Join this workspace"}
+            {mode === "login" ? t("Sign in to your workspace") : signup?.first_user ? t("This first account becomes the workspace owner") : t("Join this workspace")}
           </p>
         </div>
         <form onSubmit={submit} className="space-y-4 rounded-2xl border border-line border-t-4 border-t-brand-600 bg-white p-6 shadow-sm">
           {mode === "signup" && signup && !signup.signup_open && (
-            <Alert>Sign-ups are closed on this workspace. Ask the owner to add your email to the invite list.</Alert>
+            <Alert>{t("Sign-ups are closed on this workspace. Ask the owner to add your email to the invite list.")}</Alert>
           )}
           {signup?.google_enabled && (
             <>
@@ -93,22 +99,22 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
                   <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
                   <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C36.9 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z" />
                 </svg>
-                Continue with Google
+                {t("Continue with Google")}
               </a>
               <div className="flex items-center gap-3 text-[11px] uppercase tracking-wide text-slate-400">
-                <span className="h-px flex-1 bg-slate-200" /> or use email <span className="h-px flex-1 bg-slate-200" />
+                <span className="h-px flex-1 bg-slate-200" /> {t("or use email")} <span className="h-px flex-1 bg-slate-200" />
               </div>
             </>
           )}
           {mode === "signup" && (
-            <Field label="Name (optional)">
+            <Field label={t("Name (optional)")}>
               <Input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" />
             </Field>
           )}
-          <Field label="Email">
+          <Field label={t("Email")}>
             <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
           </Field>
-          <Field label="Password" hint={mode === "signup" ? "At least 8 characters." : undefined}>
+          <Field label={t("Password")} hint={mode === "signup" ? t("At least 8 characters.") : undefined}>
             <Input
               type="password"
               required
@@ -120,22 +126,22 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
           </Field>
           {error && <Alert tone="red">{error}</Alert>}
           <Button type="submit" loading={busy} className="w-full">
-            {mode === "login" ? "Sign in" : "Create account"}
+            {mode === "login" ? t("Sign in") : t("Create account")}
           </Button>
         </form>
         <p className="mt-4 text-center text-sm text-slate-600">
           {mode === "login" ? (
             <>
-              New here?{" "}
+              {t("New here?")}{" "}
               <Link href="/signup" className="font-medium text-primary-700 hover:underline">
-                Create an account
+                {t("Create an account")}
               </Link>
             </>
           ) : (
             <>
-              Already have an account?{" "}
+              {t("Already have an account?")}{" "}
               <Link href="/login" className="font-medium text-primary-700 hover:underline">
-                Sign in
+                {t("Sign in")}
               </Link>
             </>
           )}

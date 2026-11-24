@@ -1,5 +1,7 @@
 // Thin fetch wrapper. All calls are same-origin (/api) so the session cookie is sent automatically.
 
+import { translate } from "./i18n";
+
 export class ApiError extends Error {
   status: number;
   code?: string;
@@ -35,7 +37,7 @@ type Opts = { method?: string; body?: unknown; form?: FormData; signal?: AbortSi
 // The hosting proxy answers 502/503/504 with its own HTML page when the server is busy, waking up or restarting.
 const BUSY = new Set([502, 503, 504]);
 const RETRY_DELAYS_MS = [2000, 5000]; // read-only requests retry quietly before showing an error
-const busyMessage = (status: number) => `The server is busy or restarting (${status}). Wait a moment and try again - nothing was lost.`;
+const busyMessage = (status: number) => translate("The server is busy or restarting ({status}). Wait a moment and try again - nothing was lost.", { status });
 
 export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T> {
   const init: RequestInit = { method: opts.method ?? (opts.body || opts.form ? "POST" : "GET"), credentials: "include", signal: opts.signal };
@@ -53,7 +55,7 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
       res = await fetch(path, init);
       if (!BUSY.has(res.status) || attempt >= retries.length) break;
     } catch {
-      if (opts.signal?.aborted || attempt >= retries.length) throw new ApiError(0, "Network error - the server could not be reached.");
+      if (opts.signal?.aborted || attempt >= retries.length) throw new ApiError(0, translate("Network error - the server could not be reached."));
     }
     await new Promise((r) => setTimeout(r, retries[attempt]));
   }
@@ -68,9 +70,9 @@ export async function api<T = unknown>(path: string, opts: Opts = {}): Promise<T
   if (!res.ok) {
     if (typeof data === "string") {
       // Not our API's JSON (e.g. the proxy's HTML error page): never show the raw page.
-      throw new ApiError(res.status, BUSY.has(res.status) ? busyMessage(res.status) : `Request failed (${res.status}).`);
+      throw new ApiError(res.status, BUSY.has(res.status) ? busyMessage(res.status) : translate("Request failed ({status}).", { status: res.status }));
     }
-    const { message, code } = messageFrom((data as { detail?: unknown })?.detail ?? data, `Request failed (${res.status})`);
+    const { message, code } = messageFrom((data as { detail?: unknown })?.detail ?? data, translate("Request failed ({status})", { status: res.status }));
     if (res.status === 401 && typeof window !== "undefined" && !path.startsWith("/api/auth/")) {
       window.dispatchEvent(new Event("aicos:unauthorized"));
     }

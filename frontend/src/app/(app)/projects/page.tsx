@@ -7,6 +7,7 @@ import { useProjects } from "@/components/providers";
 import { Alert, Badge, Button, Card, CardBody, EmptyState, Field, Input, Modal, PageHeader, Select, Spinner, Textarea } from "@/components/ui";
 import { del, errorText, patch, post } from "@/lib/api";
 import { date, money } from "@/lib/format";
+import { useT, type MsgKey } from "@/lib/i18n";
 import { productHref } from "@/lib/sections";
 import type { Assumption, Project } from "@/lib/types";
 
@@ -29,7 +30,8 @@ const EMPTY: Form = {
   target_customers: "", price_min: "", price_max: "", notes: "", assumptions: [],
 };
 
-// The first use case. Every value is an untested business assumption.
+// The first use case. Every value is an untested business assumption. These are form values saved with the project, so
+// they stay in English in both languages.
 const EXAMPLE: Form = {
   name: "Latin & Ballroom Dancewear (US)", short_name: "",
   product_category: "Latin and ballroom dancewear",
@@ -68,7 +70,12 @@ function toPayload(f: Form) {
   };
 }
 
+const STATUS_LABEL: Record<Assumption["status"], MsgKey> = { hypothesis: "Hypothesis", validated: "Validated", invalidated: "Invalidated" };
+
 function ProjectForm({ initial, onSaved, onCancel, editingId }: { initial: Form; onSaved: (p: Project) => void; onCancel: () => void; editingId?: string }) {
+  const { t, lang } = useT();
+  // "Value" is also a complaint tag (性价比) in the dictionary, so the Chinese for this field has its own key.
+  const valueLabel = lang === "zh" ? t("Assumption value") : "Value";
   const [f, setF] = useState<Form>(initial);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -79,7 +86,7 @@ function ProjectForm({ initial, onSaved, onCancel, editingId }: { initial: Form;
     // The short name is sent only when edited: otherwise a renamed product gets a fresh one suggested.
     const payload = { ...toPayload(f), ...(editingId && f.short_name !== initial.short_name ? { short_name: f.short_name.trim() } : {}) };
     if (payload.price_min !== null && payload.price_max !== null && payload.price_min > payload.price_max) {
-      setError("Minimum price must be below maximum price.");
+      setError(t("Minimum price must be below maximum price."));
       return;
     }
     setBusy(true);
@@ -98,70 +105,70 @@ function ProjectForm({ initial, onSaved, onCancel, editingId }: { initial: Form;
     <form onSubmit={submit} className="space-y-4">
       {!editingId && (
         <div className="flex items-center justify-between rounded-lg border border-brand-100 bg-brand-50 px-3 py-2.5">
-          <p className="text-xs text-brand-900">Start from the first use case: Latin &amp; ballroom dancewear, US market, sourced from China.</p>
+          <p className="text-xs text-brand-900">{t("Start from the first use case: Latin & ballroom dancewear, US market, sourced from China.")}</p>
           <Button type="button" size="sm" variant="secondary" onClick={() => setF(EXAMPLE)}>
-            <Sparkles className="h-3.5 w-3.5" /> Use example
+            <Sparkles className="h-3.5 w-3.5" /> {t("Use example")}
           </Button>
         </div>
       )}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Project name" className="sm:col-span-2">
-          <Input required value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Dancewear launch" />
+        <Field label={t("Project name")} className="sm:col-span-2">
+          <Input required value={f.name} onChange={(e) => set("name", e.target.value)} placeholder={t("e.g. Dancewear launch")} />
         </Field>
         {editingId && (
-          <Field label="Short name (sidebar)" hint="2-4 words. Leave empty to have one suggested." className="sm:col-span-2">
-            <Input maxLength={60} value={f.short_name} onChange={(e) => set("short_name", e.target.value)} placeholder="e.g. Heated cat bed" />
+          <Field label={t("Short name (sidebar)")} hint={t("2-4 words. Leave empty to have one suggested.")} className="sm:col-span-2">
+            <Input maxLength={60} value={f.short_name} onChange={(e) => set("short_name", e.target.value)} placeholder={t("e.g. Heated cat bed")} />
           </Field>
         )}
-        <Field label="Product category">
-          <Input required value={f.product_category} onChange={(e) => set("product_category", e.target.value)} placeholder="e.g. Latin and ballroom dancewear" />
+        <Field label={t("Product category")}>
+          <Input required value={f.product_category} onChange={(e) => set("product_category", e.target.value)} placeholder={t("e.g. Latin and ballroom dancewear")} />
         </Field>
-        <Field label="Target market (country)">
+        <Field label={t("Target market (country)")}>
           <Input required value={f.target_country} onChange={(e) => set("target_country", e.target.value)} />
         </Field>
-        <Field label="Sourcing / manufacturing region">
-          <Input value={f.sourcing_country} onChange={(e) => set("sourcing_country", e.target.value)} placeholder="e.g. China" />
+        <Field label={t("Sourcing / manufacturing region")}>
+          <Input value={f.sourcing_country} onChange={(e) => set("sourcing_country", e.target.value)} placeholder={t("e.g. China")} />
         </Field>
-        <Field label="Starting budget (USD)">
+        <Field label={t("Starting budget (USD)")}>
           <Input type="number" min={0} step="any" value={f.budget_usd} onChange={(e) => set("budget_usd", e.target.value)} />
         </Field>
-        <Field label="Price hypothesis - min (USD)">
+        <Field label={t("Price hypothesis - min (USD)")}>
           <Input type="number" min={0} step="any" value={f.price_min} onChange={(e) => set("price_min", e.target.value)} />
         </Field>
-        <Field label="Price hypothesis - max (USD)">
+        <Field label={t("Price hypothesis - max (USD)")}>
           <Input type="number" min={0} step="any" value={f.price_max} onChange={(e) => set("price_max", e.target.value)} />
         </Field>
-        <Field label="Target customers (hypothesis)" className="sm:col-span-2">
+        <Field label={t("Target customers (hypothesis)")} className="sm:col-span-2">
           <Textarea value={f.target_customers} onChange={(e) => set("target_customers", e.target.value)} rows={2} />
         </Field>
-        <Field label="Notes" className="sm:col-span-2">
+        <Field label={t("Notes")} className="sm:col-span-2">
           <Textarea value={f.notes} onChange={(e) => set("notes", e.target.value)} rows={2} />
         </Field>
       </div>
 
       <div>
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-medium text-slate-700">Business assumptions to test</span>
+          <span className="text-xs font-medium text-slate-700">{t("Business assumptions to test")}</span>
           <Button type="button" size="sm" variant="ghost"
             onClick={() => setF((cur) => ({ ...cur, assumptions: [...cur.assumptions, { label: "", value: "", status: "hypothesis" }] }))}>
-            <Plus className="h-3.5 w-3.5" /> Add
+            <Plus className="h-3.5 w-3.5" /> {t("Add")}
           </Button>
         </div>
-        {f.assumptions.length === 0 && <p className="text-xs text-slate-500">No assumptions recorded.</p>}
+        {f.assumptions.length === 0 && <p className="text-xs text-slate-500">{t("No assumptions recorded.")}</p>}
         <div className="space-y-2">
           {f.assumptions.map((a, i) => (
             <div key={i} className="grid grid-cols-[1fr_1.4fr_auto_auto] gap-2">
-              <Input aria-label="Assumption" placeholder="Assumption" value={a.label}
+              <Input aria-label={t("Assumption")} placeholder={t("Assumption")} value={a.label}
                 onChange={(e) => setF((cur) => ({ ...cur, assumptions: cur.assumptions.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)) }))} />
-              <Input aria-label="Value" placeholder="Value" value={a.value}
+              <Input aria-label={valueLabel} placeholder={valueLabel} value={a.value}
                 onChange={(e) => setF((cur) => ({ ...cur, assumptions: cur.assumptions.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)) }))} />
-              <Select aria-label="Status" value={a.status}
+              <Select aria-label={t("Status")} value={a.status}
                 onChange={(e) => setF((cur) => ({ ...cur, assumptions: cur.assumptions.map((x, j) => (j === i ? { ...x, status: e.target.value as Assumption["status"] } : x)) }))}>
-                <option value="hypothesis">Hypothesis</option>
-                <option value="validated">Validated</option>
-                <option value="invalidated">Invalidated</option>
+                <option value="hypothesis">{t(STATUS_LABEL.hypothesis)}</option>
+                <option value="validated">{t(STATUS_LABEL.validated)}</option>
+                <option value="invalidated">{t(STATUS_LABEL.invalidated)}</option>
               </Select>
-              <button type="button" aria-label="Remove assumption" className="rounded p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              <button type="button" aria-label={t("Remove assumption")} className="rounded p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                 onClick={() => setF((cur) => ({ ...cur, assumptions: cur.assumptions.filter((_, j) => j !== i) }))}>
                 <X className="h-4 w-4" />
               </button>
@@ -172,8 +179,8 @@ function ProjectForm({ initial, onSaved, onCancel, editingId }: { initial: Form;
 
       {error && <Alert tone="red">{error}</Alert>}
       <div className="flex justify-end gap-2">
-        <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" loading={busy}>{editingId ? "Save changes" : "Create project"}</Button>
+        <Button type="button" variant="secondary" onClick={onCancel}>{t("Cancel")}</Button>
+        <Button type="submit" loading={busy}>{editingId ? t("Save changes") : t("Create project")}</Button>
       </div>
     </form>
   );
@@ -182,6 +189,7 @@ function ProjectForm({ initial, onSaved, onCancel, editingId }: { initial: Form;
 const statusTone = { hypothesis: "slate", validated: "green", invalidated: "red" } as const;
 
 function ProjectsInner() {
+  const { t, tr, tx } = useT();
   const { projects, project: current, select, reload, loading } = useProjects();
   const router = useRouter();
   const params = useSearchParams();
@@ -223,18 +231,18 @@ function ProjectsInner() {
   return (
     <>
       <PageHeader
-        title="Business Projects"
-        description="Each project captures a product category, target market, sourcing region, budget and the assumptions you are testing. Change them any time - research and analysis use the current values."
-        actions={<Button onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> New project</Button>}
+        title={t("Business Projects")}
+        description={t("Each project captures a product category, target market, sourcing region, budget and the assumptions you are testing. Change them any time - research and analysis use the current values.")}
+        actions={<Button onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> {t("New project")}</Button>}
       />
       {error && <Alert tone="red" className="mb-4">{error}</Alert>}
       {loading ? (
         <Spinner />
       ) : projects.length === 0 ? (
         <Card>
-          <EmptyState icon={<FolderKanban className="h-5 w-5" />} title="Create your first business project"
-            action={<Button onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> New project</Button>}>
-            Start from scratch or use the Latin &amp; ballroom dancewear example.
+          <EmptyState icon={<FolderKanban className="h-5 w-5" />} title={t("Create your first business project")}
+            action={<Button onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> {t("New project")}</Button>}>
+            {t("Start from scratch or use the Latin & ballroom dancewear example.")}
           </EmptyState>
         </Card>
       ) : (
@@ -246,41 +254,41 @@ function ProjectsInner() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <h2 className="break-words text-base font-semibold text-slate-900">{p.name}</h2>
-                      {p.id === current?.id && <Badge tone="blue">Current</Badge>}
-                      {p.status === "archived" && <Badge>Archived</Badge>}
+                      {p.id === current?.id && <Badge tone="blue">{t("Current")}</Badge>}
+                      {p.status === "archived" && <Badge>{t("Archived")}</Badge>}
                     </div>
                     <p className="mt-0.5 text-sm text-slate-600">{p.product_category}</p>
                   </div>
                   <div className="flex shrink-0 gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => setEditing(p)} aria-label="Edit project"><Pencil className="h-3.5 w-3.5" /></Button>
-                    <Button variant="ghost" size="sm" onClick={() => toggleArchive(p)} aria-label={p.status === "archived" ? "Unarchive" : "Archive"}>
+                    <Button variant="ghost" size="sm" onClick={() => setEditing(p)} aria-label={t("Edit project")}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => toggleArchive(p)} aria-label={p.status === "archived" ? t("Unarchive") : t("Archive")}>
                       {p.status === "archived" ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(p)} aria-label="Delete project"><Trash2 className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(p)} aria-label={t("Delete project")}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </div>
                 </div>
                 <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div><dt className="text-xs text-slate-500">Target market</dt><dd className="text-slate-800">{p.target_country}</dd></div>
-                  <div><dt className="text-xs text-slate-500">Sourcing</dt><dd className="text-slate-800">{p.sourcing_country ?? "-"}</dd></div>
-                  <div><dt className="text-xs text-slate-500">Budget</dt><dd className="text-slate-800">{money(p.budget_usd, { decimals: 0 })}</dd></div>
-                  <div><dt className="text-xs text-slate-500">Price hypothesis</dt>
+                  <div><dt className="text-xs text-slate-500">{t("Target market")}</dt><dd className="text-slate-800">{p.target_country}</dd></div>
+                  <div><dt className="text-xs text-slate-500">{t("Sourcing")}</dt><dd className="text-slate-800">{p.sourcing_country ?? "-"}</dd></div>
+                  <div><dt className="text-xs text-slate-500">{t("Budget")}</dt><dd className="text-slate-800">{money(p.budget_usd, { decimals: 0 })}</dd></div>
+                  <div><dt className="text-xs text-slate-500">{t("Price hypothesis")}</dt>
                     <dd className="text-slate-800">{p.price_min !== null && p.price_max !== null ? `${money(p.price_min, { decimals: 0 })}-${money(p.price_max, { decimals: 0 })}` : "-"}</dd></div>
                 </dl>
-                {p.target_customers && <p className="mt-2 text-xs text-slate-600"><span className="font-medium">Customers:</span> {p.target_customers}</p>}
+                {p.target_customers && <p className="mt-2 text-xs text-slate-600"><span className="font-medium">{t("Customers:")}</span> {p.target_customers}</p>}
                 {p.assumptions.length > 0 && (
                   <ul className="mt-3 space-y-1">
                     {p.assumptions.map((a, i) => (
                       <li key={i} className="flex items-start gap-2 text-xs text-slate-700">
-                        <Badge tone={statusTone[a.status] ?? "slate"}>{a.status === "hypothesis" ? "Hypothesis" : a.status === "validated" ? "Validated" : "Invalidated"}</Badge>
-                        <span className="min-w-0"><span className="font-medium">{a.label}:</span> {a.value}</span>
+                        <Badge tone={statusTone[a.status] ?? "slate"}>{t(STATUS_LABEL[a.status] ?? "Invalidated")}</Badge>
+                        <span className="min-w-0"><span className="font-medium">{tx(a.label)}:</span> {a.value}</span>
                       </li>
                     ))}
                   </ul>
                 )}
                 <div className="mt-4 flex items-center justify-between">
-                  <span className="text-xs text-slate-400">Created {date(p.created_at)}</span>
+                  <span className="text-xs text-slate-400">{t("Created {date}", { date: date(p.created_at) })}</span>
                   <Button size="sm" variant={p.id === current?.id ? "secondary" : "primary"} onClick={() => { select(p.id); router.push(productHref(p.id)); }}>
-                    Open dashboard
+                    {t("Open dashboard")}
                   </Button>
                 </div>
               </CardBody>
@@ -289,19 +297,21 @@ function ProjectsInner() {
         </div>
       )}
 
-      <Modal open={creating} onClose={() => setCreating(false)} title="New business project" wide>
+      <Modal open={creating} onClose={() => setCreating(false)} title={t("New business project")} wide>
         <ProjectForm initial={EMPTY} onSaved={saved} onCancel={() => setCreating(false)} />
       </Modal>
-      <Modal open={!!editing} onClose={() => setEditing(null)} title="Edit project" wide>
+      <Modal open={!!editing} onClose={() => setEditing(null)} title={t("Edit project")} wide>
         {editing && <ProjectForm key={editing.id} initial={toForm(editing)} editingId={editing.id} onSaved={saved} onCancel={() => setEditing(null)} />}
       </Modal>
-      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title="Delete project?">
+      <Modal open={!!confirmDelete} onClose={() => setConfirmDelete(null)} title={t("Delete project?")}>
         <p className="text-sm text-slate-700">
-          This permanently deletes <strong>{confirmDelete?.name}</strong> and all its research, competitors, suppliers, scenarios and copilot history. This cannot be undone. Archiving keeps the data instead.
+          {tr("This permanently deletes {name} and all its research, competitors, suppliers, scenarios and copilot history. This cannot be undone. Archiving keeps the data instead.", {
+            name: <strong>{confirmDelete?.name}</strong>,
+          })}
         </p>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button>
-          <Button variant="danger" onClick={() => confirmDelete && remove(confirmDelete)}>Delete permanently</Button>
+          <Button variant="secondary" onClick={() => setConfirmDelete(null)}>{t("Cancel")}</Button>
+          <Button variant="danger" onClick={() => confirmDelete && remove(confirmDelete)}>{t("Delete permanently")}</Button>
         </div>
       </Modal>
     </>

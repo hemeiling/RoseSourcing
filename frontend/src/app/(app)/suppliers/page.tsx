@@ -10,6 +10,7 @@ import { Alert, Badge, Button, Card, CardBody, CardHeader, EmptyState, ExternalL
 import { del, errorText } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { domainOf, titleCase } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { IntegrationStatus, Supplier } from "@/lib/types";
 
 type Tab = "list" | "compare" | "import";
@@ -26,6 +27,7 @@ function platformLabel(p: string | null): string {
 }
 
 function Suppliers({ projectId }: { projectId: string }) {
+  const { t, tx, tr } = useT();
   const [tab, setTab] = useState<Tab>("list");
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Supplier | null>(null);
@@ -48,7 +50,7 @@ function Suppliers({ projectId }: { projectId: string }) {
   }
 
   async function remove(s: Supplier) {
-    if (!window.confirm(`Delete ${s.name} with all of its quotes and communication history? This cannot be undone.`)) return;
+    if (!window.confirm(t("Delete {name} with all of its quotes and communication history? This cannot be undone.", { name: s.name }))) return;
     setError(null);
     try {
       await del(`/api/suppliers/${s.id}`);
@@ -63,11 +65,11 @@ function Suppliers({ projectId }: { projectId: string }) {
   return (
     <div>
       <PageHeader
-        title="Supplier Intelligence"
-        description="Compare manufacturers on MOQ, unit price, samples, lead time and landed cost. Verification levels are set only by you - nothing here is presented as vetted or certified."
+        title={t("Supplier Intelligence")}
+        description={t("Compare manufacturers on MOQ, unit price, samples, lead time and landed cost. Verification levels are set only by you - nothing here is presented as vetted or certified.")}
         actions={
           <Button onClick={() => openEdit(null)}>
-            <Plus className="h-4 w-4" aria-hidden /> Add supplier
+            <Plus className="h-4 w-4" aria-hidden /> {t("Add supplier")}
           </Button>
         }
       />
@@ -75,15 +77,15 @@ function Suppliers({ projectId }: { projectId: string }) {
         value={tab}
         onChange={setTab}
         tabs={[
-          { value: "list", label: `Suppliers${data ? ` (${data.length})` : ""}` },
-          { value: "compare", label: "Comparison & landed cost" },
-          { value: "import", label: "Import & integrations" },
+          { value: "list", label: `${t("Suppliers")}${data ? ` (${data.length})` : ""}` },
+          { value: "compare", label: t("Comparison & landed cost") },
+          { value: "import", label: t("Import & integrations") },
         ]}
       />
 
       {tab === "list" && (
         <Card>
-          <CardHeader title="Supplier records" subtitle="Click a supplier to manage quotes, communication history and RFQ drafts." icon={<Factory className="h-4 w-4" />} />
+          <CardHeader title={t("Supplier records")} subtitle={t("Click a supplier to manage quotes, communication history and RFQ drafts.")} icon={<Factory className="h-4 w-4" />} />
           {error && (
             <div className="px-5 pt-3">
               <Alert tone="red">{error}</Alert>
@@ -102,17 +104,17 @@ function Suppliers({ projectId }: { projectId: string }) {
           {data && data.length === 0 && (
             <EmptyState
               icon={<Factory className="h-5 w-5" />}
-              title="No suppliers yet"
+              title={t("No suppliers yet")}
               action={
                 <div className="flex gap-2">
-                  <Button onClick={() => openEdit(null)}>Add supplier</Button>
+                  <Button onClick={() => openEdit(null)}>{t("Add supplier")}</Button>
                   <Button variant="secondary" onClick={() => setTab("import")}>
-                    Import CSV
+                    {t("Import CSV")}
                   </Button>
                 </div>
               }
             >
-              Record manufacturers you are evaluating along with their quotes. Landed-cost comparison updates automatically.
+              {t("Record manufacturers you are evaluating along with their quotes. Landed-cost comparison updates automatically.")}
             </EmptyState>
           )}
           {data && data.length > 0 && (
@@ -120,13 +122,13 @@ function Suppliers({ projectId }: { projectId: string }) {
               <table className="w-full min-w-[640px]">
                 <thead className="border-b border-slate-200 bg-slate-50/60">
                   <tr>
-                    <Th>Supplier</Th>
-                    <Th>Where</Th>
-                    <Th>Status</Th>
-                    <Th>Certifications</Th>
-                    <Th>Quotes</Th>
-                    <Th>Source</Th>
-                    <Th className="text-right">Actions</Th>
+                    <Th>{t("Supplier")}</Th>
+                    <Th>{t("Where")}</Th>
+                    <Th>{t("Status")}</Th>
+                    <Th>{t("Certifications")}</Th>
+                    <Th>{t("Quotes")}</Th>
+                    <Th>{t("Source")}</Th>
+                    <Th className="text-right">{t("Actions")}</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -154,7 +156,7 @@ function Suppliers({ projectId }: { projectId: string }) {
                         </Td>
                         <Td className="text-xs">
                           <div className="text-slate-700">{platformLabel(s.platform)}</div>
-                          <div className="text-slate-500">{[s.city, s.country].filter(Boolean).join(", ") || "Location not given"}</div>
+                          <div className="text-slate-500">{[s.city, s.country].filter(Boolean).join(", ") || t("Location not given")}</div>
                         </Td>
                         <Td>
                           <SupplierVerificationBadge status={s.verification_status} labels={labels} />
@@ -162,32 +164,32 @@ function Suppliers({ projectId }: { projectId: string }) {
                         </Td>
                         <Td className="max-w-[12rem] text-xs text-slate-600">
                           {s.certifications_claimed.length ? (
-                            <span title="Claimed by the supplier; not verified">
-                              Claimed: {s.certifications_claimed.join(", ")} <span className="text-slate-400">(not verified)</span>
+                            <span title={t("Claimed by the supplier; not verified")}>
+                              {tr("Claimed: {list} {note}", { list: s.certifications_claimed.join(", "), note: <span className="text-slate-400">{t("(not verified)")}</span> })}
                             </span>
                           ) : (
-                            <span className="text-slate-400">None claimed</span>
+                            <span className="text-slate-400">{t("None claimed")}</span>
                           )}
                         </Td>
                         <Td className="text-xs">
                           {s.quotes.length}
-                          {best !== null ? <div className="text-slate-500">from {fmtMoney(best)}/unit</div> : (() => {
+                          {best !== null ? <div className="text-slate-500">{t("from {price}/unit", { price: fmtMoney(best) })}</div> : (() => {
                             const listing = s.quotes.find((q) => q.source_url)?.source_url;
-                            return listing && <div className="text-slate-500">Price not shown - <ExternalLink href={listing}>open listing</ExternalLink></div>;
+                            return listing && <div className="text-slate-500">{tr("Price not shown - {link}", { link: <ExternalLink href={listing}>{t("open listing")}</ExternalLink> })}</div>;
                           })()}
                         </Td>
                         <Td>
-                          <Badge tone={s.source === "csv" ? "blue" : "slate"}>{s.source === "csv" ? "CSV import" : titleCase(s.source)}</Badge>
+                          <Badge tone={s.source === "csv" ? "blue" : "slate"}>{s.source === "csv" ? t("CSV import") : titleCase(s.source)}</Badge>
                         </Td>
                         <Td className="text-right">
                           <div className="flex flex-wrap items-center justify-end gap-1">
                           <Button size="sm" variant="secondary" onClick={() => setDetailId(s.id)}>
-                            Open
+                            {t("Open")}
                           </Button>
-                          <button onClick={() => openEdit(s)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800" aria-label={`Edit ${s.name}`}>
+                          <button onClick={() => openEdit(s)} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800" aria-label={t("Edit {name}", { name: s.name })}>
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
-                          <button onClick={() => remove(s)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={`Delete ${s.name}`}>
+                          <button onClick={() => remove(s)} className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" aria-label={t("Delete {name}", { name: s.name })}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                           </div>
@@ -208,20 +210,23 @@ function Suppliers({ projectId }: { projectId: string }) {
         <div className="grid gap-5">
           <div >
             <CsvImportCard
-              title="Import suppliers & quotes"
-              description="One row per quote. Rows with the same supplier name are merged. Imported suppliers always start as Unverified."
+              title={t("Import suppliers & quotes")}
+              description={t("One row per quote. Rows with the same supplier name are merged. Imported suppliers always start as Unverified.")}
               templateKind="suppliers"
               uploadPath={`/api/projects/${projectId}/suppliers/import`}
               onDone={refreshAll}
             >
               <p className="text-xs text-slate-600">
-                Columns: <code className="rounded bg-slate-100 px-1">supplier</code> (required), country, city, platform, website, contact_name, contact_email,
-                capabilities, certifications_claimed, product, moq, unit_price, currency, sample_cost, lead_time_days, incoterm, est_freight_per_unit, quote_date, notes.
+                {tr("Columns: {supplier} (required), {columns}.", {
+                  supplier: <code className="rounded bg-slate-100 px-1">supplier</code>,
+                  columns:
+                    "country, city, platform, website, contact_name, contact_email, capabilities, certifications_claimed, product, moq, unit_price, currency, sample_cost, lead_time_days, incoterm, est_freight_per_unit, quote_date, notes",
+                })}
               </p>
             </CsvImportCard>
           </div>
           <Card>
-            <CardHeader title="Sourcing integrations" icon={<Plug className="h-4 w-4" />} />
+            <CardHeader title={t("Sourcing integrations")} icon={<Plug className="h-4 w-4" />} />
             <CardBody className="space-y-3">
               {integrations.loading && !integrations.data && <Spinner />}
               {sourcingIntegrations.map((i) => (
@@ -230,10 +235,10 @@ function Suppliers({ projectId }: { projectId: string }) {
                     <span className="text-sm font-medium text-slate-900">{i.name}</span>
                     {i.state === "planned" ? <PlannedBadge /> : <Badge tone="green">{titleCase(i.state)}</Badge>}
                   </div>
-                  <p className="mt-1 text-xs text-slate-600">{i.detail}</p>
+                  <p className="mt-1 text-xs text-slate-600">{tx(i.detail)}</p>
                 </div>
               ))}
-              <p className="text-xs text-slate-500">Today, add suppliers manually or by CSV. Future integrations will use authorized partner APIs only.</p>
+              <p className="text-xs text-slate-500">{t("Today, add suppliers manually or by CSV. Future integrations will use authorized partner APIs only.")}</p>
             </CardBody>
           </Card>
         </div>
