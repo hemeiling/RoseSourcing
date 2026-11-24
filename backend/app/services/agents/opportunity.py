@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
+import time
 import traceback
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -1015,11 +1017,22 @@ def _extraction_prompt(step_key: str, ctx: dict[str, str], bundle: EvidenceBundl
 # ----------------------------------------------------------------------------- execution
 
 
+# Runs this server process has queued or is executing. A deploy starts the new server before stopping the old one, so the
+# new server's start-up check cannot tell which runs the old one still owns; each process cleans up its own on shutdown.
+_in_process: set[uuid.UUID] = set()
+_in_process_lock = threading.Lock()
+STALE_AFTER = timedelta(minutes=20)
+
+
 def submit_run(run_id: uuid.UUID) -> None:
+    with _in_process_lock:
+        _in_process.add(run_id)
     _executor.submit(_safe_execute, run_id)
 
 
 def _safe_execute(run_id: uuid.UUID) -> None:
+    with _in_process_lock:
+        _in_process.add(run_id)
     try:
         execute_run(run_id)
     except Exception as e:  # noqa: BLE001 - last-resort guard so a run never stays "running"
@@ -1030,6 +1043,9 @@ def _safe_execute(run_id: uuid.UUID) -> None:
                 run.status = "failed"
                 run.error = f"Unexpected error: {e}"
                 run.completed_at = datetime.now(timezone.utc)
+    finally:
+        with _in_process_lock:
+            _in_process.discard(run_id)
 
 
 def _update_step(run_id: uuid.UUID, key: str, **changes: Any) -> None:
@@ -1551,12 +1567,52 @@ def submit_plan_refresh(run_id: uuid.UUID) -> None:
     _executor.submit(refresh_channel_plan, run_id)
 
 
+def _interrupt(runs: list[ResearchRun], reason: str) -> int:
+    for run in runs:
+        run.status = "interrupted"
+        run.error = reason
+        run.steps = [dict(s, status="pending" if s["status"] == "running" else s["status"]) for s in run.steps]
+    return len(runs)
+
+
 def recover_interrupted_runs() -> int:
     """On startup, mark runs that were in flight when the process stopped."""
     with session_scope() as db:
         runs = db.scalars(select(ResearchRun).where(ResearchRun.status.in_(["queued", "running"]))).all()
-        for run in runs:
-            run.status = "interrupted"
-            run.error = "The server restarted while this run was in progress. Resume it to continue from the last completed step."
-            run.steps = [dict(s, status="pending" if s["status"] == "running" else s["status"]) for s in run.steps]
-        return len(runs)
+        return _interrupt(list(runs), "The server restarted while this run was in progress. Resume it to continue from the last completed step.")
+
+
+def interrupt_own_runs() -> int:
+    """On shutdown (a deploy stops this server): mark the runs this process was running, so they can be continued."""
+    with _in_process_lock:
+        ids = list(_in_process)
+    if not ids:
+        return 0
+    with session_scope() as db:
+        runs = db.scalars(select(ResearchRun).where(ResearchRun.id.in_(ids), ResearchRun.status.in_(["queued", "running"]))).all()
+        return _interrupt(list(runs), "The server was restarted (a new version went live) while this run was in progress. "
+                                      "Continue it to finish from the last completed step.")
+
+
+def interrupt_stale_runs(now: datetime | None = None) -> int:
+    """Runs a stopped server left behind without a clean shutdown: no progress for 20 minutes and not running here."""
+    cutoff = (now or datetime.now(timezone.utc)) - STALE_AFTER
+    with _in_process_lock:
+        mine = set(_in_process)
+    with session_scope() as db:
+        runs = [r for r in db.scalars(select(ResearchRun).where(ResearchRun.status.in_(["queued", "running"]),
+                                                               ResearchRun.updated_at < cutoff)).all() if r.id not in mine]
+        return _interrupt(runs, "This run stopped making progress (its server was stopped). Continue it to finish from the last completed step.")
+
+
+def start_stale_run_watchdog(every_s: int = 120) -> None:
+    def loop() -> None:
+        while True:
+            time.sleep(every_s)
+            try:
+                if n := interrupt_stale_runs():
+                    log.warning("Marked %d stalled research run(s) as interrupted", n)
+            except Exception:  # noqa: BLE001
+                log.exception("Stalled-run check failed")
+
+    threading.Thread(target=loop, daemon=True, name="stale-runs").start()

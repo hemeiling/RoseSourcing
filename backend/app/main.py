@@ -33,7 +33,7 @@ from .api import (
 from .config import get_settings
 from .mcp_server import MCPMiddleware, session_manager
 from .services import naming
-from .services.agents.opportunity import recover_interrupted_runs
+from .services.agents.opportunity import interrupt_own_runs, recover_interrupted_runs, start_stale_run_watchdog
 from .services.llm.base import LLMError, LLMNotConfigured, LLMRefusal, LLMTransientError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -50,10 +50,18 @@ async def lifespan(app: FastAPI):
         if n:
             log.warning("Marked %d in-flight research run(s) as interrupted", n)
         naming.backfill_in_background()
+        start_stale_run_watchdog()
     except Exception:  # noqa: BLE001 - DB may not be migrated yet in dev
         log.exception("Could not check for interrupted runs")
     async with session_manager.run():  # Claude connector (MCP) transport
         yield
+    # Shutting down (a deploy stops this server after starting the new one): runs this process was executing can be
+    # continued later instead of showing "running" forever.
+    try:
+        if n := interrupt_own_runs():
+            log.warning("Marked %d research run(s) as interrupted on shutdown", n)
+    except Exception:  # noqa: BLE001
+        log.exception("Could not mark in-flight runs on shutdown")
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan,

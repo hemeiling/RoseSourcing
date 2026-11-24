@@ -196,3 +196,41 @@ def test_claude_connector_mcp(authed, project):
         assert json.loads(res["result"]["content"][0]["text"])["ok"]
         authed.delete(f"/api/tokens/{tok['id']}")
         assert c.post("/mcp", headers=auth, json={"jsonrpc": "2.0", "id": 5, "method": "tools/list"}).status_code == 401
+
+
+def test_runs_left_by_a_stopped_server_become_continuable(authed, project):
+    from datetime import datetime, timedelta, timezone
+    import uuid
+
+    from sqlalchemy import update
+
+    from app.db import session_scope
+    from app.models import ResearchRun
+    from app.services.agents import opportunity
+
+    pid = uuid.UUID(project["id"])
+    with session_scope() as db:
+        user_id = db.scalars(__import__("sqlalchemy").select(ResearchRun.created_by_id)).first()
+    ids = []
+    with session_scope() as db:
+        for kind in ("listing_tracker", "price_tiers", "competitor_discovery"):
+            r = ResearchRun(project_id=pid, created_by_id=user_id, kind=kind, status="running", provider="anthropic_web_search",
+                            model="m", params={}, steps=[dict(s, status="running") for s in opportunity.initial_steps(kind)][:1])
+            db.add(r)
+            db.flush()
+            ids.append(r.id)
+    old = datetime.now(timezone.utc) - timedelta(hours=1)
+    with session_scope() as db:
+        db.execute(update(ResearchRun).where(ResearchRun.id.in_(ids[:2])).values(updated_at=old))
+    opportunity._in_process.add(ids[1])  # still running in this process: left alone
+    try:
+        assert opportunity.interrupt_stale_runs() == 1  # only the stale run no process here owns
+        with session_scope() as db:
+            stale, mine, fresh = (db.get(ResearchRun, i) for i in ids)
+            assert stale.status == "interrupted" and stale.steps[0]["status"] == "pending"
+            assert mine.status == "running" and fresh.status == "running"
+        assert opportunity.interrupt_own_runs() == 1  # on shutdown this process marks its own run
+        with session_scope() as db:
+            assert db.get(ResearchRun, ids[1]).status == "interrupted"
+    finally:
+        opportunity._in_process.discard(ids[1])
