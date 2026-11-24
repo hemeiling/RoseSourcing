@@ -5,7 +5,7 @@ import { Bot, ChevronDown, ChevronsDownUp, ChevronsUpDown, Loader2, Pencil, Play
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
-import { AiRecommendationLine, DecisionBadge } from "@/components/decision";
+import { AiRecommendationLine, MarginLine, DecisionBadge } from "@/components/decision";
 import { RunStatusBadge, fmtCost } from "@/components/market/shared";
 import { ReviewInsightsSection } from "@/components/listing-insights";
 import { MarketSizeSection } from "@/components/market-size";
@@ -405,6 +405,7 @@ function ProductReport({ id }: { id: string }) {
           </span>
         </div>
         <AiRecommendationLine projectId={id} />
+        <MarginLine key={dataVersion} projectId={id} />
       </div>
 
       {/* The list below is the navigation: each tab folds to one row. */}

@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 
 from .. import audit
 from ..services import naming
+from ..services.unit_economics import UnitEconomicsInputs
 from ..models import (
     AgentExecution,
     AuditEvent,
@@ -144,6 +145,10 @@ def dashboard(project: ProjectDep, db: DB) -> dict:
                             "retail_price": (best_scenario.inputs or {}).get("retail_price"),
                             # A margin is only worth warning about once the factory cost is real (a quote or sourced research).
                             "costs_assumed": str((best_scenario.input_basis or {}).get("factory_cost", "assumption")).startswith("assumption"),
+                            # Counted like the calculator: every model input, untagged ones as assumptions.
+                            "total_inputs": len(UnitEconomicsInputs.model_fields),
+                            "assumed_inputs": sum(1 for k in UnitEconomicsInputs.model_fields
+                                                  if str((best_scenario.input_basis or {}).get(k, "assumption")).startswith("assumption")),
                             } if best_scenario else None,
         "open_recommendations": [{"id": str(r.id), "title": r.title, "priority": r.priority, "source": r.source, "status": r.status} for r in recs],
         "recent_activity": [{"action": a.action, "actor": a.actor, "entity_type": a.entity_type, "created_at": a.created_at} for a in activity],

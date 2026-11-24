@@ -128,6 +128,33 @@ export function AiRecommendationLine({ projectId }: { projectId: string }) {
   );
 }
 
+type MarginScenario = { name: string; contribution_margin: number | null; contribution_margin_pct: number | null; retail_price: number | null;
+  costs_assumed: boolean; assumed_inputs: number; total_inputs: number };
+
+/** One line under the AI recommendation: the margin per unit from the latest saved scenario, and how much of it is still guessed. */
+export function MarginLine({ projectId }: { projectId: string }) {
+  const dash = useApi<{ latest_scenario: MarginScenario | null }>(`/api/projects/${projectId}/dashboard`);
+  if (!dash.data) return null;
+  const sc = dash.data.latest_scenario;
+  const cm = sc?.contribution_margin;
+  const loses = !!sc && !sc.costs_assumed && cm !== null && cm !== undefined && cm < 0;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border border-line bg-white px-3 py-2 text-sm">
+      <span className="font-semibold text-slate-500">Margin</span>
+      {!sc || cm === null || cm === undefined ? <span className="text-slate-700">Not worked out yet</span> : (
+        <>
+          <span className={loses ? "text-red-700" : "text-slate-700"} title={`From the saved scenario '${sc.name}'`}>
+            <b>{money(cm)}</b> per unit{sc.contribution_margin_pct !== null ? ` (${pct(sc.contribution_margin_pct, 1)})` : ""}{sc.retail_price !== null ? ` at ${money(sc.retail_price)}` : ""}
+          </span>
+          {sc.costs_assumed ? <Badge tone="amber">Rough estimate</Badge> : loses && <Badge tone="red">Loses money on each sale</Badge>}
+          {sc.assumed_inputs > 0 && <span className="text-slate-500">{sc.assumed_inputs} of {sc.total_inputs} inputs assumed</span>}
+        </>
+      )}
+      <a href="#economics" className="ml-auto font-semibold text-primary-700 hover:underline">Unit economics</a>
+    </div>
+  );
+}
+
 function BriefView({ c }: { c: DecisionBriefContent }) {
   const rec = AI_REC_META[c.recommendation];
   return (
