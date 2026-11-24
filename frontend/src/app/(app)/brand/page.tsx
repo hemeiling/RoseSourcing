@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { ImageIcon, Palette, Sparkles, Star, Trash2, X as XIcon, CheckCircle2 } from "lucide-react";
+import { ImageIcon, Sparkles, Star, Trash2, X as XIcon, CheckCircle2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { RequireProject } from "@/components/app-shell";
 import { ConceptContent } from "@/components/brand/renderers";
@@ -14,13 +14,11 @@ import {
   CardBody,
   CardHeader,
   ConfigNotice,
-  EmptyState,
-  Field,
   PageHeader,
   PlannedBadge,
+  Input,
+  Select,
   Spinner,
-  Tabs,
-  Textarea,
   type Tone,
 } from "@/components/ui";
 import { ApiError, del, errorText, patch, post } from "@/lib/api";
@@ -99,96 +97,58 @@ function BrandStudio({ projectId }: { projectId: string }) {
         description="Generate brand drafts grounded in this project's research, segments and competitors. Everything here is an AI-generated draft for you to refine."
       />
 
-      <div className="grid gap-6">
-        <Card >
-          <CardHeader title="Generate a draft" icon={<Sparkles className="h-4 w-4" />} subtitle="Uses your project context and saved research findings." />
-          <CardBody className="space-y-4">
-            {aiMissing && <ConfigNotice message={status?.ai.requirement} />}
-            <fieldset>
-              <legend className="mb-1.5 text-xs font-medium text-slate-700">What to generate</legend>
-              <div className="space-y-1.5">
-                {KINDS.map((k) => (
-                  <div key={k.value}
-                    className={clsx("rounded-lg border transition-colors", kind === k.value ? "border-brand-400 bg-brand-50" : "border-slate-200 hover:bg-slate-50")}>
-                    <label className="flex cursor-pointer gap-2.5 px-3 py-2">
-                      {/* Picking a type also shows its saved drafts on the right; the brief and Generate open right here. */}
-                      <input type="radio" name="kind" value={k.value} checked={kind === k.value} onChange={() => { setKind(k.value); setFilter(k.value); }}
-                        className="mt-1 accent-brand-600" />
-                      <span>
-                        <span className="block text-sm font-medium text-slate-900">{k.label}{counts[k.value] ? <span className="ml-1 text-xs font-normal text-slate-500">({counts[k.value]} saved)</span> : null}</span>
-                        <span className="block text-xs text-slate-500">{k.desc}</span>
-                      </span>
-                    </label>
-                    {kind === k.value && (
-                      <div className="space-y-2 border-t border-brand-200 px-3 py-2.5">
-                        <Field label="Brief (optional)" hint="Tone, constraints, words you like or dislike, segments to focus on.">
-                          <Textarea rows={2} value={brief} onChange={(e) => setBrief(e.target.value)} maxLength={2000} placeholder="e.g. elegant but approachable, aimed at adult beginners" />
-                        </Field>
-                        {configError && <ConfigNotice message={configError} />}
-                        {error && <Alert tone="red">{error}</Alert>}
-                        <Button onClick={generate} loading={busy} disabled={!!aiMissing} className="w-full">
-                          <Sparkles className="h-4 w-4" /> Generate {k.label.toLowerCase()}
-                        </Button>
-                        {busy && <p className="text-center text-xs text-slate-500">This usually takes 15-60 seconds.</p>}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </fieldset>
-          </CardBody>
-        </Card>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader title="Saved concepts" icon={<Palette className="h-4 w-4" />} subtitle="Shortlist, select or reject drafts. Newest first." />
-            <CardBody>
-              <Tabs
-                value={filter}
-                onChange={(f) => { setFilter(f); if (f !== "all") setKind(f); }}
-                tabs={[
-                  { value: "all", label: `All (${concepts.data?.length ?? 0})` },
-                  ...KINDS.map((k) => ({ value: k.value, label: `${k.label}${counts[k.value] ? ` (${counts[k.value]})` : ""}` })),
-                ]}
-              />
-              {concepts.loading && !concepts.data ? (
-                <Spinner />
-              ) : concepts.error ? (
-                <Alert tone="red">{errorText(concepts.error)}</Alert>
-              ) : list.length === 0 ? (
-                <EmptyState icon={<Palette className="h-5 w-5" />}
-                  title={filter === "all" ? "No brand concepts yet" : `No ${KINDS.find((k) => k.value === filter)?.label.toLowerCase()} yet`}>
-                  {filter === "all" ? "Pick a draft type on the left and press Generate. Drafts are saved here automatically."
-                    : "Press Generate under this type on the left - the draft appears here, saved automatically."}
-                </EmptyState>
-              ) : (
-                <div className="space-y-4">
-                  {list.map((c) => (
-                    <ConceptCard key={c.id} concept={c} onUpdated={onUpdated} onDeleted={onDeleted} />
-                  ))}
-                </div>
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader
-              title={
-                <span className="flex items-center gap-2">
-                  Logo & mockup generation <PlannedBadge />
-                </span>
-              }
-              icon={<ImageIcon className="h-4 w-4" />}
-            />
-            <CardBody>
-              <p className="text-sm text-slate-600">
-                Image generation for logos, product mockups and mood boards is designed behind an <code className="rounded bg-slate-100 px-1 text-xs">ImageGenerator</code> interface
-                and will plug into an image or design API in a later release. Until then, use your selected palettes and positioning as a brief for a designer.
-              </p>
-            </CardBody>
-          </Card>
+      {/* One card: pick the draft type (the same dropdown filters the saved drafts), add a brief, generate. */}
+      <Card>
+        <CardHeader title="Brand studio" icon={<Sparkles className="h-4 w-4" />}
+          subtitle="Pick a draft type, add an optional brief and generate - drafts are saved below, newest first. Uses this product's research." />
+        <div className="space-y-1.5 border-b border-line px-5 py-3">
+          {aiMissing && <ConfigNotice message={status?.ai.requirement} />}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-60 shrink-0">
+              <Select aria-label="Draft type" value={filter} className="h-8 py-0!"
+                onChange={(e) => { const v = e.target.value as "all" | Kind; setFilter(v); if (v !== "all") setKind(v); }}>
+                <option value="all">All drafts ({concepts.data?.length ?? 0})</option>
+                <optgroup label="Draft type">
+                  {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}{counts[k.value] ? ` (${counts[k.value]} saved)` : ""}</option>)}
+                </optgroup>
+              </Select>
+            </div>
+            <Input aria-label="Brief (optional)" className="h-8 min-w-[12rem] flex-1 py-0!" value={brief} maxLength={2000} onChange={(e) => setBrief(e.target.value)}
+              placeholder="Brief (optional): tone, audience, words to use" title="Tone, constraints, words you like or dislike, segments to focus on" />
+            <Button size="sm" onClick={generate} loading={busy} disabled={!!aiMissing || filter === "all"}
+              title={filter === "all" ? "Choose a draft type first" : undefined}>
+              <Sparkles className="h-3.5 w-3.5" /> Generate{filter === "all" ? "" : ` ${KINDS.find((k) => k.value === kind)?.label.toLowerCase()}`}
+            </Button>
+          </div>
+          <p className="text-xs text-slate-500">
+            {filter === "all" ? "Choose a draft type to generate one; the list shows every saved draft." : KINDS.find((k) => k.value === kind)?.desc}
+            {busy && " This usually takes 15-60 seconds."}
+          </p>
+          {configError && <ConfigNotice message={configError} />}
+          {error && <Alert tone="red">{error}</Alert>}
         </div>
-      </div>
+        <CardBody>
+          {concepts.loading && !concepts.data ? (
+            <Spinner />
+          ) : concepts.error ? (
+            <Alert tone="red">{errorText(concepts.error)}</Alert>
+          ) : list.length === 0 ? (
+            <p className="py-4 text-center text-sm text-slate-500">
+              {filter === "all" ? "No drafts yet - choose a type above and press Generate." : `No ${KINDS.find((k) => k.value === filter)?.label.toLowerCase()} yet - press Generate above.`}
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {list.map((c) => (
+                <ConceptCard key={c.id} concept={c} onUpdated={onUpdated} onDeleted={onDeleted} />
+              ))}
+            </div>
+          )}
+        </CardBody>
+        <div className="flex flex-wrap items-center gap-2 border-t border-line px-5 py-2.5 text-xs text-slate-500">
+          <ImageIcon className="h-3.5 w-3.5" aria-hidden /> Logo & mockup images <PlannedBadge />
+          <span>will connect to an image tool with the Content Studio; until then use your selected palettes and positioning as a designer brief.</span>
+        </div>
+      </Card>
     </div>
   );
 }
