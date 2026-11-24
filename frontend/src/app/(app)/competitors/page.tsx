@@ -7,9 +7,7 @@ import { CsvImportCard } from "@/components/competitors/csv-import";
 import { PositioningCard, PriceComparisonCard } from "@/components/competitors/charts";
 import { BrandsAndListings } from "@/components/competitors/brand-listings";
 import { CompetitorDetailModal, CompetitorFormModal } from "@/components/competitors/competitor-modals";
-import { DiscoverPanel } from "@/components/competitors/discovery";
 import type { Snapshot, Tracker } from "@/components/listing-insights";
-import { ResearchRunStarter } from "@/components/research-run-starter";
 import { Alert, Button, Card, EmptyState, PageHeader, Spinner, Tabs } from "@/components/ui";
 import { del, errorText, patch } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
@@ -91,14 +89,6 @@ function Competitors({ projectId }: { projectId: string }) {
         <div className="space-y-5">
           {/* Old links to the Listing tracker land here. */}
           <span id="listings" className="block scroll-mt-20 sm:scroll-mt-36" aria-hidden />
-          <DiscoverPanel projectId={projectId} onFinished={refreshAll} />
-          <div>
-            <h3 className="mb-1.5 text-sm font-semibold text-ink">Track comparable listings <span className="font-normal text-slate-500">- Listing Tracker Agent</span></h3>
-            <ResearchRunStarter projectId={projectId} kind="listing_tracker" label="Track listings" onFinished={() => { tracker.reload(); refreshAll(); }}
-              keywordsPlaceholder="e.g. knotted headband, top knot headband"
-              approval="This makes about 6 SerpApi searches (Google Trends, Amazon, Google Shopping, and Etsy through Google) and one short AI call that picks the 15-20 listings directly comparable to this product. Every price, rating, review count and badge is copied from the marketplace data and saved as a dated price record under its brand, so running it again later builds a price history."
-              focusPlaceholder="e.g. women's knotted tweed and plaid headbands" />
-          </div>
           {error && <Alert tone="red">{error}</Alert>}
           {loadError && <Alert tone="red">{errorText(loadError)}</Alert>}
           {loading && !data ? <Spinner /> : data && data.length === 0 ? (

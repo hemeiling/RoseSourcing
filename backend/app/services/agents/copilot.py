@@ -203,7 +203,7 @@ TOOLS: list[ToolSpec] = [
     ToolSpec("compare_shipping_options", "Freight and fulfillment options on file (quotes, assumptions, sourced benchmarks) with computed "
              "cost per unit and transit time for a shipment size, using a product's carton specs.", ShippingIn.model_json_schema()),
     ToolSpec("start_research", "Start a background research run for this product/category: market_opportunity (demand signals, "
-             "market, customers, competitors, sourcing, risks, report), competitor_discovery, channels_logistics, fit_sizing (competitor size "
+             "market size, customers, risks, report using the other agents' findings), competitor_discovery, channels_logistics, fit_sizing (competitor size "
              "charts, fit complaints, returns policies), price_tiers (budget-to-luxury tiers with quality and customer needs per tier) or "
              "compliance (design patents/IP, labelling, UFLPA; drafts supplier questions) or supplier_listings (B2B listings on Alibaba, 1688, "
              "Made-in-China etc. saved as unverified suppliers with listing prices). Costs money; capped per run.",

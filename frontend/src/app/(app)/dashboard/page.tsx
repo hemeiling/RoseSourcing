@@ -1,13 +1,13 @@
 "use client";
 
-import { ArrowRight, BarChart3, Bot, CheckCircle2, Circle, Factory, FileSearch, Lightbulb, Swords, TrendingUp } from "lucide-react";
+import { ArrowRight, BarChart3, Bot, CheckCircle2, Circle, Factory, FileSearch, Swords, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { RequireProject } from "@/components/app-shell";
 import { DecisionPanel } from "@/components/decision";
 import { EVIDENCE_META } from "@/components/evidence";
 import { useProjects, useStatus } from "@/components/providers";
 import { Alert, Badge, Button, Card, CardBody, CardHeader, ConfigNotice, EmptyState, PageHeader, Spinner, StatCard, type Tone, useEmbedded } from "@/components/ui";
-import { errorText, patch } from "@/lib/api";
+import { errorText } from "@/lib/api";
 import { ago, money, pct, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { EvidenceType } from "@/lib/types";
@@ -51,11 +51,6 @@ function DashboardView({ projectId }: { projectId: string }) {
     { done: (c.channels ?? 0) > 0, label: "Choose selling channels and a shipping plan", href: "/channels" },
     { done: c.brand_concepts > 0, label: "Explore brand concepts", href: "/brand" },
   ];
-
-  async function setRec(id: string, s: string) {
-    await patch(`/api/recommendations/${id}`, { status: s }).catch(() => {});
-    reload();
-  }
 
   const totalFindings = Object.values(data.findings_by_type).reduce((a, b) => a + b, 0);
 
@@ -116,31 +111,6 @@ function DashboardView({ projectId }: { projectId: string }) {
             </CardBody>
           </Card>
           )}
-          <Card>
-            <CardHeader title="Open recommendations" icon={<Lightbulb className="h-4 w-4" />} subtitle="From research reports and the copilot. Mark them done or dismiss." />
-            <CardBody className="p-0">
-              {data.open_recommendations.length === 0 ? (
-                <p className="px-5 py-6 text-sm text-slate-500">No open recommendations.</p>
-              ) : (
-                <ul className="grid gap-3 p-4">
-                  {data.open_recommendations.map((r) => (
-                    <li key={r.id} className="flex flex-col gap-2 rounded-lg border border-line p-3">
-                      <span className="text-sm text-slate-800">{r.title}</span>
-                      <div className="mt-auto flex flex-wrap items-center gap-1.5">
-                        <Badge tone="slate">{titleCase(r.priority)}</Badge>
-                        <Badge>{titleCase(r.source)}</Badge>
-                        <span className="ml-auto flex gap-1">
-                          <Button size="sm" variant="secondary" onClick={() => setRec(r.id, "done")}>Done</Button>
-                          <Button size="sm" variant="ghost" onClick={() => setRec(r.id, "dismissed")}>Dismiss</Button>
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardBody>
-          </Card>
-
           <Card>
             <CardHeader title="Evidence mix" subtitle="How much of what you know is backed by retrieved sources" />
             <CardBody>

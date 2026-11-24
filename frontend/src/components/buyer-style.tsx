@@ -2,7 +2,6 @@
 
 import { Palette, Sparkles, UserRound, Users } from "lucide-react";
 import { useState } from "react";
-import { ResearchRunStarter } from "@/components/research-run-starter";
 import type { Snapshot } from "@/components/listing-insights";
 import { Badge, Card, CardBody, CardHeader, ExternalLink, ProductThumb, Spinner } from "@/components/ui";
 import { date, num, titleCase } from "@/lib/format";
@@ -56,7 +55,6 @@ function Bars({ rows, empty }: { rows: { label: string; value: number; title?: s
 /** Who buys this, what for, and which looks they like - counted by the app from every customer comment collected. */
 export function BuyerStyleSection({ projectId }: { projectId: string }) {
   const snap = useApi<Snapshot<BuyerStyle>>(`/api/projects/${projectId}/snapshots/buyer_style`);
-  const tracker = useApi<Snapshot<unknown>>(`/api/projects/${projectId}/snapshots/listing_tracker`);
   const [all, setAll] = useState(false);
   const c = snap.data?.content;
   const byRef = new Map((c?.comments ?? []).map((t) => [t.ref, t]));
@@ -74,16 +72,8 @@ export function BuyerStyleSection({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-4">
-      {tracker.data === null && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Run the Listing Tracker first (<a href="#listings" className="font-semibold underline">Competitors & listings</a>): this agent reads the reviews of the leading listings it found.
-        </p>
-      )}
-      <ResearchRunStarter projectId={projectId} kind="buyer_style" label="Profile buyers & styles" onFinished={snap.reload}
-        approval="This reads the reviews (every star rating) of the 8 leading tracked listings through SerpApi (about 8 searches), searches the web for who buys this and which looks are trending (TikTok, Pinterest, Reddit, fashion press), then tags every customer comment collected for this product: stated age, who wears it, occasions, looks liked or disliked. A tag is kept only if its quote appears word for word in the comment, and the app - not the AI - counts the statistics. Typically $1-2."
-        focusPlaceholder="e.g. office wear, teens, autumn colours" />
       {snap.loading && !snap.data ? <Spinner /> : !c ? (
-        <p className="text-sm text-slate-500">No buyer profile yet for this product.</p>
+        <p className="text-sm text-slate-500">No buyer profile yet. Run the Buyer &amp; Style Insights Agent from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>, after the Listing Tracker.</p>
       ) : (
         <>
           <Card>

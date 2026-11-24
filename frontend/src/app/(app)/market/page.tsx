@@ -2,15 +2,13 @@
 
 import { FileText } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { RequireProject } from "@/components/app-shell";
 import { CompareTab } from "@/components/market/compare";
 import { FindingsExplorer } from "@/components/market/findings-explorer";
-import { ResearchLauncher } from "@/components/market/launcher";
 import { ReportView } from "@/components/market/report-view";
-import { RunsList } from "@/components/market/runs";
 import { SegmentsTab, SourcesTab } from "@/components/market/segments-sources";
-import { AttractivenessBadge, isActive } from "@/components/market/shared";
+import { AttractivenessBadge } from "@/components/market/shared";
 import { useProjects } from "@/components/providers";
 import { Alert, Card, EmptyState, PageHeader, Spinner, Tabs, useEmbedded } from "@/components/ui";
 import { errorText } from "@/lib/api";
@@ -18,8 +16,9 @@ import { date } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { Opportunity, ResearchRun } from "@/lib/types";
 
-type TabKey = "research" | "reports" | "findings" | "segments" | "sources" | "compare";
-const TAB_KEYS: TabKey[] = ["research", "reports", "findings", "segments", "sources", "compare"];
+// Runs are started and followed from the agents list at the top of the product report.
+type TabKey = "reports" | "findings" | "segments" | "sources" | "compare";
+const TAB_KEYS: TabKey[] = ["reports", "findings", "segments", "sources", "compare"];
 
 function MarketPage({ projectId }: { projectId: string }) {
   const { project } = useProjects();
@@ -30,13 +29,13 @@ function MarketPage({ projectId }: { projectId: string }) {
   const reportParam = params.get("report");
   const tabParam = params.get("tab") as TabKey | null;
 
-  const [tab, setTab] = useState<TabKey>(reportParam ? "reports" : tabParam && TAB_KEYS.includes(tabParam) ? tabParam : "research");
-  const [version, setVersion] = useState(0);
+  const [tab, setTab] = useState<TabKey>(reportParam ? "reports" : tabParam && TAB_KEYS.includes(tabParam) ? tabParam : "reports");
 
   const runs = useApi<ResearchRun[]>(`/api/projects/${projectId}/research-runs`);
   const reports = useApi<Opportunity[]>(`/api/projects/${projectId}/opportunities`);
-  const { reload: reloadRuns, setData: setRuns } = runs;
   const { reload: reloadReports } = reports;
+  // No refresh counter needed: the product report remounts this page whenever an agent finishes.
+  const version = 0;
 
   useEffect(() => {
     if (reportParam) setTab("reports");
@@ -50,7 +49,7 @@ function MarketPage({ projectId }: { projectId: string }) {
         else sp.delete("report");
       }
       if (next.tab) {
-        if (next.tab === "research") sp.delete("tab");
+        if (next.tab === "reports") sp.delete("tab");
         else sp.set("tab", next.tab);
       }
       const qs = sp.toString();
@@ -74,20 +73,6 @@ function MarketPage({ projectId }: { projectId: string }) {
     [setUrl, embed],
   );
 
-  const onRunFinished = useCallback(() => {
-    reloadRuns();
-    reloadReports();
-    setVersion((v) => v + 1);
-  }, [reloadRuns, reloadReports]);
-
-  const reportByRun = useMemo(() => {
-    const m: Record<string, string> = {};
-    (reports.data ?? []).forEach((r) => {
-      if (r.research_run_id && !m[r.research_run_id]) m[r.research_run_id] = r.id;
-    });
-    return m;
-  }, [reports.data]);
-
   // Inside a product report, open on the latest report when there is one - that is what you review.
   const autoOpened = useRef(false);
   useEffect(() => {
@@ -97,20 +82,18 @@ function MarketPage({ projectId }: { projectId: string }) {
     }
   }, [embed, tabParam, reports.data]);
 
-  const hasActiveRun = (runs.data ?? []).some((r) => isActive(r.status));
   const selectedReport = reports.data?.find((r) => r.id === reportParam) ?? reports.data?.[0];
 
   return (
     <div>
       <PageHeader
         title="Market Opportunity"
-        description="Evidence-linked research on market size, customers, competitors, sourcing costs and risks. Every finding records its source, retrieval date, evidence type, confidence and verification status."
+        description="Evidence-linked research on demand, market size, customers and risks. Every finding records its source, retrieval date, evidence type, confidence and verification status."
       />
       <Tabs<TabKey>
         value={tab}
         onChange={changeTab}
         tabs={[
-          { value: "research", label: "Research" },
           { value: "reports", label: `Reports${reports.data ? ` (${reports.data.length})` : ""}` },
           { value: "findings", label: "Findings" },
           { value: "segments", label: "Segments" },
@@ -118,27 +101,6 @@ function MarketPage({ projectId }: { projectId: string }) {
           { value: "compare", label: "Compare" },
         ]}
       />
-
-      {tab === "research" && (
-        <div className="space-y-6">
-          {project && project.id === projectId && (
-            <ResearchLauncher
-              key={project.id}
-              project={project}
-              hasActiveRun={hasActiveRun}
-              onStarted={(run) => setRuns((prev) => [run, ...(prev ?? []).filter((r) => r.id !== run.id)])}
-            />
-          )}
-          <RunsList
-            runs={runs.data}
-            loading={runs.loading}
-            error={runs.error}
-            reportByRun={reportByRun}
-            onFinished={onRunFinished}
-            onViewReport={openReport}
-          />
-        </div>
-      )}
 
       {tab === "reports" && (
         <>

@@ -147,14 +147,15 @@ def run_listing_scan(run_id: uuid.UUID, ctx: dict[str, str], keywords: list[str]
         ex_id = ex.id
     try:
         kws = keywords or _shopper_keywords(run_id, ctx, llm, usage)
-        cands, obs, errors, calls = demand.comparable_candidates(kws, geo)
+        sent0 = demand.network_calls()
+        cands, obs, errors, _ = demand.comparable_candidates(kws, geo)
         trend = None
         with httpx2.Client(timeout=40) as http:
             try:
                 trend = demand.trends(http, kws[0], geo)
-                calls += 1
             except Exception as e:  # noqa: BLE001
                 errors.append(str(e)[:300])
+        calls = demand.network_calls() - sent0  # paid requests; the cache answers repeats
         if not cands:
             raise RuntimeError("No marketplace listings came back for " + ", ".join(kws) + ". " + "; ".join(errors[:2]))
         cands = sorted(cands, key=lambda c: c.reviews or 0, reverse=True)[:90]
@@ -302,10 +303,9 @@ def run_review_collect(run_id: uuid.UUID, ctx: dict[str, str], keywords: list[st
         raise RuntimeError("No tracked listings yet: run the Listing Tracker Agent first, so this agent knows which leading listings to read.")
     errors: list[str] = []
     found: list[demand.ListingReviews] = []
-    calls = 0
+    sent0 = demand.network_calls()
     with httpx2.Client(timeout=60) as http:
         for c in leaders:
-            calls += 1
             try:
                 r = demand.listing_reviews(c, http)
                 if r:
@@ -313,6 +313,7 @@ def run_review_collect(run_id: uuid.UUID, ctx: dict[str, str], keywords: list[st
             except Exception as e:  # noqa: BLE001
                 log.warning("Review fetch failed: %s", e)
                 errors.append(f"{c.get('title', '')[:60]}: {str(e)[:200]}")
+    calls = demand.network_calls() - sent0  # Buyer & Style reads the same listings' reviews from the cache
     now = datetime.now(timezone.utc)
     products = []
     with session_scope() as db:

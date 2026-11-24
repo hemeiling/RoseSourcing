@@ -13,7 +13,6 @@ import { BuyerStyleSection } from "@/components/buyer-style";
 import { OutreachSection } from "@/components/outreach";
 import { TrendsExplorer } from "@/components/trends-explorer";
 import { ComplianceSection, PriceTiersSection } from "@/components/product-insights";
-import { ResearchRunStarter } from "@/components/research-run-starter";
 import { AddListingLinks } from "@/components/suppliers/add-links";
 import { useProjects } from "@/components/providers";
 import { Button, Card, CardHeader, EmbedContext, EmptyState, Modal, Spinner } from "@/components/ui";
@@ -24,6 +23,7 @@ import { errorText, post } from "@/lib/api";
 import { ago } from "@/lib/format";
 import { SECTIONS, SECTION_BY_ROUTE, TAB_OF, type Part, type SectionId } from "@/lib/sections";
 import type { Opportunity, ResearchRun } from "@/lib/types";
+import { ActionPlan } from "@/components/action-plan";
 import AnalyticsPage from "../analytics/page";
 import BrandPage from "../brand/page";
 import ChannelsPage from "../channels/page";
@@ -37,19 +37,20 @@ import SuppliersPage from "../suppliers/page";
 // What each tab or part shows. Tabs with parts render each part under its own heading and anchor.
 const CUSTOM: Partial<Record<SectionId, (p: { projectId: string }) => ReactNode>> = {
   "market-size": MarketSizeSection, buyers: BuyerStyleSection, trends: TrendsExplorer, pricing: PriceTiersSection, reviews: ReviewInsightsSection, outreach: OutreachSection,
-  compliance: ComplianceSection,
+  compliance: ComplianceSection, actions: ActionPlan,
 };
 const PAGES: Partial<Record<SectionId, () => ReactNode>> = {
   decision: DashboardPage, research: MarketPage, brands: CompetitorsPage, sizing: SizingPage, "supplier-list": SuppliersPage,
   channels: ChannelsPage, economics: AnalyticsPage, "brand-concepts": BrandPage, commerce: CommercePage,
 };
 const FOLD_KEY = "136sourcing.foldedSections";
+const RUN_FINISHED = "136sourcing:run-finished";
 
 type Dashboard = {
   counts: Record<string, number>;
   findings_by_type: Record<string, number>;
   latest_run: { status: string } | null;
-  latest_scenario: { contribution_margin: number | null; retail_price: number | null } | null;
+  latest_scenario: { contribution_margin: number | null; retail_price: number | null; costs_assumed: boolean } | null;
 };
 
 type Todo = { text: string; detail?: string; section: string; tone: "red" | "amber" | "slate" };
@@ -222,6 +223,14 @@ function AgentsPanel({ projectId, extra }: { projectId: string; extra?: ReactNod
     const t = setInterval(() => { reloadRuns(); reloadPlan(); }, 5000);
     return () => clearInterval(t);
   }, [active, reloadRuns, reloadPlan]);
+  // When an agent finishes, the report's sections reload to show what it saved.
+  const runningIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!runs.data) return;
+    const now = new Set(runs.data.filter((r) => RUNNING.includes(r.status)).map((r) => r.id));
+    if ([...runningIds.current].some((rid) => !now.has(rid))) window.dispatchEvent(new Event(RUN_FINISHED));
+    runningIds.current = now;
+  }, [runs.data]);
   return (
     <Card >
       <CardHeader title="Research agents" icon={<Bot className="h-4 w-4" />}
@@ -255,10 +264,12 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
   const c = dash.data.counts;
   const unavailable = dash.data.findings_by_type.unavailable ?? 0;
   const todos: Todo[] = [];
-  const cm = dash.data.latest_scenario?.contribution_margin;
-  if (cm !== null && cm !== undefined && cm < 0)
-    todos.push({ text: `Unit contribution is negative (${money(cm)})`, detail: `At ${money(dash.data.latest_scenario?.retail_price)} retail you lose money on each sale - revisit price or costs.`, section: "economics", tone: "red" });
-  if (!c.scenarios) todos.push({ text: "No unit economics yet", detail: "Model cost, price and margin.", section: "economics", tone: "slate" });
+  const sc = dash.data.latest_scenario;
+  const cm = sc?.contribution_margin;
+  if (!sc || sc.costs_assumed)
+    todos.push({ text: "Margin not worked out yet", detail: sc ? "The research estimate uses assumed factory, freight and fee costs. Work out the margin in Unit economics with supplier quotes." : "Model cost, price and margin.", section: "economics", tone: "slate" });
+  else if (cm !== null && cm !== undefined && cm < 0)
+    todos.push({ text: `Unit contribution is negative (${money(cm)})`, detail: `At ${money(sc.retail_price)} retail you lose money on each sale - revisit price or costs.`, section: "economics", tone: "red" });
   if (c.suppliers && !c.spec_sheets) todos.push({ text: "No spec sheet yet", detail: "Draft the spec sheet suppliers will quote against.", section: "outreach", tone: "amber" });
   if (c.suppliers && c.rfqs_sent < 5)
     todos.push({ text: c.rfqs_sent ? `Only ${c.rfqs_sent} supplier${c.rfqs_sent === 1 ? "" : "s"} asked for quotes` : "No supplier asked for quotes yet",
@@ -296,6 +307,19 @@ function ProductReport({ id }: { id: string }) {
   const router = useRouter();
   const [suppliersVersion, setSuppliersVersion] = useState(0);
   const [competitorsVersion, setCompetitorsVersion] = useState(0);
+  // Research parts show once their agent has saved something (`shownWhen` in sections.ts); until the counts load, all show.
+  const dash = useApi<{ counts: Record<string, number> }>(`/api/projects/${id}/dashboard`);
+  const { reload: reloadCounts } = dash;
+  const has = (when?: string[]) => !when || !dash.data || when.some((k) => (dash.data!.counts[k] ?? 0) > 0);
+  const shown = SECTIONS.map((t) => ({ ...t, parts: t.parts?.filter((p) => has(p.shownWhen)) }))
+    .filter((t) => has(t.shownWhen) && (!t.parts || t.parts.length > 0));
+  // Bumped when any agent finishes, so every open section re-reads its data (runs are started from the agents card).
+  const [dataVersion, setDataVersion] = useState(0);
+  useEffect(() => {
+    const bump = () => { setDataVersion((v) => v + 1); reloadCounts(); };
+    window.addEventListener(RUN_FINISHED, bump);
+    return () => window.removeEventListener(RUN_FINISHED, bump);
+  }, [reloadCounts]);
   const [tierNote, setTierNote] = useState<string | null>(null);
   const assignTiers = async () => {
     try {
@@ -308,7 +332,6 @@ function ProductReport({ id }: { id: string }) {
       setTierNote(errorText(e));
     }
   };
-  const [active, setActive] = useState("review");
   const userScrolled = useRef(false);
   // Folded sections are remembered in this browser, for every product.
   const [folded, setFolded] = useState<Set<string>>(new Set());
@@ -342,9 +365,9 @@ function ProductReport({ id }: { id: string }) {
       saveFolded(next);
     }
     // Jump straight there: a smooth scroll would play the whole report past on the way.
-    requestAnimationFrame(() => document.getElementById(section)?.scrollIntoView({ behavior: "instant", block: "start" }));
+    // A part with no data yet is not shown; land on its tab instead.
+    requestAnimationFrame(() => (document.getElementById(section) ?? document.getElementById(tab))?.scrollIntoView({ behavior: "instant", block: "start" }));
     history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${section}`);
-    setActive(tab);
   }, [saveFolded]);
 
   // Deep links (#market): sections above load their data asynchronously, so re-align a few times unless the user scrolls.
@@ -366,17 +389,6 @@ function ProductReport({ id }: { id: string }) {
     };
   }, [ready, jump]);
 
-  // Highlight the section being read.
-  useEffect(() => {
-    if (!ready) return;
-    const obs = new IntersectionObserver((entries) => {
-      const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-      if (visible) setActive(visible.target.id);
-    }, { rootMargin: "-170px 0px -55% 0px" });
-    SECTIONS.forEach((s) => { const el = document.getElementById(s.id); if (el) obs.observe(el); });
-    return () => obs.disconnect();
-  }, [ready]);
-
   // Links inside sections that point at an old standalone page scroll to that section instead.
   const onClickCapture = (e: MouseEvent) => {
     const a = (e.target as HTMLElement).closest("a");
@@ -393,9 +405,9 @@ function ProductReport({ id }: { id: string }) {
 
   // The content of one tab (without parts) or part.
   const body = (sid: SectionId, part?: Part): ReactNode => {
-    if (sid === "review") return <Review projectId={id} decision={project?.decision ?? "undecided"} />;
+    if (sid === "review") return <Review key={dataVersion} projectId={id} decision={project?.decision ?? "undecided"} />;
     const Custom = CUSTOM[sid];
-    if (Custom) return <Custom projectId={id} />;
+    if (Custom) return <Custom key={dataVersion} projectId={id} />;
     const Page = PAGES[sid];
     if (!Page) return null;
     const tab = SECTIONS.find((t) => t.id === sid);
@@ -403,11 +415,6 @@ function ProductReport({ id }: { id: string }) {
       <EmbedContext.Provider value={{ id: sid, title: part?.title ?? tab?.title ?? "", description: part?.description ?? tab?.description }}>
         {sid === "supplier-list" && (
           <div className="mb-4">
-            <h4 className="mb-2 text-sm font-semibold text-ink">Find suppliers on B2B marketplaces</h4>
-            <ResearchRunStarter projectId={id} kind="supplier_listings" label="Search supplier listings"
-              onFinished={() => setSuppliersVersion((v) => v + 1)}
-              approval="This searches Alibaba.com, 1688, Made-in-China, Global Sources and DHgate listings through web search. Each supplier found is saved as unverified, with its listed price and MOQ as a 'listing price' quote - only numbers shown on the source are kept; a listing whose page showed no price is kept as a lead to open. Nothing is ordered or sent."
-              focusPlaceholder="e.g. knotted headbands, custom tweed fabric, MOQ under 500" />
             <AddListingLinks projectId={id} onAdded={() => setSuppliersVersion((v) => v + 1)} />
           </div>
         )}
@@ -418,7 +425,7 @@ function ProductReport({ id }: { id: string }) {
             {tierNote && <span className="w-full text-xs text-slate-500">{tierNote}</span>}
           </div>
         )}
-        <Page key={sid === "supplier-list" ? suppliersVersion : sid === "brands" ? competitorsVersion : undefined} />
+        <Page key={`${dataVersion}-${sid === "supplier-list" ? suppliersVersion : sid === "brands" ? competitorsVersion : 0}`} />
       </EmbedContext.Provider>
     );
   };
@@ -450,34 +457,21 @@ function ProductReport({ id }: { id: string }) {
         <AiRecommendationLine projectId={id} />
       </div>
 
-      <nav aria-label="Report sections" className="z-10 -mx-4 mb-6 border-b border-line bg-canvas/95 px-4 py-2 backdrop-blur sm:sticky sm:top-14 sm:-mx-6 sm:px-6">
-        {/* Tabs wrap onto more rows rather than scrolling out of view; Fold all stays on the first row, top right. */}
-        <div className="flex items-start gap-3">
-          <ul className="flex flex-1 flex-wrap gap-1.5">
-            {SECTIONS.map((s) => (
-              <li key={s.id}>
-                <a href={`#${s.id}`} onClick={(e) => { e.preventDefault(); jump(s.id); }} aria-current={active === s.id ? "true" : undefined}
-                  className={clsx("block rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors",
-                    active === s.id ? "border-primary-600 bg-primary-600 text-white" : "border-line bg-white text-slate-700 hover:border-primary-300 hover:text-primary-700")}>
-                  {s.title}
-                </a>
-              </li>
-            ))}
-          </ul>
-          <button type="button" onClick={() => saveFolded(allFolded ? new Set() : new Set(SECTIONS.map((s) => s.id)))}
-            className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-50">
-            {allFolded ? <ChevronsUpDown className="h-3.5 w-3.5" aria-hidden /> : <ChevronsDownUp className="h-3.5 w-3.5" aria-hidden />}
-            {allFolded ? "Unfold all" : "Fold all"}
-          </button>
-        </div>
-      </nav>
+      {/* The list below is the navigation: each tab folds to one row. */}
+      <div className="mb-1 flex justify-end">
+        <button type="button" onClick={() => saveFolded(allFolded ? new Set() : new Set(SECTIONS.map((s) => s.id)))}
+          className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-primary-700 hover:bg-primary-50">
+          {allFolded ? <ChevronsUpDown className="h-3.5 w-3.5" aria-hidden /> : <ChevronsDownUp className="h-3.5 w-3.5" aria-hidden />}
+          {allFolded ? "Unfold all" : "Fold all"}
+        </button>
+      </div>
 
       {/* A compact list of tabs: a folded tab is one row (title + what is inside); an open tab shows its parts. */}
       <div className="divide-y divide-line border-b border-line">
-        {SECTIONS.map((s) => {
+        {shown.map((s) => {
           const isFolded = folded.has(s.id);
           return (
-          <section key={s.id} id={s.id} className="scroll-mt-20 sm:scroll-mt-36" aria-label={s.title}>
+          <section key={s.id} id={s.id} className="scroll-mt-16" aria-label={s.title}>
             <div className={clsx("flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2.5", !isFolded && "pb-1")}>
               <h2 className="text-xl font-semibold leading-tight text-ink">
                 <button type="button" onClick={() => toggle(s.id)} aria-expanded={!isFolded} aria-controls={`${s.id}-body`}
@@ -492,7 +486,7 @@ function ProductReport({ id }: { id: string }) {
               <div id={`${s.id}-body`} className="space-y-8 pb-8 pt-3">
                 {s.parts
                   ? s.parts.map((part) => (
-                    <div key={part.id} id={part.id} className="scroll-mt-20 sm:scroll-mt-36">
+                    <div key={part.id} id={part.id} className="scroll-mt-16">
                       <h3 className="text-base font-semibold text-ink">{part.title}</h3>
                       {part.description && <p className="mb-3 mt-0.5 max-w-3xl text-sm text-slate-600">{part.description}</p>}
                       {body(part.id, part)}

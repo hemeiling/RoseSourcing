@@ -1,21 +1,20 @@
 "use client";
 
 import clsx from "clsx";
-import { CheckCircle2, Copy, CopyPlus, ExternalLink as ExtIcon, FileSearch, ImagePlus, Loader2, Pencil, Play, Plus, Ruler, Share2, Trash2 } from "lucide-react";
+import { CheckCircle2, Copy, CopyPlus, ExternalLink as ExtIcon, FileSearch, ImagePlus, Loader2, Pencil, Plus, Ruler, Share2, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { RequireProject } from "@/components/app-shell";
 import { FindingCard } from "@/components/evidence";
-import { ConfirmModal, KIND_LABEL, RunStatusBadge, fmtCost, isActive } from "@/components/market/shared";
-import { useStatus } from "@/components/providers";
+import { ConfirmModal } from "@/components/market/shared";
 import { ChartEditor } from "@/components/sizing/chart-editor";
 import { FitFinder, SizeTable, UnitToggle } from "@/components/sizing/fit-finder";
-import { Alert, Badge, Button, Card, CardBody, CardHeader, ConfigNotice, EmptyState, ExternalLink, Field, PageHeader, Select, Spinner, Textarea } from "@/components/ui";
-import { ApiError, api, del, errorText, post } from "@/lib/api";
+import { Alert, Badge, Button, Card, CardBody, CardHeader, EmptyState, ExternalLink, Field, PageHeader, Select, Spinner } from "@/components/ui";
+import { api, del, errorText, post } from "@/lib/api";
 import { date } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { prepareImage } from "@/lib/image";
 import { GARMENT_LABEL, type Unit } from "@/lib/sizing";
-import type { Finding, FitResult, ResearchRun, SizeChart } from "@/lib/types";
+import type { Finding, FitResult, SizeChart } from "@/lib/types";
 
 const ROLE_META: Record<SizeChart["role"], { title: string; badge: string; blurb: string }> = {
   published: { title: "Your size guides", badge: "Your size guide", blurb: "What customers see. Share one as a public fit finder link." },
@@ -32,86 +31,24 @@ function VerificationBadge({ c }: { c: SizeChart }) {
 
 // ----------------------------------------------------------------------------- fit research
 
-function FitResearch({ projectId, onChartsChanged }: { projectId: string; onChartsChanged: () => void }) {
-  const { status } = useStatus();
-  const runs = useApi<ResearchRun[]>(`/api/projects/${projectId}/research-runs`);
+/** What the Fit & Sizing Agent found (run it from the agents list at the top of the report). */
+function FitResearch({ projectId }: { projectId: string }) {
   const findings = useApi<Finding[]>(`/api/projects/${projectId}/findings?section=fit`);
-  const [focus, setFocus] = useState("");
-  const [confirm, setConfirm] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const fitRun = runs.data?.find((r) => r.kind === "fit_sizing");
-  const anyActive = runs.data?.some((r) => isActive(r.status));
-  const wasActive = useRef(false);
-
-  useEffect(() => {
-    if (!anyActive) {
-      if (wasActive.current) {
-        findings.reload();
-        onChartsChanged();
-      }
-      wasActive.current = false;
-      return;
-    }
-    wasActive.current = true;
-    const t = setInterval(() => runs.reload(), 5000);
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anyActive]);
-
-  async function start() {
-    setBusy(true);
-    setError(null);
-    try {
-      await post(`/api/projects/${projectId}/research-runs`, { kind: "fit_sizing", focus: focus.trim() || undefined });
-      setConfirm(false);
-      runs.reload();
-    } catch (e) {
-      setError(e instanceof ApiError && e.isConfigError ? e.message : errorText(e));
-      setConfirm(false);
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
-    <Card >
+    <Card>
       <CardHeader title="Fit & sizing research" icon={<FileSearch className="h-4 w-4" />}
-        subtitle="Finds competitors' published size charts and what customers say about fit, returns and exchanges. Size charts are saved only with numbers that appear on the source page." />
-      <CardBody className="space-y-4">
-        {status && !status.ai.configured && <ConfigNotice message={status.ai.requirement} />}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <Field label="Focus (optional)" className="flex-1">
-            <Textarea rows={2} value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="e.g. rhinestone Latin competition dresses for adult amateurs; men's standard shoes" />
-          </Field>
-          <Button onClick={() => setConfirm(true)} disabled={anyActive || (status ? !status.ai.configured : false)} title={anyActive ? "A research run is already in progress for this project" : undefined}>
-            <Play className="h-4 w-4" /> Research size charts & fit
-          </Button>
-        </div>
-        {anyActive && !fitRun?.status.match(/queued|running/) && <p className="text-xs text-slate-500">Another research run is in progress for this project. You can start fit research when it finishes.</p>}
-        {fitRun && (
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-slate-600">Latest {KIND_LABEL.fit_sizing.toLowerCase()} run:</span>
-            <RunStatusBadge status={fitRun.status} />
-            {isActive(fitRun.status) && <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-600" />}
-            <span className="text-xs text-slate-500">
-              {fitRun.steps.map((s) => `${s.label}: ${s.status}`).join(" · ")} · {fmtCost(fitRun.cost_usd)}
-            </span>
-          </div>
-        )}
-        {error && <Alert tone="red">{error}</Alert>}
-        {findings.data && findings.data.length > 0 && (
+        subtitle="Competitors' published size charts and what customers say about fit, returns and exchanges. Size charts are saved only with numbers that appear on the source page." />
+      <CardBody>
+        {!findings.data ? <Spinner /> : findings.data.length === 0 ? (
+          <p className="text-sm text-slate-500">No fit research yet. Run the Fit &amp; Sizing Agent from the{" "}
+            <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>.</p>
+        ) : (
           <details open className="space-y-2">
             <summary className="cursor-pointer text-sm font-semibold text-brand-700">Fit & sizing findings ({findings.data.length})</summary>
             <div className="mt-2 grid gap-2">{findings.data.map((f) => <FindingCard key={f.id} finding={f} compact />)}</div>
           </details>
         )}
-        {findings.data?.length === 0 && !fitRun && <p className="text-sm text-slate-500">No fit research yet for this product.</p>}
       </CardBody>
-      <ConfirmModal open={confirm} title="Approve research spend" confirmLabel="Start research" busy={busy} onClose={() => setConfirm(false)} onConfirm={start}>
-        <p>This runs 2 research steps (size charts; fit problems, returns and fit services), each making up to 5 web searches.</p>
-        <p>It stops starting new steps once its estimated AI cost reaches the per-run limit shown in Settings.</p>
-      </ConfirmModal>
     </Card>
   );
 }
@@ -294,7 +231,7 @@ function SizingView({ projectId }: { projectId: string }) {
       <PageHeader title="Sizing & Fit"
         description="Size scales for every product: your own size guide, supplier charts and competitors' charts. Compare them, test sizes against real measurements, and share a fit finder with customers so they order the right size the first time." />
       <div className="grid gap-5">
-        <FitResearch projectId={projectId} onChartsChanged={charts.reload} />
+        <FitResearch projectId={projectId} />
         <AddChart projectId={projectId} onAdded={(c) => { charts.reload(); setEditing({ chart: c }); }} onManual={(g) => setEditing({ chart: null, garment: g })} />
 
         <Card>

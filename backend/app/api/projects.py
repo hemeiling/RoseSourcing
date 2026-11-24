@@ -122,6 +122,9 @@ def dashboard(project: ProjectDep, db: DB) -> dict:
             "listing_reports": count(AnalysisSnapshot, AnalysisSnapshot.kind == "listing_tracker"),
             "review_reports": count(AnalysisSnapshot, AnalysisSnapshot.kind == "review_insights"),
             "buyer_reports": count(AnalysisSnapshot, AnalysisSnapshot.kind == "buyer_style"),
+            "channel_plans": count(AnalysisSnapshot, AnalysisSnapshot.kind == "channel_logistics_plan"),
+            "market_size_findings": count(ResearchFinding, ResearchFinding.section.in_(("market_size", "growth"))),
+            "open_recommendations": count(Recommendation, Recommendation.status.in_(("open", "accepted"))),
             "spec_sheets": count(AnalysisSnapshot, AnalysisSnapshot.kind == "spec_sheet"),
             "rfqs_sent": db.scalar(select(func.count(SupplierCommunication.id)).join(Supplier).where(
                 Supplier.project_id == pid, SupplierCommunication.direction == "outbound",
@@ -137,7 +140,10 @@ def dashboard(project: ProjectDep, db: DB) -> dict:
         "latest_scenario": {"id": str(best_scenario.id), "name": best_scenario.name, "type": best_scenario.scenario_type,
                             "contribution_margin": (best_scenario.results or {}).get("contribution_margin"),
                             "contribution_margin_pct": (best_scenario.results or {}).get("contribution_margin_pct"),
-                            "retail_price": (best_scenario.inputs or {}).get("retail_price")} if best_scenario else None,
+                            "retail_price": (best_scenario.inputs or {}).get("retail_price"),
+                            # A margin is only worth warning about once the factory cost is real (a quote or sourced research).
+                            "costs_assumed": str((best_scenario.input_basis or {}).get("factory_cost", "assumption")).startswith("assumption"),
+                            } if best_scenario else None,
         "open_recommendations": [{"id": str(r.id), "title": r.title, "priority": r.priority, "source": r.source, "status": r.status} for r in recs],
         "recent_activity": [{"action": a.action, "actor": a.actor, "entity_type": a.entity_type, "created_at": a.created_at} for a in activity],
         "ai_spend_usd": float(spend or 0),

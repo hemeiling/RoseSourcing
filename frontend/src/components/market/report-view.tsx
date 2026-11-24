@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { AlertTriangle, ArrowRight, Calculator, Compass, Flag, Lightbulb, ListChecks, Tag, Target, Trash2, Users } from "lucide-react";
+import { ArrowRight, Calculator, Compass, Lightbulb, Tag, Trash2, Users } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState, type ReactNode } from "react";
 import { BasisBadge, EVIDENCE_META, FindingCard } from "@/components/evidence";
@@ -10,7 +10,7 @@ import { del, errorText } from "@/lib/api";
 import { date, dateTime, money, num, pct, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { EvidenceType, Finding, ModelSpec, Opportunity } from "@/lib/types";
-import { AttractivenessBadge, ConfirmModal, SEVERITY_TONE } from "./shared";
+import { AttractivenessBadge, ConfirmModal } from "./shared";
 
 type FindingIndex = Map<string, { finding: Finding; n: number }>;
 
@@ -254,59 +254,10 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
         </Section>
       )}
 
-      {r.risks?.length > 0 && (
-        <Section icon={<AlertTriangle className="h-4 w-4" />} title="Risks">
-          <ul className="divide-y divide-slate-100">
-            {r.risks.map((risk, i) => (
-              <li key={i} className="py-2.5 first:pt-0 last:pb-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={SEVERITY_TONE[risk.severity] ?? "slate"}>{titleCase(risk.severity)} severity</Badge>
-                  <span className="text-sm font-medium text-slate-900">{risk.risk}</span>
-                </div>
-                <p className="mt-1 text-sm text-slate-600">
-                  <span className="font-medium text-slate-700">Mitigation:</span> {risk.mitigation}
-                </p>
-                {chips(risk.finding_ids)}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      )}
-
-      <div className="grid gap-4">
-        {r.evidence_gaps?.length > 0 && (
-          <Section icon={<Target className="h-4 w-4" />} title="Evidence gaps" subtitle="What you still need to know before investing">
-            <ul className="space-y-3">
-              {r.evidence_gaps.map((g, i) => (
-                <li key={i} className="text-sm">
-                  <p className="font-medium text-slate-900">{g.gap}</p>
-                  <p className="mt-0.5 text-slate-600">
-                    <span className="text-slate-500">Why it matters:</span> {g.why_it_matters}
-                  </p>
-                  <p className="mt-0.5 text-slate-600">
-                    <span className="text-slate-500">How to close it:</span> {g.how_to_close}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </Section>
-        )}
-        {r.next_steps?.length > 0 && (
-          <Section icon={<ListChecks className="h-4 w-4" />} title="Next steps" subtitle="Also saved to your recommendations list">
-            <ol className="space-y-3">
-              {r.next_steps.map((n, i) => (
-                <li key={i} className="flex gap-2.5 text-sm">
-                  <Flag className={clsx("mt-0.5 h-4 w-4 shrink-0", "text-slate-400")} aria-label={`${n.priority} priority`} />
-                  <div>
-                    <p className="font-medium text-slate-900">{n.action}</p>
-                    <p className="mt-0.5 text-slate-600">{n.rationale}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </Section>
-        )}
-      </div>
+      <p className="text-sm text-slate-600">
+        This report&apos;s risks, evidence gaps and next steps are with every other agent&apos;s in{" "}
+        <a href="#actions" className="font-semibold text-primary-700 underline">Risks &amp; next steps</a>.
+      </p>
 
       <p className="text-center text-[11px] text-slate-400">
         Report created {date(report.created_at)} · {report.category} · {report.geography}

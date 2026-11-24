@@ -6,10 +6,14 @@ the source lists those same numbers, so findings are source-linked without any m
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import re
 import statistics
+import threading
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote_plus
 
@@ -44,14 +48,76 @@ def configured() -> bool:
     return connectors.is_configured("serpapi")
 
 
-def _get(http: httpx2.Client, params: dict[str, Any]) -> dict[str, Any]:
-    key = connectors.get_value("serpapi", "api_key")
-    r = http.get(SERPAPI_URL, params={**params, "api_key": key})
+# How long a saved response is reused. Reviews change slowly; searches, prices and Trends are kept for a day, so one
+# Run all (and any re-run that day) pays for each request once, while a run on a later day sees current prices.
+REVIEW_ENGINES = {"amazon_product", "google_immersive_product"}
+CACHE_TTL = timedelta(hours=24)
+REVIEW_CACHE_TTL = timedelta(days=7)
+CACHE_KEEP = timedelta(days=30)
+_sent = threading.local()
+
+
+def network_calls() -> int:
+    """SerpApi requests this thread actually sent (answers from the cache excluded); callers diff it around a batch."""
+    return getattr(_sent, "n", 0)
+
+
+def _cache_key(params: dict[str, Any]) -> str:
+    return hashlib.sha256(json.dumps(params, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def _cached(key: str, ttl: timedelta) -> dict[str, Any] | None:
+    from ..db import session_scope
+    from ..models import SerpCache
+
+    try:
+        with session_scope() as db:
+            row = db.get(SerpCache, key)
+            if row and row.fetched_at >= datetime.now(timezone.utc) - ttl:
+                return row.response
+    except Exception as e:  # noqa: BLE001 - the cache is an optimisation; never let it stop a fetch
+        log.warning("SerpApi cache read failed: %s", e)
+    return None
+
+
+def _store(key: str, engine: str, data: dict[str, Any]) -> None:
+    from sqlalchemy import delete
+    from sqlalchemy.dialects.postgresql import insert
+
+    from ..db import session_scope
+    from ..models import SerpCache
+
+    now = datetime.now(timezone.utc)
+    try:
+        with session_scope() as db:
+            db.execute(insert(SerpCache).values(key=key, engine=engine, response=data, fetched_at=now)
+                       .on_conflict_do_update(index_elements=["key"], set_={"response": data, "fetched_at": now}))
+            db.execute(delete(SerpCache).where(SerpCache.fetched_at < now - CACHE_KEEP))
+    except Exception as e:  # noqa: BLE001
+        log.warning("SerpApi cache write failed: %s", e)
+
+
+def _fetch(http: httpx2.Client, params: dict[str, Any]) -> dict[str, Any]:
+    """The paid request itself."""
+    engine = params.get("engine")
+    r = http.get(SERPAPI_URL, params={**params, "api_key": connectors.get_value("serpapi", "api_key")})
     if r.status_code != 200:
-        raise RuntimeError(f"SerpApi {params.get('engine')} returned HTTP {r.status_code}: {r.text[:200]}")
+        raise RuntimeError(f"SerpApi {engine} returned HTTP {r.status_code}: {r.text[:200]}")
     data = r.json()
     if data.get("error"):
-        raise RuntimeError(f"SerpApi {params.get('engine')}: {data['error']}")
+        raise RuntimeError(f"SerpApi {engine}: {data['error']}")
+    return data
+
+
+def _get(http: httpx2.Client, params: dict[str, Any]) -> dict[str, Any]:
+    """One SerpApi request - answered from the shared cache when the same request was made recently."""
+    engine = str(params.get("engine") or "")
+    ckey = _cache_key(params)
+    if (hit := _cached(ckey, REVIEW_CACHE_TTL if engine in REVIEW_ENGINES else CACHE_TTL)) is not None:
+        return hit
+    _sent.n = network_calls() + 1
+    data = _fetch(http, params)
+    _store(ckey, engine[:40], data)
     return data
 
 
@@ -169,6 +235,7 @@ def collect(keywords: list[str], geo: str = "US") -> tuple[list[DemandObservatio
     obs: list[DemandObservation] = []
     errors: list[str] = []
     calls = 0
+    sent0 = network_calls()  # what is reported: requests actually paid for, not cache answers
     with httpx2.Client(timeout=40) as http:
         for kw in [k for k in dict.fromkeys(k.strip() for k in keywords) if k][:2]:
             for fn in (lambda: trends(http, kw, geo), lambda: amazon(http, kw), lambda: shopping(http, kw)):
@@ -182,7 +249,7 @@ def collect(keywords: list[str], geo: str = "US") -> tuple[list[DemandObservatio
                 except Exception as e:  # noqa: BLE001 - record and keep going with other sources
                     log.warning("Demand signal failed: %s", e)
                     errors.append(str(e)[:300])
-    return obs, errors, calls
+    return obs, errors, network_calls() - sent0
 
 
 # ----------------------------------------------------------------------------- price tiers
@@ -259,6 +326,7 @@ def price_tier_evidence(keywords: list[str], geo: str = "US", max_calls: int = 4
     obs: list[DemandObservation] = []
     errors: list[str] = []
     calls = 0
+    sent0 = network_calls()  # what is reported: requests actually paid for, not cache answers
     with httpx2.Client(timeout=40) as http:
         for kw in [k for k in dict.fromkeys(k.strip() for k in keywords) if k][:2]:
             for engine in ("amazon", "google_shopping"):
@@ -296,7 +364,7 @@ def price_tier_evidence(keywords: list[str], geo: str = "US", max_calls: int = 4
         kw0 = next(iter(dict.fromkeys(k.strip() for k in keywords if k.strip())), "")
         obs.insert(0, DemandObservation(title=f"Price tiers from {len(unique)} marketplace listings",
                                         url=f"https://www.google.com/search?tbm=shop&q={quote_plus(kw0)}", excerpts=_tier_lines(unique)))
-    return obs, errors, calls
+    return obs, errors, network_calls() - sent0
 
 
 # ----------------------------------------------------------------------------- B2B supplier listings
@@ -310,9 +378,10 @@ def b2b_listing_evidence(keywords: list[str], max_calls: int = 3) -> tuple[list[
     obs: list[DemandObservation] = []
     errors: list[str] = []
     calls = 0
+    sent0 = network_calls()  # what is reported: requests actually paid for, not cache answers
     kw = next(iter(dict.fromkeys(k.strip() for k in keywords if k.strip())), "")
     if not kw:
-        return obs, errors, calls
+        return obs, errors, network_calls() - sent0
     with httpx2.Client(timeout=40) as http:
         for site in B2B_SITES:
             if calls >= max_calls:
@@ -331,7 +400,7 @@ def b2b_listing_evidence(keywords: list[str], max_calls: int = 3) -> tuple[list[
             except Exception as e:  # noqa: BLE001
                 log.warning("B2B listing search failed: %s", e)
                 errors.append(str(e)[:300])
-    return obs, errors, calls
+    return obs, errors, network_calls() - sent0
 
 
 # ----------------------------------------------------------------------------- comparable listings and reviews
@@ -454,6 +523,7 @@ def comparable_candidates(keywords: list[str], geo: str = "US", max_calls: int =
     obs: list[DemandObservation] = []
     errors: list[str] = []
     calls = 0
+    sent0 = network_calls()  # what is reported: requests actually paid for, not cache answers
     with httpx2.Client(timeout=40) as http:
         for engine, kw in plan[:max_calls]:
             calls += 1
@@ -476,7 +546,7 @@ def comparable_candidates(keywords: list[str], geo: str = "US", max_calls: int =
     seen: dict[str, Candidate] = {}
     for c in cands:
         seen.setdefault(c.asin or c.url or c.title.lower()[:90], c)
-    return list(seen.values()), obs, errors, calls
+    return list(seen.values()), obs, errors, network_calls() - sent0
 
 
 @dataclass

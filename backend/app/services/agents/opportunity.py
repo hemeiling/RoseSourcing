@@ -381,7 +381,9 @@ STEP_DEFS["style_web"] = {
 }
 
 RUN_STEPS = {
-    "market_opportunity": ["demand_signals", "market_size", "customers", "competitors", "sourcing", "risks", "synthesis"],
+    # Competitors and factory prices are researched once, by the Competitor Discovery and Supplier agents (and freight by
+    # Channels & logistics); the synthesis reads what they saved instead of searching the web for the same things again.
+    "market_opportunity": ["demand_signals", "market_size", "customers", "risks", "synthesis"],
     "channels_logistics": ["channels", "logistics", "plan"],
     "competitor_discovery": ["competitors"],
     "fit_sizing": ["fit_charts", "fit_experience"],
@@ -801,8 +803,19 @@ class ShopperKeywords(BaseModel):
 
 
 def _shopper_keywords(run_id: uuid.UUID, ctx: dict[str, str], llm, usage: LLMUsage) -> list[str]:
-    """Demand APIs need what shoppers type, not a long category description. Saved on the run so a resume reuses them."""
+    """Demand APIs need what shoppers type, not a long category description. Saved on the run so a resume reuses them,
+    and reused by every agent of the product (same focus, last 30 days), so their marketplace searches match the cache."""
     fallback = [re.sub(r"\s*\(.*?\)", "", ctx["category"]).strip()[:80] or ctx["category"][:80]]
+    with session_scope() as db:
+        run = db.get(ResearchRun, run_id)
+        focus = (run.params or {}).get("focus") or ""
+        since = datetime.now(timezone.utc) - timedelta(days=30)
+        for prev in db.scalars(select(ResearchRun).where(ResearchRun.project_id == run.project_id, ResearchRun.id != run_id,
+                                                         ResearchRun.created_at >= since).order_by(ResearchRun.created_at.desc())):
+            p = prev.params or {}
+            if p.get("keywords") and p.get("keywords_source") in ("ai_suggested", "reused") and (p.get("focus") or "") == focus:
+                run.params = {**(run.params or {}), "keywords": p["keywords"], "keywords_source": "reused"}
+                return list(p["keywords"])
     try:
         out, u = llm.structured(system="You choose search phrases for measuring shopper demand.", output_model=ShopperKeywords, max_tokens=1000,
                                 prompt=f"Category: {ctx['category']}\nMarket: {ctx['country']}\nFocus: {ctx.get('focus') or 'none'}")
@@ -1247,6 +1260,10 @@ def execute_run(run_id: uuid.UUID) -> None:
                      details={"status": run.status, "cost_usd": float(run.cost_usd), "searches": run.search_requests})
 
 
+BORROWED_SECTIONS = ("competitors", "pricing", "differentiation", "sourcing_costs", "logistics", "regulatory")
+BORROWED_MAX = 40
+
+
 def _run_synthesis(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
     llm = get_llm()
     with session_scope() as db:
@@ -1256,6 +1273,14 @@ def _run_synthesis(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
         findings = db.scalars(
             select(ResearchFinding).where(ResearchFinding.research_run_id == run_id).order_by(ResearchFinding.created_at)
         ).all()
+        # What the other agents already found on competitors, prices, factory costs, freight and duties.
+        borrowed = db.scalars(
+            select(ResearchFinding).where(ResearchFinding.project_id == run.project_id, ResearchFinding.research_run_id != run_id,
+                                          ResearchFinding.section.in_(BORROWED_SECTIONS), ResearchFinding.evidence_type != "unavailable")
+            .order_by(ResearchFinding.created_at.desc()).limit(BORROWED_MAX)
+        ).all()
+        seen_claims = {f.claim.strip().lower() for f in findings}
+        findings = [*findings, *[f for f in borrowed if f.claim.strip().lower() not in seen_claims]]
         segments = db.scalars(select(CustomerSegment).where(CustomerSegment.research_run_id == run_id)).all()
         competitors = db.scalars(select(Competitor).where(Competitor.project_id == run.project_id)).all()
         user_id, project_id = run.created_by_id, run.project_id

@@ -185,9 +185,12 @@ def test_price_tier_evidence_from_marketplace_listings(monkeypatch):
                                         for i in range(1, 9)] + [{"title": "Ad", "extracted_price": 5, "sponsored": True}]}
         return {"shopping_results": [{"title": f"Silk headband {i}", "extracted_price": 40 + 10 * i, "source": "Boutique"} for i in range(1, 5)]}
 
-    monkeypatch.setattr(demand, "_get", fake_get)
+    monkeypatch.setattr(demand, "_fetch", fake_get)
     obs, errors, calls = demand.price_tier_evidence(["top knot headband"])
     assert calls == 2 and not errors
+    # The same searches again (another agent, or a re-run today) come from the shared cache: nothing paid.
+    again, _, calls_again = demand.price_tier_evidence(["top knot headband"])
+    assert calls_again == 0 and [o.excerpts for o in again] == [o.excerpts for o in obs]
     summary = obs[0]
     assert summary.title == "Price tiers from 12 marketplace listings"
     assert summary.excerpts[1].startswith("Budget tier (lowest 25% of prices): 3 listings priced $9.00 to $11.00")
@@ -246,7 +249,7 @@ def test_b2b_listing_evidence_uses_google_snippets(monkeypatch):
                                      "snippet": "US$0.39 - 0.59. Min. order: 50 pieces.", "rich_snippet": {"top": {"extensions": ["5 yrs CN Supplier"]}}},
                                     {"title": "No link"}]}
 
-    monkeypatch.setattr(demand, "_get", fake_get)
+    monkeypatch.setattr(demand, "_fetch", fake_get)
     obs, errors, calls = demand.b2b_listing_evidence(["knotted headband"])
     assert calls == 3 and seen[0] == "site:alibaba.com knotted headband"
     assert obs[0].url.startswith("https://www.alibaba.com/") and obs[0].excerpts == ["US$0.39 - 0.59. Min. order: 50 pieces. 5 yrs CN Supplier"]

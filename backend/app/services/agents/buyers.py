@@ -142,16 +142,17 @@ def run_style_collect(run_id: uuid.UUID, ctx: dict[str, str], keywords: list[str
         with session_scope() as db:
             finish_execution(db.get(AgentExecution, ex_id), error="No tracked listings")
         raise RuntimeError("No tracked listings yet: run the Listing Tracker Agent first, so this agent knows which leading listings to read.")
-    found, errors, calls = [], [], 0
+    found, errors = [], []
+    sent0 = demand.network_calls()
     with httpx2.Client(timeout=60) as http:
         for c in leaders:
-            calls += 1
             try:
                 if (r := demand.listing_reviews(c, http)):
                     found.append(r)
             except Exception as e:  # noqa: BLE001
                 log.warning("Review fetch failed: %s", e)
                 errors.append(f"{c.get('title', '')[:60]}: {str(e)[:200]}")
+    calls = demand.network_calls() - sent0  # listings Review Mining already read come from the cache
     now = datetime.now(timezone.utc)
     saved = 0
     with session_scope() as db:

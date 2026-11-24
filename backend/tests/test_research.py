@@ -69,12 +69,17 @@ def test_research_requires_configuration(authed, project):
 
 def test_full_market_opportunity_run(authed, project, fake_llm, monkeypatch):
     monkeypatch.setattr("app.api.research.submit_run", opportunity.execute_run)  # run synchronously
+    # Competitors are researched once, by Competitor Discovery; the market report reads them instead of searching again.
+    r = authed.post(f"/api/projects/{project['id']}/research-runs", json={"kind": "competitor_discovery"})
+    assert r.status_code == 201, r.text
+    assert authed.get(f"/api/research-runs/{r.json()['id']}").json()["status"] == "completed"
     r = authed.post(f"/api/projects/{project['id']}/research-runs", json={"kind": "market_opportunity", "focus": "practice wear"})
     assert r.status_code == 201, r.text
     run = authed.get(f"/api/research-runs/{r.json()['id']}").json()
     assert run["status"] == "completed", run
-    assert [s["status"] for s in run["steps"]] == ["completed"] * 7
-    assert run["search_requests"] == 12
+    assert [s["key"] for s in run["steps"]] == ["demand_signals", "market_size", "customers", "risks", "synthesis"]
+    assert [s["status"] for s in run["steps"]] == ["completed"] * 5
+    assert run["search_requests"] == 8
     assert run["cost_usd"] > 0
 
     findings = authed.get(f"/api/projects/{project['id']}/findings").json()
@@ -110,7 +115,7 @@ def test_full_market_opportunity_run(authed, project, fake_llm, monkeypatch):
     assert recs[0]["title"] == "Run a landing page test"
     execs = authed.get(f"/api/projects/{project['id']}/agent-executions").json()
     assert {e["status"] for e in execs} == {"succeeded"}
-    assert len(execs) == 7
+    assert len(execs) == 6  # competitor discovery + the market run (no duplicate competitors or sourcing step)
     # Without a SerpApi key the demand step says so instead of inventing popularity data.
     assert any(f["section"] == "demand" and "SerpApi" in f["claim"] and f["evidence_type"] == "unavailable" for f in findings)
 

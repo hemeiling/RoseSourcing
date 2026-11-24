@@ -2,7 +2,6 @@
 
 import { AlertTriangle, CheckCircle2, CircleHelp, Image as ImageIcon, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useState } from "react";
-import { ResearchRunStarter } from "@/components/research-run-starter";
 import { Badge, Button, Card, CardBody, ExternalLink, ProductThumb, Spinner, type Tone } from "@/components/ui";
 import { errorText, post } from "@/lib/api";
 import { date, domainOf, money, titleCase } from "@/lib/format";
@@ -49,11 +48,8 @@ export function PriceTiersSection({ projectId }: { projectId: string }) {
   };
   return (
     <div className="space-y-4">
-      <ResearchRunStarter projectId={projectId} kind="price_tiers" label="Research price tiers" onFinished={snap.reload}
-        approval="This runs one research step: real listings from Amazon best sellers, Etsy, Google Shopping and brand sites, split into budget to luxury tiers with quality differences and customer needs per tier."
-        focusPlaceholder="e.g. compare $10 Amazon headbands with $60+ silk and designer ones" />
       {snap.loading && !snap.data ? <Spinner /> : !snap.data ? (
-        <p className="text-sm text-slate-500">No price-tier research yet for this product.</p>
+        <p className="text-sm text-slate-500">Not researched yet. Run the Price Tier Agent from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>.</p>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-3">
@@ -136,11 +132,8 @@ export function ComplianceSection({ projectId }: { projectId: string }) {
   const areas = c ? [...new Set(c.items.map((i) => i.area))] : [];
   return (
     <div className="space-y-4">
-      <ResearchRunStarter projectId={projectId} kind="compliance" label="Run compliance check" onFinished={snap.reload}
-        approval="This searches USPTO/Google Patents for similar design patents and trademarks, the FTC/CPSC labelling rules, and UFLPA guidance and the Entity List (checking your suppliers' names). It then writes a checklist and drafts questions for each supplier - drafts are never sent."
-        focusPlaceholder="e.g. knotted top-knot design with tweed and plaid fabrics" />
       {snap.loading && !snap.data ? <Spinner /> : !c ? (
-        <p className="text-sm text-slate-500">No compliance check yet for this product.</p>
+        <p className="text-sm text-slate-500">Not researched yet. Run the Compliance &amp; IP Agent from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>.</p>
       ) : (
         <Card>
           <CardBody className="space-y-4">

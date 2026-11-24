@@ -2,7 +2,6 @@
 
 import { Star } from "lucide-react";
 import { useState } from "react";
-import { ResearchRunStarter } from "@/components/research-run-starter";
 import { Badge, Card, CardBody, CardHeader, ExternalLink, Spinner } from "@/components/ui";
 import { date, domainOf, num, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
@@ -66,22 +65,13 @@ type Reviews = {
 /** Complaints in 1-3 star reviews of the leading listings, tagged for comfort, fit and durability. */
 export function ReviewInsightsSection({ projectId }: { projectId: string }) {
   const snap = useApi<Snapshot<Reviews>>(`/api/projects/${projectId}/snapshots/review_insights`);
-  const tracker = useApi<Snapshot<Tracker>>(`/api/projects/${projectId}/snapshots/listing_tracker`);
   const c = snap.data?.content;
   const [tag, setTag] = useState("all");
   const shown = (c?.reviews ?? []).filter((r) => tag === "all" || r.tags.includes(tag));
   return (
     <div className="space-y-4">
-      {tracker.data === null && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          Run the Listing Tracker first (<a href="#listings" className="font-semibold underline">Listing tracker</a>): this agent reads the reviews of the leading listings it found.
-        </p>
-      )}
-      <ResearchRunStarter projectId={projectId} kind="review_mining" label="Read low-star reviews" onFinished={snap.reload}
-        approval="This reads the reviews of the 6 most-reviewed tracked listings through SerpApi (Google's product panel and Amazon's product page), searches the web - Etsy, brand sites, Reddit - for 1-3 star reviews, then tags each complaint as comfort, fit, durability and so on. A quote is kept only if it appears word for word in its source."
-        focusPlaceholder="e.g. headaches, slipping, knot coming undone" />
       {snap.loading && !snap.data ? <Spinner /> : !c ? (
-        <p className="text-sm text-slate-500">No reviews tagged yet for this product.</p>
+        <p className="text-sm text-slate-500">No reviews tagged yet. Run the Review Insights Agent from the <a href="#review" className="font-semibold text-primary-700 underline">agents list at the top</a>, after the Listing Tracker.</p>
       ) : (
         <>
           <Card>

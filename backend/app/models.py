@@ -711,3 +711,15 @@ class ApiToken(IdMixin, Base):
     last4: Mapped[str] = mapped_column(String(8))
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SerpCache(Base):
+    """A SerpApi response kept for a while, so agents asking the same thing (the same listing's reviews, the same
+    marketplace search) share one paid request. Keyed by a hash of the request parameters; the API key is never stored."""
+
+    __tablename__ = "serp_cache"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    engine: Mapped[str] = mapped_column(String(40))
+    response: Mapped[dict[str, Any]] = mapped_column(JSONB)
+    fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)

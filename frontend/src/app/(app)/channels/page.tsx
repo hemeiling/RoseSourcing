@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useState } from "react";
 import { RequireProject } from "@/components/app-shell";
 import { ChannelsTab } from "@/components/channels/channels-tab";
 import { PlanTab } from "@/components/channels/plan-tab";
@@ -14,9 +14,8 @@ function ChannelsView({ projectId }: { projectId: string }) {
   const params = useSearchParams();
   const initial = params.get("tab");
   const [tab, setTab] = useState<Tab>(initial === "channels" || initial === "shipping" ? initial : "plan");
-  // Bumped when research finishes so the other tabs pick up new channels and shipping options.
-  const [version, setVersion] = useState(0);
-  const bump = useCallback(() => setVersion((v) => v + 1), []);
+  // The product report remounts this page when an agent finishes, so the tabs always load fresh channels and shipping options.
+  const version = 0;
 
   return (
     <>
@@ -33,7 +32,7 @@ function ChannelsView({ projectId }: { projectId: string }) {
           { value: "shipping", label: "Shipping & fulfillment" },
         ]}
       />
-      <div hidden={tab !== "plan"}><PlanTab projectId={projectId} onDataChanged={bump} /></div>
+      <div hidden={tab !== "plan"}><PlanTab projectId={projectId} /></div>
       {tab === "channels" && <ChannelsTab projectId={projectId} version={version} />}
       {tab === "shipping" && <ShippingTab projectId={projectId} version={version} />}
     </>

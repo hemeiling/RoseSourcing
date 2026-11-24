@@ -26,10 +26,12 @@ from .opportunity import _safe_execute, initial_steps
 
 log = logging.getLogger(__name__)
 
-ORDER = ("market_opportunity", "price_tiers", "listing_tracker", "competitor_discovery", "fit_sizing", "supplier_listings",
-         "review_mining", "buyer_style", "compliance", "channels_logistics")
+# Each agent reads what the earlier ones saved: the listings feed the reviews, and Market research runs last so its
+# report (and margin estimate) can use the competitors, supplier prices, freight and duties already found.
+ORDER = ("price_tiers", "listing_tracker", "competitor_discovery", "fit_sizing", "supplier_listings",
+         "review_mining", "buyer_style", "compliance", "channels_logistics", "market_opportunity")
 # Typical cost of a full run (USD), from runs so far; a resumed run costs only its unfinished share.
-ESTIMATE_USD = {"market_opportunity": 5.0, "price_tiers": 1.0, "listing_tracker": 0.1, "competitor_discovery": 2.5, "fit_sizing": 1.5,
+ESTIMATE_USD = {"market_opportunity": 3.5, "price_tiers": 1.0, "listing_tracker": 0.1, "competitor_discovery": 2.5, "fit_sizing": 1.5,
                 "supplier_listings": 1.6, "review_mining": 1.2, "buyer_style": 1.8, "compliance": 2.0, "channels_logistics": 4.6}
 DONE = ("completed", "completed_with_errors")
 ACTIVE = ("queued", "running")
