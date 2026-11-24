@@ -160,6 +160,8 @@ export const competitors = {
   "medium confidence": "中等置信度",
   "low confidence": "低置信度",
   "AI: not assessed yet": "AI：尚未评估",
+  "Add a photo": "添加照片",
+  "Uploading...": "正在上传…",
   "Market: {value}": "市场：{value}",
   "Researching: {step}": "调研中：{step}",
   "Researching...": "调研中…",
@@ -175,12 +177,15 @@ export const competitors = {
   // ------------------------------------------------------------------ product snap
   "Please choose an image (JPEG, PNG, WebP or GIF).": "请选择图片（JPEG、PNG、WebP 或 GIF）。",
   "Snap a product to research": "拍产品，做调研",
-  "Upload, drag in, or paste (Cmd+V) a photo or screenshot of something you might sell. AI identifies it, then researches demand, competitors, pricing and sourcing.":
-    "上传、拖入或粘贴（Cmd+V）你可能要卖的产品照片或截图。AI 会先识别产品，再调研需求、竞品、定价和货源。",
+  "Upload, drag in, or paste (Cmd+V) photos of something you might sell - up to 6 views of the same product - or a sketch of your own design. AI identifies it, then researches demand, competitors, pricing and sourcing.":
+    "上传、拖入或粘贴（Cmd+V）你可能要卖的产品照片（同一产品最多 6 个角度），或你自己的设计草图。AI 会先识别产品，再调研需求、竞品、定价和货源。",
+  "Add up to {n} photos of one product.": "同一产品最多添加 {n} 张照片。",
+  "{n} photos": "{n} 张照片",
+  "From a design sketch": "来自设计草图",
   "Uploaded product": "上传的产品",
   "Identifying the product...": "正在识别产品…",
-  "Drop an image here, paste a screenshot, or": "把图片拖到这里、粘贴截图，或",
-  "Choose photo": "选择照片",
+  "Drop up to 6 photos of one product here, paste a screenshot, or": "把同一产品的照片（最多 6 张）拖到这里、粘贴截图，或",
+  "Choose photos": "选择照片",
   "Camera": "拍照",
   "Selling to (target market)": "销往（目标市场）",
   "Sourcing from (optional)": "货源地（选填）",

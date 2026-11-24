@@ -1,6 +1,6 @@
 "use client";
 
-import { ImageIcon, Loader2, Sparkles, Trash2 } from "lucide-react";
+import { ImageIcon, ImagePlus, Loader2, Sparkles, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { AI_REC_META, DecisionBadge, DecisionModal, DECISION_META } from "@/components/decision";
@@ -8,10 +8,11 @@ import { ProductSnap } from "@/components/product-snap";
 import { useProjects } from "@/components/providers";
 import { Alert, Badge, Button, Card, CardBody, EmptyState, PageHeader, Spinner } from "@/components/ui";
 import { AGENTS } from "@/lib/agents";
-import { del, errorText } from "@/lib/api";
+import { api, del, errorText } from "@/lib/api";
 import { ago, money, pct, titleCase } from "@/lib/format";
 import { useApi, usePolling } from "@/lib/hooks";
 import { useT, type MsgKey } from "@/lib/i18n";
+import { prepareImage } from "@/lib/image";
 import { productHref, type SectionId } from "@/lib/sections";
 import type { Decision, PipelineItem } from "@/lib/types";
 
@@ -41,6 +42,24 @@ export default function ProductsPage() {
     try { await del(`/api/projects/${p.id}`); reload(); reloadProjects(); }
     catch (e) { setDeleteError(errorText(e)); }
   }
+  // A picture for a product without one: stored as is - no AI, no research.
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  async function addPhoto(p: PipelineItem, file: File | undefined) {
+    if (!file) return;
+    setPhotoError(null);
+    setUploading(p.id);
+    try {
+      const form = new FormData();
+      form.append("file", await prepareImage(file));
+      await api(`/api/projects/${p.id}/cover-photo`, { method: "POST", form });
+      reload();
+    } catch (e) {
+      setPhotoError(errorText(e));
+    } finally {
+      setUploading(null);
+    }
+  }
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: data?.length ?? 0 };
@@ -69,6 +88,7 @@ export default function ProductsPage() {
       </div>
       {error && <Alert tone="red">{errorText(error)}</Alert>}
       {deleteError && <Alert tone="red">{deleteError}</Alert>}
+      {photoError && <Alert tone="red">{photoError}</Alert>}
       {loading && !data ? <Spinner /> : rows.length === 0 ? (
         <Card><EmptyState icon={<ImageIcon className="h-5 w-5" />} title={filter === "all" ? t("No products yet") : t("No {label} products", { label: tx(DECISION_META[filter as Decision]?.label ?? "") })}>
           {t("Snap a product photo above, or create a project for a category in Business Projects.")}
@@ -85,7 +105,13 @@ export default function ProductsPage() {
                   {p.image_url ? (
                     <img src={p.image_url} alt={p.name} className="h-20 w-20 shrink-0 rounded-lg object-cover" />
                   ) : (
-                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-400"><ImageIcon className="h-6 w-6" /></div>
+                    <label title={t("Add a photo")}
+                      className="group flex h-20 w-20 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-brand-200 bg-brand-50 text-brand-400 hover:border-primary-400 hover:text-primary-600">
+                      {uploading === p.id ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <ImagePlus className="h-5 w-5" aria-hidden />}
+                      <span className="px-1 text-center text-[10px] font-medium leading-tight">{uploading === p.id ? t("Uploading...") : t("Add a photo")}</span>
+                      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploading === p.id}
+                        onChange={(e) => { addPhoto(p, e.target.files?.[0]); e.target.value = ""; }} />
+                    </label>
                   )}
                   <div className="min-w-0 flex-1">
                     <button onClick={() => open(p)} className="block break-words text-left font-serif text-lg font-semibold text-primary-700 hover:underline">{p.name}</button>

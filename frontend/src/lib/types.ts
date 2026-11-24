@@ -631,6 +631,7 @@ export interface ConnectorStatus {
 
 export interface ProductIdentification {
   is_product: boolean;
+  image_kind?: "photo" | "screenshot" | "sketch_or_design";
   product_name: string;
   research_category: string;
   product_type: string;
@@ -649,7 +650,7 @@ export interface ProductIdentification {
 export interface ProductScan {
   id: string;
   project_id: string;
-  status: "identifying" | "identified" | "failed";
+  status: "identifying" | "identified" | "failed" | "uploaded";
   identification: ProductIdentification | null;
   error: string | null;
   research_run_id: string | null;

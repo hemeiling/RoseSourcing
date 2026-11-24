@@ -123,6 +123,32 @@ def test_photo_scan_creates_project_and_starts_research(authed, project, fake_ll
     assert authed.post(f"/api/projects/{project['id']}/product-scans", files={"file": ("x.txt", b"hi", "text/plain")}).status_code == 400
 
 
+def test_several_photos_of_one_product_are_identified_together(authed, fake_llm, monkeypatch):
+    monkeypatch.setattr("app.api.scans.submit_run", lambda run_id: None)
+    JPG = b"\xff\xd8\xff" + b"1" * 32
+    r = authed.post("/api/product-scans", files=[("files", ("front.png", PNG, "image/png")), ("files", ("label.jpg", JPG, "image/jpeg"))],
+                    data={"auto_research": "false"})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["photos"] == 2 and [mt for mt, _ in fake_llm.images] == ["image/png", "image/jpeg"]  # one call sees both
+    scans = authed.get(f"/api/projects/{body['project_id']}/product-scans").json()
+    assert len(scans) == 2 and all(s["status"] == "identified" for s in scans)
+    assert authed.get(f"/api/projects/{body['project_id']}").json()["cover_scan_id"] == body["scan"]["id"]
+    assert authed.get(body["scan"]["image_url"]).content == PNG  # the first photo is the cover
+    seven = [("files", (f"{i}.png", PNG, "image/png")) for i in range(7)]
+    assert authed.post("/api/product-scans", files=seven).status_code == 400
+    assert authed.post("/api/product-scans", data={"auto_research": "false"}).status_code == 400  # no photo at all
+
+
+def test_cover_photo_for_an_existing_product_uses_no_ai(authed, project, fake_llm):
+    r = authed.post(f"/api/projects/{project['id']}/cover-photo", files={"file": ("p.png", PNG, "image/png")})
+    assert r.status_code == 201, r.text
+    assert not hasattr(fake_llm, "images")  # stored as is: the AI never saw it, nothing was researched
+    assert authed.get(f"/api/projects/{project['id']}").json()["cover_scan_id"] == r.json()["id"]
+    assert authed.get(r.json()["image_url"]).content == PNG
+    assert authed.get(f"/api/projects/{project['id']}/research-runs").json() == []
+
+
 def test_photo_scan_without_any_project(authed, fake_llm, monkeypatch):
     monkeypatch.setattr("app.api.scans.submit_run", opportunity.execute_run)
     assert authed.get("/api/projects").json() == []

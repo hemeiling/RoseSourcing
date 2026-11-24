@@ -9,7 +9,7 @@ from sqlalchemy import select
 from .. import audit
 from ..models import BusinessProject, ProductScan, ResearchRun
 from ..services.agents.opportunity import initial_steps, submit_run
-from ..services.agents.product_scan import ALLOWED_TYPES, MAX_BYTES, identify
+from ..services.agents.product_scan import ALLOWED_TYPES, MAX_BYTES, MAX_PHOTOS, identify
 from ..services.llm.anthropic_provider import get_llm
 from ..services.research.providers import get_research_provider
 from .deps import DB, CurrentUser, ProjectDep, owned
@@ -37,7 +37,8 @@ def start_scan_research(db, project: BusinessProject, scan: ProductScan, user) -
     params = {
         "category": ident.get("research_category") or project.product_category,
         "geography": project.target_country,
-        "focus": "Product from the founder's photo: " + "; ".join(
+        "focus": ("Product from the founder's design sketch: " if ident.get("image_kind") == "sketch_or_design"
+                  else "Product from the founder's photo: ") + "; ".join(
             [ident.get("product_name", "")] + (ident.get("key_attributes") or [])[:6]),
         "keywords": (ident.get("search_keywords") or [])[:3],
         "product_scan_id": str(scan.id),
@@ -62,20 +63,31 @@ async def _read_image(file: UploadFile) -> tuple[str, bytes]:
     return media_type, data
 
 
-def _process_scan(db, user, media_type: str, data: bytes, *, source: BusinessProject | None, mode: str, auto_research: bool,
+async def _read_images(file: UploadFile | None, files: list[UploadFile] | None) -> list[tuple[str, bytes]]:
+    """One photo (`file`) or several of the same product (`files`)."""
+    uploads = ([file] if file else []) + list(files or [])
+    if not uploads:
+        raise HTTPException(400, "Add at least one photo.")
+    if len(uploads) > MAX_PHOTOS:
+        raise HTTPException(400, f"Add up to {MAX_PHOTOS} photos of one product.")
+    return [await _read_image(f) for f in uploads]
+
+
+def _process_scan(db, user, images: list[tuple[str, bytes]], *, source: BusinessProject | None, mode: str, auto_research: bool,
                   target_country: str, sourcing_country: str | None) -> dict:
-    """Identify the photo, attach it to the source project or a new product project, and optionally start research."""
-    scan = None
+    """Identify the product from its photos, attach them to the source project or a new product project (the first photo is
+    the cover), and optionally start research."""
+    scans: list[ProductScan] = []
     if source is not None:
-        scan = ProductScan(project_id=source.id, created_by_id=user.id, image=data, media_type=media_type, status="identifying")
-        db.add(scan)
+        scans = [ProductScan(project_id=source.id, created_by_id=user.id, image=d, media_type=mt, status="identifying") for mt, d in images]
+        db.add_all(scans)
         db.commit()
     try:
-        ident, _ex = identify(db, user, media_type, data, target_country=target_country, sourcing_country=sourcing_country, project=source)
+        ident, _ex = identify(db, user, images, target_country=target_country, sourcing_country=sourcing_country, project=source)
     except Exception as e:
-        if scan is not None:
-            scan.status, scan.error = "failed", str(e)[:1000]
-            db.commit()
+        for s in scans:
+            s.status, s.error = "failed", str(e)[:1000]
+        db.commit()
         raise
     if source is None or mode == "new_project":
         if not ident.is_product and source is None:
@@ -85,25 +97,29 @@ def _process_scan(db, user, media_type: str, data: bytes, *, source: BusinessPro
             owner_id=user.id, name=ident.product_name[:200], product_category=ident.research_category[:200],
             target_country=target_country, sourcing_country=sourcing_country,
             budget_usd=source.budget_usd if source else None, target_customers=", ".join(ident.likely_customers)[:2000] or None,
-            notes="Created from a product photo. Category and customers are AI inferences from the image - edit as needed.",
+            notes=("Created from a design sketch. " if ident.image_kind == "sketch_or_design" else "Created from a product photo. ")
+            + "Category and customers are AI inferences from the image - edit as needed.",
             assumptions=[{"label": "Product identified from photo", "value": ident.product_name, "status": "hypothesis"}],
         )
         db.add(target)
         db.flush()
-        if scan is None:
-            scan = ProductScan(project_id=target.id, created_by_id=user.id, image=data, media_type=media_type)
-            db.add(scan)
-        scan.project_id = target.id
+        if not scans:
+            scans = [ProductScan(project_id=target.id, created_by_id=user.id, image=d, media_type=mt) for mt, d in images]
+            db.add_all(scans)
+        for s in scans:
+            s.project_id = target.id
         db.flush()
-        target.cover_scan_id = scan.id
+        target.cover_scan_id = scans[0].id
         audit.record(db, "project.created", user_id=user.id, project_id=target.id, entity_type="project", entity_id=target.id,
-                     details={"from": "product_photo", "scan_id": str(scan.id)})
+                     details={"from": "product_photo", "scan_id": str(scans[0].id), "photos": len(scans)})
     else:
         target = source
         if target.cover_scan_id is None:
-            target.cover_scan_id = scan.id
-    scan.identification = ident.model_dump()
-    scan.status = "identified"
+            target.cover_scan_id = scans[0].id
+    for s in scans:
+        s.identification = ident.model_dump()
+        s.status = "identified"
+    scan = scans[0]  # research and the response refer to the cover photo
     run, note = (None, None)
     if not ident.is_product:
         note = "This image doesn't look like a sellable product, so no research was started."
@@ -112,8 +128,8 @@ def _process_scan(db, user, media_type: str, data: bytes, *, source: BusinessPro
     db.commit()
     if run:
         submit_run(run.id)
-    return {"scan": scan_out(scan, run), "project_id": str(target.id), "run": {"id": str(run.id), "status": run.status} if run else None,
-            "research_note": note}
+    return {"scan": scan_out(scan, run), "photos": len(scans), "project_id": str(target.id),
+            "run": {"id": str(run.id), "status": run.status} if run else None, "research_note": note}
 
 
 @router.post("/projects/{project_id}/product-scans", status_code=201)
@@ -121,12 +137,13 @@ async def create_scan(
     project: ProjectDep,
     db: DB,
     user: CurrentUser,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    files: list[UploadFile] | None = File(None),
     mode: str = Form("new_project"),
     auto_research: bool = Form(True),
 ) -> dict:
-    media_type, data = await _read_image(file)
-    return _process_scan(db, user, media_type, data, source=project, mode=mode, auto_research=auto_research,
+    images = await _read_images(file, files)
+    return _process_scan(db, user, images, source=project, mode=mode, auto_research=auto_research,
                          target_country=project.target_country, sourcing_country=project.sourcing_country)
 
 
@@ -134,15 +151,30 @@ async def create_scan(
 async def create_scan_without_project(
     db: DB,
     user: CurrentUser,
-    file: UploadFile = File(...),
+    file: UploadFile | None = File(None),
+    files: list[UploadFile] | None = File(None),
     auto_research: bool = Form(True),
     target_country: str = Form("United States"),
     sourcing_country: str | None = Form(None),
 ) -> dict:
     """Snap a product before any project exists: always creates a new product project."""
-    media_type, data = await _read_image(file)
-    return _process_scan(db, user, media_type, data, source=None, mode="new_project", auto_research=auto_research,
+    images = await _read_images(file, files)
+    return _process_scan(db, user, images, source=None, mode="new_project", auto_research=auto_research,
                          target_country=target_country.strip() or "United States", sourcing_country=(sourcing_country or "").strip() or None)
+
+
+@router.post("/projects/{project_id}/cover-photo", status_code=201)
+async def set_cover_photo(project: ProjectDep, db: DB, user: CurrentUser, file: UploadFile = File(...)) -> dict:
+    """A picture for an existing product: stored as is and shown on its card - no AI and no research."""
+    media_type, data = await _read_image(file)
+    scan = ProductScan(project_id=project.id, created_by_id=user.id, image=data, media_type=media_type, status="uploaded")
+    db.add(scan)
+    db.flush()
+    project.cover_scan_id = scan.id
+    audit.record(db, "project.cover_photo_added", user_id=user.id, project_id=project.id, entity_type="project", entity_id=project.id,
+                 details={"scan_id": str(scan.id)})
+    db.commit()
+    return scan_out(scan)
 
 
 @router.post("/product-scans/{scan_id}/research")

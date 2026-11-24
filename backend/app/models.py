@@ -113,7 +113,7 @@ class ProductScan(IdMixin, TimestampMixin, Base):
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     image: Mapped[bytes] = mapped_column(LargeBinary)
     media_type: Mapped[str] = mapped_column(String(32))
-    status: Mapped[str] = mapped_column(String(16), default="identifying")  # identifying | identified | failed
+    status: Mapped[str] = mapped_column(String(16), default="identifying")  # identifying | identified | failed | uploaded (a picture only)
     identification: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     error: Mapped[str | None] = mapped_column(Text)
     research_run_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("research_runs.id", ondelete="SET NULL"))
