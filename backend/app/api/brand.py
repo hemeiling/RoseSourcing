@@ -16,6 +16,7 @@ router = APIRouter(prefix="/api", tags=["brand"])
 TITLES = {
     "names": "Brand name ideas", "positioning": "Brand positioning", "personas": "Customer personas",
     "voice": "Brand voice", "collections": "Collection concepts", "palettes": "Color palettes", "messaging": "Marketing messages",
+    "social_posts": "Social posts", "video_script": "Video script", "image_briefs": "Image briefs",
 }
 
 

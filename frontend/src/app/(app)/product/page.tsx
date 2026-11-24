@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { AlertTriangle, ArrowRight, Bot, ChevronDown, ChevronsDownUp, ChevronsUpDown, ListChecks, Loader2, Pencil, PlayCircle } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bot, ChevronDown, ChevronsDownUp, ChevronsUpDown, ListChecks, Loader2, Pencil, PlayCircle, RotateCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
@@ -16,7 +16,7 @@ import { ComplianceSection, PriceTiersSection } from "@/components/product-insig
 import { ResearchRunStarter } from "@/components/research-run-starter";
 import { AddListingLinks } from "@/components/suppliers/add-links";
 import { useProjects } from "@/components/providers";
-import { Button, Card, CardBody, CardHeader, EmbedContext, EmptyState, Modal, Spinner } from "@/components/ui";
+import { Button, Card, CardHeader, EmbedContext, EmptyState, Modal, Spinner } from "@/components/ui";
 import { money } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import { AGENTS } from "@/lib/agents";
@@ -166,7 +166,7 @@ function AgentRow({ projectId, agent, last, estimate, otherRunning, onChange }: 
   return (
     <li className="flex flex-col gap-1.5 px-5 py-2.5 sm:flex-row sm:items-start sm:gap-4">
       <div className="min-w-0 flex-1">
-        <div className="font-semibold text-ink">{agent.name}</div>
+        <a href={`#${agent.section}`} className="font-semibold text-ink hover:text-primary-700 hover:underline" title="Open its results">{agent.name}</a>
         <div className="text-xs text-slate-500">{agent.does}</div>
         {running && (
           <div className="mt-2" aria-live="polite">
@@ -195,13 +195,13 @@ function AgentRow({ projectId, agent, last, estimate, otherRunning, onChange }: 
             <Button size="sm" variant="ghost" onClick={() => setConfirm(false)}>Cancel</Button>
           </span>
         ) : (
-          <span className="flex items-center gap-3 whitespace-nowrap">
-            <Button size="sm" variant={last && !resume ? "secondary" : "primary"} onClick={() => setConfirm(true)} disabled={otherRunning}
-              title={otherRunning ? "Another agent is running for this product - this one can start when it finishes" : undefined}>
-              <PlayCircle className="h-3.5 w-3.5" /> {resume ? "Continue" : last ? "Run again" : "Run"}
-            </Button>
-            <a href={`#${agent.section}`} className="font-semibold text-primary-700 hover:underline">{last ? "Open" : "Details"} →</a>
-          </span>
+          <button onClick={() => setConfirm(true)} disabled={otherRunning}
+            title={otherRunning ? "Another agent is running for this product - this one can start when it finishes" : undefined}
+            className={clsx("flex items-center gap-1 whitespace-nowrap font-semibold hover:underline disabled:text-slate-300 disabled:no-underline",
+              last && !resume ? "text-slate-600" : "text-primary-700")}>
+            {last && !resume ? <RotateCw className="h-3.5 w-3.5" aria-hidden /> : <PlayCircle className="h-3.5 w-3.5" aria-hidden />}
+            {resume ? "Continue" : last ? "Run again" : "Run"}
+          </button>
         )}
       </div>
     </li>
@@ -209,7 +209,7 @@ function AgentRow({ projectId, agent, last, estimate, otherRunning, onChange }: 
 }
 
 /** Every research agent, with its latest run for this product, a Run button and live progress. */
-function AgentsPanel({ projectId }: { projectId: string }) {
+function AgentsPanel({ projectId, extra }: { projectId: string; extra?: ReactNode }) {
   const runs = useApi<ResearchRun[]>(`/api/projects/${projectId}/research-runs`);
   const plan = useApi<RunAllPlan>(`/api/projects/${projectId}/research-runs/run-all`);
   const { reload: reloadRuns } = runs;
@@ -242,6 +242,7 @@ function AgentsPanel({ projectId }: { projectId: string }) {
           );
         })}
       </ul>
+      {extra}
     </Card>
   );
 }
@@ -252,23 +253,12 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
   const reports = useApi<Opportunity[]>(`/api/projects/${projectId}/opportunities`);
   if (!dash.data || !reports.data) return <Spinner />;
   const c = dash.data.counts;
-  const report = reports.data[0]?.report;
   const unavailable = dash.data.findings_by_type.unavailable ?? 0;
   const todos: Todo[] = [];
   const cm = dash.data.latest_scenario?.contribution_margin;
-  if (!c.research_runs) todos.push({ text: "Run market research", detail: "Nothing has been researched for this product yet.", section: "research", tone: "amber" });
   if (cm !== null && cm !== undefined && cm < 0)
     todos.push({ text: `Unit contribution is negative (${money(cm)})`, detail: `At ${money(dash.data.latest_scenario?.retail_price)} retail you lose money on each sale - revisit price or costs.`, section: "economics", tone: "red" });
-  if (!c.suppliers) todos.push({ text: "No suppliers yet", detail: "Factory cost, MOQ and lead time are still assumptions - search B2B listings to start.", section: "supplier-list", tone: "amber" });
-  if (!c.competitors) todos.push({ text: "No competitors tracked", detail: "Add the brands you compete with and their prices.", section: "brands", tone: "amber" });
-  if (!c.size_charts) todos.push({ text: "No size chart yet", detail: "Add your size guide or a supplier's chart so customers can find their size.", section: "sizing", tone: "slate" });
-  if (!c.channels) todos.push({ text: "Selling channels not compared", detail: "Compare marketplace and store fees for this product.", section: "channels", tone: "slate" });
   if (!c.scenarios) todos.push({ text: "No unit economics yet", detail: "Model cost, price and margin.", section: "economics", tone: "slate" });
-  if (!c.price_tier_reports) todos.push({ text: "Price tiers not researched", detail: "See what budget, mid, premium and luxury buyers each want before you pick a price.", section: "pricing", tone: "slate" });
-  if (!c.compliance_checks) todos.push({ text: "No compliance check yet", detail: "Design patents, labelling and UFLPA forced-labour rules - and questions for your supplier.", section: "compliance", tone: "amber" });
-  if (!c.listing_reports) todos.push({ text: "Comparable listings not tracked", detail: "Log Google Trends plus price, rating, review count and badges for 15-20 directly comparable listings.", section: "listings", tone: "slate" });
-  if (!c.buyer_reports) todos.push({ text: "Buyers & style not profiled", detail: "Count who buys (stated ages, who wears it, occasions) and which looks they like from every customer comment collected.", section: "buyers", tone: "slate" });
-  if (!c.review_reports) todos.push({ text: "Low-star reviews not tagged", detail: "Find the comfort, fit and durability complaints in competitors' 1-3 star reviews.", section: "reviews", tone: "slate" });
   if (c.suppliers && !c.spec_sheets) todos.push({ text: "No spec sheet yet", detail: "Draft the spec sheet suppliers will quote against.", section: "outreach", tone: "amber" });
   if (c.suppliers && c.rfqs_sent < 5)
     todos.push({ text: c.rfqs_sent ? `Only ${c.rfqs_sent} supplier${c.rfqs_sent === 1 ? "" : "s"} asked for quotes` : "No supplier asked for quotes yet",
@@ -277,17 +267,15 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
   if (unavailable) todos.push({ text: `${unavailable} research questions had no reliable data`, detail: "Listed as 'data unavailable' findings - these are your evidence gaps.", section: "research", tone: "slate" });
   if (decision === "undecided") todos.push({ text: "Record your go / no-go decision", detail: "Your decision is saved with a snapshot of the evidence.", section: "decision", tone: "slate" });
 
+  // One card: the agents (each row shows what is missing and runs it), then the steps no agent covers.
   return (
-    <div className="grid gap-4">
-      <AgentsPanel projectId={projectId} />
-      <Card >
-        <CardHeader title="Checklist" icon={<ListChecks className="h-4 w-4" />} subtitle="What is missing or weak, based on everything saved for this product." />
-        <CardBody>
-          {todos.length === 0 ? <p className="text-sm text-slate-600">Nothing obvious is missing. Evidence gaps are listed in the market research report.</p> : (
-            <ul className="grid gap-x-8">
+    <AgentsPanel projectId={projectId} extra={todos.length > 0 && (
+      <div className="border-t border-line px-5 py-2.5">
+        <h3 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><ListChecks className="h-3.5 w-3.5" aria-hidden />Also to do</h3>
+            <ul>
               {todos.map((t) => (
-                <li key={t.text} className="border-b border-slate-100">
-                  <a href={`#${t.section}`} className="group flex items-start gap-2.5 py-2.5">
+                <li key={t.text} className="border-b border-slate-100 last:border-b-0">
+                  <a href={`#${t.section}`} className="group flex items-start gap-2.5 py-2">
                     <AlertTriangle className={clsx("mt-0.5 h-4 w-4 shrink-0", t.tone === "red" ? "text-red-600" : t.tone === "amber" ? "text-amber-600" : "text-slate-400")} aria-hidden />
                     <span className="min-w-0 flex-1">
                       <span className={clsx("block text-sm font-medium", t.tone === "red" ? "text-red-700" : "text-ink")}>{t.text}</span>
@@ -298,10 +286,8 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
                 </li>
               ))}
             </ul>
-          )}
-        </CardBody>
-      </Card>
-    </div>
+      </div>
+    )} />
   );
 }
 

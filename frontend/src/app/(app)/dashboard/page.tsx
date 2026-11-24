@@ -205,23 +205,6 @@ function DashboardView({ projectId }: { projectId: string }) {
             </>
           )}
 
-          <Card>
-            <CardHeader title="Recent activity" subtitle={`Estimated AI spend on this project: ${money(data.ai_spend_usd, { decimals: 2 })}`} />
-            <CardBody className="p-0">
-              {data.recent_activity.length === 0 ? (
-                <p className="px-5 py-4 text-sm text-slate-500">No activity yet.</p>
-              ) : (
-                <ul className="grid gap-x-6 px-5 py-1">
-                  {data.recent_activity.slice(0, 6).map((a, i) => (
-                    <li key={i} className="flex items-center justify-between gap-2 border-b border-slate-100 py-2 text-xs">
-                      <span className="text-slate-700">{titleCase(a.action.replace(".", " "))}</span>
-                      <span className="shrink-0 text-slate-400">{a.actor.startsWith("agent:") ? "AI · " : ""}{ago(a.created_at)}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardBody>
-          </Card>
         </div>
       </div>
     </>

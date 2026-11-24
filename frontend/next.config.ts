@@ -13,7 +13,11 @@ const nextConfig: NextConfig = {
   turbopack: { root: process.cwd() },
   ...(isExport
     ? { output: "export" as const }
-    : { rewrites: async () => [{ source: "/api/:path*", destination: `${apiDev}/api/:path*` }] }),
+    : {
+        rewrites: async () => [{ source: "/api/:path*", destination: `${apiDev}/api/:path*` }],
+        // AI drafts can take a minute; the dev proxy's default 30 s limit would report them as errors.
+        experimental: { proxyTimeout: 180_000 },
+      }),
 };
 
 export default nextConfig;

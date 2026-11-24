@@ -34,6 +34,9 @@ const KINDS = [
   { value: "collections", label: "Collections", desc: "2-3 product collection concepts sized for a first run." },
   { value: "palettes", label: "Color palettes", desc: "3 five-color palettes with usage notes." },
   { value: "messaging", label: "Marketing messages", desc: "Taglines, value props, ad hooks and email subjects." },
+  { value: "social_posts", label: "Social posts", desc: "5 Instagram, TikTok and Pinterest posts in your buyers' own words, with what to confirm before posting.", content: true },
+  { value: "video_script", label: "Video script", desc: "A 20-30 second vertical video: hook, scenes, voice-over and a presenter/avatar script.", content: true },
+  { value: "image_briefs", label: "Image briefs", desc: "4 image prompts (hero, lifestyle, flat lay, social) for an image tool or photographer.", content: true },
 ] as const;
 
 type Kind = (typeof KINDS)[number]["value"];
@@ -99,8 +102,8 @@ function BrandStudio({ projectId }: { projectId: string }) {
 
       {/* One card: pick the draft type (the same dropdown filters the saved drafts), add a brief, generate. */}
       <Card>
-        <CardHeader title="Brand studio" icon={<Sparkles className="h-4 w-4" />}
-          subtitle="Pick a draft type, add an optional brief and generate - drafts are saved below, newest first. Uses this product's research." />
+        <CardHeader title="Brand & content studio" icon={<Sparkles className="h-4 w-4" />}
+          subtitle="Pick a brand draft or launch content, add an optional brief and generate - saved below, newest first. Uses this product's research (no new searches)." />
         <div className="space-y-1.5 border-b border-line px-5 py-3">
           {aiMissing && <ConfigNotice message={status?.ai.requirement} />}
           <div className="flex flex-wrap items-center gap-2">
@@ -108,8 +111,11 @@ function BrandStudio({ projectId }: { projectId: string }) {
               <Select aria-label="Draft type" value={filter} className="h-8 py-0!"
                 onChange={(e) => { const v = e.target.value as "all" | Kind; setFilter(v); if (v !== "all") setKind(v); }}>
                 <option value="all">All drafts ({concepts.data?.length ?? 0})</option>
-                <optgroup label="Draft type">
-                  {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}{counts[k.value] ? ` (${counts[k.value]} saved)` : ""}</option>)}
+                <optgroup label="Brand">
+                  {KINDS.filter((k) => !("content" in k)).map((k) => <option key={k.value} value={k.value}>{k.label}{counts[k.value] ? ` (${counts[k.value]} saved)` : ""}</option>)}
+                </optgroup>
+                <optgroup label="Content (from your buyer research)">
+                  {KINDS.filter((k) => "content" in k).map((k) => <option key={k.value} value={k.value}>{k.label}{counts[k.value] ? ` (${counts[k.value]} saved)` : ""}</option>)}
                 </optgroup>
               </Select>
             </div>

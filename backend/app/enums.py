@@ -37,7 +37,8 @@ SUPPLIER_VERIFICATION_LABELS = {
     "audited": "Factory audit completed (by you or a third party you hired)",
 }
 
-BrandKind = Literal["names", "positioning", "personas", "voice", "collections", "palettes", "messaging"]
+BrandKind = Literal["names", "positioning", "personas", "voice", "collections", "palettes", "messaging",
+                    "social_posts", "video_script", "image_briefs"]
 ScenarioType = Literal["hypothetical", "quote_based", "actual", "research_estimate"]
 InputBasis = Literal["assumption", "supplier_quote", "actual", "sourced_research"]
 ApprovalAction = Literal["publish_listing", "purchase_inventory", "launch_campaign", "send_supplier_message"]

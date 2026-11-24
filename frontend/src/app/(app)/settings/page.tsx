@@ -124,7 +124,8 @@ export default function SettingsPage() {
 
           {project && (
             <Card >
-              <CardHeader title={`Audit log - ${project.name}`} icon={<ScrollText className="h-4 w-4" />} subtitle="Every change by you or an agent is recorded." />
+              <CardHeader title={`Activity - ${project.short_name || project.name}`} icon={<ScrollText className="h-4 w-4" />}
+                subtitle="Every change by you or an agent on this product, newest first. Pick another product at the top; its AI spend is in Usage above." />
               <AuditLog projectId={project.id} />
             </Card>
           )}

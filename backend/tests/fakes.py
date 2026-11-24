@@ -225,6 +225,12 @@ class FakeLLM:
                 {"source_ref": ref, "product": "Knot headband", "stars": 1, "quote": "An invented complaint nobody wrote",
                  "tags": ["fit"], "problem": "invented"},
             ]), usage
+        if output_model.__name__ == "SocialPostsOut":
+            ref = re.search(r"^\[(C\d+)\] \"I'm 34", prompt, re.M).group(1)  # buyer words reach the content prompt
+            assert "never present them as\n  testimonials" in system and "[K1]" in prompt
+            return output_model(posts=[{"platform": "instagram", "format": "reel", "hook": "Plaid that stays put", "caption": "Made for work days.",
+                                        "hashtags": ["#knotheadband"], "visual": "Close-up of a plaid knot", "based_on": [ref, "K1", "X9"],
+                                        "needs_checking": ["Non-slip lining"]}]), usage
         if output_model.__name__ == "ShortName":
             return output_model(short_name="Dance Practice Wear"), usage
         if output_model.__name__ == "CommentTagging":

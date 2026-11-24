@@ -438,3 +438,17 @@ def test_buyer_style_counts_verified_comment_tags(authed, project, fake_llm, ser
     assert authed.get(f"/api/projects/{pid}/dashboard").json()["counts"]["buyer_reports"] == 1
     plan = {s["kind"]: s["action"] for s in authed.get(f"/api/projects/{pid}/research-runs/run-all").json()["steps"]}
     assert plan["buyer_style"] == "done"
+
+
+def test_content_studio_posts_rest_on_buyer_words(authed, project, fake_llm, serp):
+    pid = project["id"]
+    _run(authed, pid, "listing_tracker")
+    _run(authed, pid, "review_mining")
+    _run(authed, pid, "buyer_style")
+    r = authed.post(f"/api/projects/{pid}/brand-concepts/generate", json={"kind": "social_posts"})
+    assert r.status_code == 201, r.text
+    c = r.json()
+    assert c["title"] == "Social posts" and c["kind"] == "social_posts"
+    post = c["content"]["posts"][0]
+    assert "X9" not in post["based_on"] and "K1" in post["based_on"] and len(post["based_on"]) == 2  # invented ref dropped
+    assert post["needs_checking"] == ["Non-slip lining"]

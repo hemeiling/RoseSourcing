@@ -36,7 +36,7 @@ export const SECTIONS: Tab[] = [
   { id: "economics", title: "Unit economics", route: "/analytics", description: "Cost scenarios, margins and experiments." },
   { id: "brand", title: "Brand & launch", parts: [
     { id: "buyers", title: "Buyers & style", description: "Who buys this, what they wear it for and which patterns, colours and materials they like - counted from every customer comment collected, with personas and design directions." },
-    { id: "brand-concepts", title: "Brand", route: "/brand", description: "Names, positioning, personas and palettes." },
+    { id: "brand-concepts", title: "Brand & content", route: "/brand", description: "Brand drafts (names, positioning, voice, palettes) and launch content (social posts, video script, image briefs) written from your research." },
     { id: "commerce", title: "Inventory & listings", route: "/commerce", description: "Products, stock and listing approvals." },
   ] },
 ];

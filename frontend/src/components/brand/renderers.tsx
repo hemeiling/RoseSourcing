@@ -266,6 +266,109 @@ function MessagingView({ c }: { c: Obj }) {
   );
 }
 
+/** Which research a piece rests on (C buyer words, K complaints, P personas, L looks) and what to confirm before posting. */
+function Grounding({ refs, check }: { refs: unknown[]; check: unknown[] }) {
+  if (!refs.length && !check.length) return null;
+  return (
+    <div className="space-y-1 text-xs">
+      {refs.length > 0 && <p className="text-slate-500">Based on research: {refs.map(asStr).join(", ")}</p>}
+      {check.length > 0 && (
+        <p className="flex items-start gap-1.5 text-amber-800">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>Confirm before posting: {check.map(asStr).join("; ")}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function SocialPostsView({ c }: { c: Obj }) {
+  return (
+    <div className="space-y-3">
+      {asArr(c.posts).map((raw, i) => {
+        const p = asObj(raw);
+        const caption = `${asStr(p.caption)}\n\n${asArr(p.hashtags).map(asStr).join(" ")}`.trim();
+        return (
+          <div key={i} className="space-y-2 rounded-lg border border-slate-200 p-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge tone="violet">{asStr(p.platform)}</Badge><Badge tone="slate">{asStr(p.format)}</Badge>
+              <span className="font-semibold text-slate-900">{asStr(p.hook)}</span>
+            </div>
+            <div className="flex items-start justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm text-slate-700">
+              <span className="whitespace-pre-line">{caption}</span>
+              <CopyButton text={caption} />
+            </div>
+            <p className="text-xs text-slate-600"><span className="font-semibold">Visual:</span> {asStr(p.visual)}</p>
+            <Grounding refs={asArr(p.based_on)} check={asArr(p.needs_checking)} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function VideoScriptView({ c }: { c: Obj }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="font-semibold text-slate-900">{asStr(c.title)}</span>
+        <Badge tone="violet">{asStr(c.platform)}</Badge><Badge tone="slate">{asStr(c.length_seconds)} s</Badge>
+        <span className="text-xs text-slate-500">Music: {asStr(c.music_mood)}</span>
+      </div>
+      <Section title="Hook"><p className="text-sm font-medium text-slate-800">{asStr(c.hook)}</p></Section>
+      <Section title="Scenes">
+        <ol className="space-y-1.5">
+          {asArr(c.scenes).map((raw, i) => {
+            const sc = asObj(raw);
+            return (
+              <li key={i} className="rounded-md bg-slate-50 px-2.5 py-1.5 text-sm text-slate-700">
+                <span className="mr-2 font-semibold text-slate-500">{asStr(sc.seconds)}s</span>{asStr(sc.shot)}
+                {asStr(sc.on_screen_text) && <div className="text-xs text-slate-600">On screen: &ldquo;{asStr(sc.on_screen_text)}&rdquo;</div>}
+                {asStr(sc.voiceover) && <div className="text-xs text-slate-600">Voice: {asStr(sc.voiceover)}</div>}
+              </li>
+            );
+          })}
+        </ol>
+      </Section>
+      <Section title="Call to action"><p className="text-sm text-slate-800">{asStr(c.call_to_action)}</p></Section>
+      <Section title="Voice-over (for a text-to-speech voice)">
+        <div className="flex items-start justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm text-slate-700">
+          <span>{asStr(c.voiceover_full)}</span><CopyButton text={asStr(c.voiceover_full)} />
+        </div>
+      </Section>
+      <Section title="Presenter / avatar script">
+        <div className="flex items-start justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm text-slate-700">
+          <span>{asStr(c.avatar_script)}</span><CopyButton text={asStr(c.avatar_script)} />
+        </div>
+      </Section>
+      <Grounding refs={asArr(c.based_on)} check={asArr(c.needs_checking)} />
+    </div>
+  );
+}
+
+function ImageBriefsView({ c }: { c: Obj }) {
+  return (
+    <div className="space-y-3">
+      {asArr(c.briefs).map((raw, i) => {
+        const b = asObj(raw);
+        return (
+          <div key={i} className="space-y-2 rounded-lg border border-slate-200 p-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="font-semibold text-slate-900">{asStr(b.title)}</span>
+              <Badge tone="slate">{asStr(b.use)}</Badge><Badge tone="slate">{asStr(b.aspect_ratio)}</Badge>
+            </div>
+            <div className="flex items-start justify-between gap-2 rounded-md bg-slate-50 px-2.5 py-1.5 text-sm text-slate-700">
+              <span>{asStr(b.prompt)}</span><CopyButton text={asStr(b.prompt)} label="Copy prompt" />
+            </div>
+            {asStr(b.avoid) && <p className="text-xs text-slate-600"><span className="font-semibold">Avoid:</span> {asStr(b.avoid)}</p>}
+            <Grounding refs={asArr(b.based_on)} check={[]} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function JsonView({ c }: { c: Obj }) {
   return <pre className="overflow-x-auto rounded-md bg-slate-50 p-3 text-xs text-slate-700">{JSON.stringify(c, null, 2)}</pre>;
 }
@@ -275,6 +378,9 @@ const KNOWN_KEY: Record<string, string> = {
   personas: "personas",
   collections: "collections",
   palettes: "palettes",
+  social_posts: "posts",
+  video_script: "scenes",
+  image_briefs: "briefs",
 };
 
 export function ConceptContent({ kind, content }: { kind: string; content: Record<string, unknown> }) {
@@ -297,6 +403,12 @@ export function ConceptContent({ kind, content }: { kind: string; content: Recor
       return <PalettesView c={c} />;
     case "messaging":
       return Array.isArray(c.taglines) ? <MessagingView c={c} /> : <JsonView c={c} />;
+    case "social_posts":
+      return <SocialPostsView c={c} />;
+    case "video_script":
+      return <VideoScriptView c={c} />;
+    case "image_briefs":
+      return <ImageBriefsView c={c} />;
     default:
       return <JsonView c={c} />;
   }

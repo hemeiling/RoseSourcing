@@ -6,6 +6,7 @@ They read only the project's stored records; outputs are labelled as AI-generate
 
 from __future__ import annotations
 
+import json
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
@@ -13,6 +14,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ...models import (
+    AnalysisSnapshot,
+    BrandConcept,
     BusinessProject,
     Competitor,
     CustomerSegment,
@@ -198,7 +201,140 @@ BRAND_KINDS: dict[str, tuple[type[BaseModel], str]] = {
 }
 
 
+# ----------------------------------------------------------------------------- content studio
+
+
+class SocialPost(BaseModel):
+    platform: Literal["instagram", "tiktok", "pinterest", "facebook"]
+    format: str = Field(description="e.g. reel, carousel, single image, pin")
+    hook: str = Field(description="The first line or first second that stops the scroll")
+    caption: str
+    hashtags: list[str]
+    visual: str = Field(description="What the image or video shows, concretely")
+    based_on: list[str] = Field(description="Refs of the evidence it rests on: C (buyer words), K (complaint), P (persona), L (look)")
+    needs_checking: list[str] = Field(description="Claims the post makes about your product that must be true before posting")
+
+
+class SocialPostsOut(BaseModel):
+    posts: list[SocialPost]
+
+
+class Scene(BaseModel):
+    seconds: str = Field(description="e.g. 0-3")
+    shot: str
+    on_screen_text: str | None
+    voiceover: str | None
+
+
+class VideoScriptOut(BaseModel):
+    title: str
+    platform: str
+    length_seconds: int
+    hook: str
+    scenes: list[Scene]
+    call_to_action: str
+    voiceover_full: str = Field(description="The whole voice-over as one text, ready for a text-to-speech voice")
+    avatar_script: str = Field(description="A 60-90 word first-person script for a presenter or AI avatar")
+    music_mood: str
+    based_on: list[str]
+    needs_checking: list[str]
+
+
+class ImageBrief(BaseModel):
+    title: str
+    use: str = Field(description="Where it is used, e.g. Instagram post, Amazon main image, Pinterest pin")
+    prompt: str = Field(description="A detailed image-generator prompt: subject, styling, setting, light, colours, composition; no text in the image")
+    avoid: str = Field(description="What the image must not show")
+    aspect_ratio: Literal["1:1", "4:5", "9:16", "16:9", "2:3"]
+    based_on: list[str]
+
+
+class ImageBriefsOut(BaseModel):
+    briefs: list[ImageBrief]
+
+
+CONTENT_KINDS: dict[str, tuple[type[BaseModel], str]] = {
+    "social_posts": (SocialPostsOut, "Write 5 social posts (mix Instagram, TikTok and Pinterest) that launch this product to the buyers described."),
+    "video_script": (VideoScriptOut, "Write one 20-30 second vertical video script (TikTok/Reels) that tells this product's story to the buyers described."),
+    "image_briefs": (ImageBriefsOut, "Write 4 image briefs (prompts for an image generator or a photographer): a hero product shot, a lifestyle shot "
+                                     "in the buyers' main occasion, a flat lay, and a social post visual."),
+}
+CONTENT_RULES = """Rules for content:
+- Speak in the buyers' own words (the C-quotes) and to their occasions and liked looks; cite the refs you used in based_on.
+- The C-quotes are reviews of OTHER brands' products: use them to learn the language and what matters, never present them as
+  testimonials or reviews of this product, and do not invent any testimonial, rating or number.
+- Answer the complaints (K) the product fixes, without promising anything the offer, spec or brand drafts do not state. Every
+  product claim you make goes in needs_checking (fabric, sizes, colours, features) so the founder confirms it before posting.
+- No medical or safety claims, no claims about competitors. Keep the brand voice and palette when they are given."""
+
+
+def _latest_snap(db: Session, project_id: Any, kind: str) -> AnalysisSnapshot | None:
+    return db.scalars(select(AnalysisSnapshot).where(AnalysisSnapshot.project_id == project_id, AnalysisSnapshot.kind == kind)
+                      .order_by(AnalysisSnapshot.created_at.desc())).first()
+
+
+def content_context(db: Session, project: BusinessProject) -> tuple[str, set[str]]:
+    """Everything content can rest on, with refs: buyer words (C), complaints (K), personas (P), liked looks (L), the AI's
+    offer and the brand drafts you chose. Reads saved research only - no new searches."""
+    lines, refs = [project_brief(db, project, max_findings=12)], set()
+    if (bs := _latest_snap(db, project.id, "buyer_style")):
+        c = bs.content
+        lines.append(f"\n=== BUYERS & STYLE (counted from customer comments) ===\n{c.get('summary', '')}")
+        for i, p in enumerate(c.get("personas") or [], 1):
+            refs.add(f"P{i}")
+            lines.append(f"[P{i}] {p['name']} ({p.get('age_range')}): {p.get('description')} Wants: {', '.join(p.get('wants') or [])}")
+        occ = ", ".join(f"{o['tag']} ({o['count']})" for o in (c.get("stats") or {}).get("occasions") or [])
+        if occ:
+            lines.append(f"Occasions: {occ}")
+        for i, st in enumerate((c.get("styles") or [])[:10], 1):
+            refs.add(f"L{i}")
+            lines.append(f"[L{i}] look '{st['term']}' ({st['kind']}): praised {st['liked']}, criticised {st['disliked']}, in {st['top_listings']} best sellers")
+        quoted = [t for t in c.get("comments") or [] if t.get("liked") or t.get("occasions")][:20]
+        for t in quoted:
+            refs.add(t["ref"])
+            lines.append(f"[{t['ref']}] \"{t['quote']}\" (occasions: {', '.join(t.get('occasions') or []) or '-'}; likes: {', '.join(t.get('liked') or []) or '-'})")
+    if (rv := _latest_snap(db, project.id, "review_insights")):
+        lines.append("\n=== COMPLAINTS IN LOW-STAR REVIEWS OF COMPETITORS ===")
+        for i, t in enumerate(rv.content.get("themes") or [], 1):
+            refs.add(f"K{i}")
+            lines.append(f"[K{i}] {t['tag']} ({t['count']}): {t['summary']} Fix: {t['fix']}")
+    if (db_ := _latest_snap(db, project.id, "decision_brief")) and (offer := db_.content.get("offer")):
+        lines.append(f"\n=== THE OFFER (AI recommendation) ===\nPrice ${offer.get('price_low')}-${offer.get('price_high')} ({offer.get('price_tier')}). "
+                     f"Positioning: {offer.get('positioning')}\nMaterials: {'; '.join(offer.get('materials') or [])}\n"
+                     f"Must-have features: {'; '.join(offer.get('must_have_features') or [])}\nFirst channel: {offer.get('first_channel')}")
+    chosen = db.scalars(select(BrandConcept).where(BrandConcept.project_id == project.id, BrandConcept.status != "rejected",
+                                                   BrandConcept.kind.in_(["names", "positioning", "voice", "palettes", "messaging"]))
+                        .order_by(BrandConcept.created_at.desc())).all()
+    best: dict[str, BrandConcept] = {}
+    for bc in chosen:  # selected beats shortlisted beats the newest draft
+        rank = {"selected": 0, "shortlisted": 1}.get(bc.status, 2)
+        if bc.kind not in best or rank < {"selected": 0, "shortlisted": 1}.get(best[bc.kind].status, 2):
+            best[bc.kind] = bc
+    if best:
+        lines.append("\n=== BRAND DRAFTS (selected or newest) ===")
+        for kind, bc in best.items():
+            lines.append(f"{bc.title} [{bc.status}]: {json.dumps(bc.content, ensure_ascii=False)[:900]}")
+    return "\n".join(lines), refs
+
+
+def _keep_refs(value: Any, refs: set[str]) -> Any:
+    """Drop citations to refs the context did not contain."""
+    if isinstance(value, dict):
+        return {k: ([r for r in v if r in refs] if k == "based_on" and isinstance(v, list) else _keep_refs(v, refs)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_keep_refs(v, refs) for v in value]
+    return value
+
+
 def generate_brand(db: Session, project: BusinessProject, user: User, kind: str, brief: str | None) -> tuple[dict[str, Any], Any]:
+    if kind in CONTENT_KINDS:
+        model, instruction = CONTENT_KINDS[kind]
+        context, refs = content_context(db, project)
+        system = "You write launch content for a small direct-to-consumer brand, grounded in its research. " + DRAFT_RULES + "\n" + CONTENT_RULES
+        prompt = f"Context:\n{context}\n\nFounder's brief: {brief or '(none)'}\n\nTask: {instruction}"
+        out, _usage, ex = _run(db, agent="brand_strategy", operation=f"content:{kind}", project=project, user=user,
+                               system=system, prompt=prompt, output_model=model)
+        return _keep_refs(out.model_dump(), refs), ex
     model, instruction = BRAND_KINDS[kind]
     system = "You are a brand strategist for small direct-to-consumer product businesses. " + DRAFT_RULES
     prompt = (
