@@ -6,7 +6,8 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { RequireProject } from "@/components/app-shell";
-import { BASIS_META, BasisBadge } from "@/components/evidence";
+import { BASIS_META, BasisBadge, FindingCard } from "@/components/evidence";
+import { FindingChips, useReportFindings } from "@/components/market/report-view";
 import { useProjects } from "@/components/providers";
 import {
   Alert, Badge, Button, Card, CardBody, CardHeader, EmptyState, Field, Input, Modal, PageHeader, PlannedBadge, Select, Spinner, Tabs, Td, Textarea, Th,
@@ -14,7 +15,7 @@ import {
 import { del, errorText, post, put } from "@/lib/api";
 import { date, money, num, pct, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import type { Experiment, ModelSpec, PriceTarget, Scenario, UEResults } from "@/lib/types";
+import type { Experiment, Finding, ModelSpec, Opportunity, PriceTarget, Scenario, UEResults } from "@/lib/types";
 
 /** The amount at the end of each bar (left of the bar when it is negative). */
 function BarValue(props: { x?: unknown; y?: unknown; width?: unknown; height?: unknown; value?: unknown }) {
@@ -359,6 +360,12 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
   const [recBusy, setRecBusy] = useState(false);
   const [recError, setRecError] = useState<string | null>(null);
   const recBy = Object.fromEntries((rec.data?.content.inputs ?? []).map((i) => [i.field, i]));
+  // When the open scenario is the Market Analyst's estimate, its reasoning and evidence sit under each number.
+  const reports = useApi<Opportunity[]>(`/api/projects/${projectId}/opportunities`);
+  const estimate = editing ? reports.data?.find((r) => r.report?.unit_economics?.cost_scenario_id === editing.id) : undefined;
+  const why = estimate?.report.unit_economics.inputs ?? {};
+  const evidence = useReportFindings(projectId, estimate);
+  const [openFinding, setOpenFinding] = useState<Finding | null>(null);
   const basisOf = (b: string) => (b in BASIS_META ? b : "assumption");
   async function runRecommend() {
     setRecBusy(true); setRecError(null);
@@ -456,6 +463,12 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
           {!editing && (source === "recommended"
             ? <Alert tone="blue">Showing the numbers recommended from this product&apos;s research. Save them as a scenario to use them in the other tabs.</Alert>
             : <Alert tone="blue">No saved numbers for this product yet, so these are example values. Click <b>Recommend numbers</b> to fill them from its research, or run market research first.</Alert>)}
+          {estimate && (
+            <p className="text-sm text-slate-600">
+              These are the Market Analyst&apos;s estimates from its report of {date(estimate.created_at)}. Open <b>Why this number</b> under an
+              input to see its reasoning and evidence; anything marked Assumption still needs a real quote or source.
+            </p>
+          )}
           <RecommendPanel rec={rec.data} busy={recBusy} error={recError} onRun={runRecommend} onUseAll={applyAll} />
           {GROUPS.map((g) => (
             <fieldset key={g.title}>
@@ -480,6 +493,13 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
                       setInputs((cur) => ({ ...cur, [k]: recBy[k].value }));
                       setBasis((b) => ({ ...b, [k]: basisOf(recBy[k].basis) }));
                     }} />}
+                    {why[k]?.note && (
+                      <details className="mt-1 text-xs text-slate-600">
+                        <summary className="cursor-pointer font-medium text-primary-700">Why this number</summary>
+                        <p className="mt-1">{why[k].note}</p>
+                        <FindingChips ids={why[k].finding_ids} index={evidence.index} loading={evidence.loading} onOpen={setOpenFinding} />
+                      </details>
+                    )}
                   </div>
                 ))}
               </div>
@@ -493,6 +513,9 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
           : <ResultsPanel r={results} inputs={inputs} onSet={(k, v) => setInputs((cur) => ({ ...cur, [k]: v }))} />}</CardBody>
       </Card>
 
+      <Modal open={!!openFinding} onClose={() => setOpenFinding(null)} title="Evidence" wide>
+        {openFinding && <FindingCard finding={openFinding} />}
+      </Modal>
       <Modal open={saveOpen} onClose={() => setSaveOpen(false)} title={editing ? "Save scenario" : "Save new scenario"}>
         <div className="space-y-3">
           <Field label="Name"><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. $69 price, sea freight" /></Field>

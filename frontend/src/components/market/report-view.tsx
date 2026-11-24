@@ -1,18 +1,33 @@
 "use client";
 
 import clsx from "clsx";
-import { ArrowRight, Calculator, Compass, Lightbulb, Tag, Trash2, Users } from "lucide-react";
-import Link from "next/link";
+import { Compass, Lightbulb, Tag, Trash2, Users } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
-import { BasisBadge, EVIDENCE_META, FindingCard } from "@/components/evidence";
-import { Alert, Badge, Button, Card, CardBody, CardHeader, Modal, StatCard, Td, Th, useEmbedded } from "@/components/ui";
+import { EVIDENCE_META, FindingCard } from "@/components/evidence";
+import { Alert, Badge, Button, Card, CardBody, CardHeader, Modal } from "@/components/ui";
 import { del, errorText } from "@/lib/api";
-import { date, dateTime, money, num, pct, titleCase } from "@/lib/format";
+import { date, dateTime, money } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import type { EvidenceType, Finding, ModelSpec, Opportunity } from "@/lib/types";
+import type { EvidenceType, Finding, Opportunity } from "@/lib/types";
 import { AttractivenessBadge, ConfirmModal } from "./shared";
 
-type FindingIndex = Map<string, { finding: Finding; n: number }>;
+export type FindingIndex = Map<string, { finding: Finding; n: number }>;
+
+/** The findings a report cites, numbered as its text numbers them ("F12"). Newer reports record each number and may cite
+ * other agents' findings, so they read the product's findings; older ones number their own run's findings in order. */
+export function useReportFindings(projectId: string, report: Opportunity | undefined) {
+  const numbers = report?.report?.finding_numbers;
+  const runId = report?.research_run_id;
+  const path = !report ? null : numbers ? `/api/projects/${projectId}/findings?limit=1000` : runId ? `/api/projects/${projectId}/findings?run_id=${runId}` : null;
+  const { data, loading } = useApi<Finding[]>(path);
+  const index = useMemo(() => {
+    const m: FindingIndex = new Map();
+    if (numbers) (data ?? []).forEach((f) => { if (numbers[f.id]) m.set(f.id, { finding: f, n: numbers[f.id] }); });
+    else (data ?? []).forEach((f, i) => m.set(f.id, { finding: f, n: i + 1 }));
+    return m;
+  }, [data, numbers]);
+  return { index, loading };
+}
 
 const chipTone: Record<EvidenceType, string> = {
   sourced: "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100",
@@ -21,7 +36,7 @@ const chipTone: Record<EvidenceType, string> = {
   unavailable: "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100",
 };
 
-function FindingChips({ ids, index, loading, onOpen }: { ids: string[] | undefined; index: FindingIndex; loading: boolean; onOpen: (f: Finding) => void }) {
+export function FindingChips({ ids, index, loading, onOpen }: { ids: string[] | undefined; index: FindingIndex; loading: boolean; onOpen: (f: Finding) => void }) {
   if (!ids || ids.length === 0) return null;
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-1">
@@ -59,28 +74,13 @@ function Section({ icon, title, subtitle, children, actions }: { icon: ReactNode
   );
 }
 
-function fmtInput(key: string, v: number | null | undefined): string {
-  if (v === null || v === undefined) return "-";
-  if (key.endsWith("_pct")) return pct(v, 1);
-  if (key === "moq" || key === "units_per_order") return num(v);
-  return money(v);
-}
-
 export function ReportView({ projectId, report, onDeleted }: { projectId: string; report: Opportunity; onDeleted: () => void }) {
   const r = report.report ?? ({} as Opportunity["report"]);
-  const runId = report.research_run_id;
-  const { data: findings, loading: findingsLoading } = useApi<Finding[]>(runId ? `/api/projects/${projectId}/findings?run_id=${runId}` : null);
-  const { data: spec } = useApi<ModelSpec>("/api/analytics/model");
+  const { index, loading: findingsLoading } = useReportFindings(projectId, report);
   const [open, setOpen] = useState<Finding | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-
-  const index: FindingIndex = useMemo(() => {
-    const m: FindingIndex = new Map();
-    (findings ?? []).forEach((f, i) => m.set(f.id, { finding: f, n: i + 1 }));
-    return m;
-  }, [findings]);
 
   const chips = (ids: string[] | undefined) => <FindingChips ids={ids} index={index} loading={findingsLoading} onOpen={setOpen} />;
 
@@ -98,9 +98,6 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
     }
   }
 
-  const ue = r.unit_economics;
-  const results = ue?.results;
-  const embedded = !!useEmbedded();
   const byType = r.evidence_summary?.by_type ?? {};
 
   return (
@@ -192,71 +189,11 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
         </Section>
       )}
 
-      {ue && (
-        <Section
-          icon={<Calculator className="h-4 w-4" />}
-          title="Estimated unit economics"
-          subtitle="Inputs proposed by the synthesis; math done by the deterministic calculator. Assumptions are not verified."
-          actions={
-            <Link href={ue.cost_scenario_id ? `/analytics?scenario=${ue.cost_scenario_id}` : "/analytics"}>
-              <Button size="sm" variant="secondary">
-                Open in Analytics <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-              </Button>
-            </Link>
-          }
-        >
-          {results && !results.error && !embedded && (
-            <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard label="Contribution margin / unit" value={money(results.contribution_margin)} hint="after marketing, returns and fees" />
-              <StatCard label="Contribution margin %" value={pct(results.contribution_margin_pct)} hint="of revenue after returns" />
-              <StatCard label="Break-even CAC" value={money(results.breakeven_cac)} hint="max marketing spend per order" />
-              <StatCard label="Landed cost / unit" value={money(results.landed_cost_breakdown?.landed_cost)} hint={`gross margin ${pct(results.gross_margin_pct)}`} />
-            </div>
-          )}
-          {results?.error && <Alert tone="red">{results.error}</Alert>}
-          {embedded && results && !results.error && (
-            <p className="mb-3 text-sm text-slate-600">Margins and costs from these inputs are in the <a href="#economics" className="font-semibold text-primary-700 hover:underline">Unit economics</a> tab.</p>
-          )}
-          {!embedded && results?.warnings?.length > 0 && (
-            <div className="mb-4 space-y-2">
-              {results.warnings.map((w, i) => (
-                <Alert key={i}>{w}</Alert>
-              ))}
-            </div>
-          )}
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-100">
-              <thead>
-                <tr>
-                  <Th>Input</Th>
-                  <Th>Value</Th>
-                  <Th>Basis</Th>
-                  <Th>Note</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {Object.entries(ue.inputs ?? {}).map(([key, d]) => (
-                  <tr key={key}>
-                    <Td className="whitespace-nowrap font-medium text-slate-800">{spec?.labels[key] ?? titleCase(key)}</Td>
-                    <Td className="whitespace-nowrap">{fmtInput(key, d.value)}</Td>
-                    <Td>
-                      <BasisBadge basis={d.basis} />
-                    </Td>
-                    <Td className="text-xs text-slate-600">
-                      {d.note}
-                      {chips(d.finding_ids)}
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-      )}
 
       <p className="text-sm text-slate-600">
-        This report&apos;s risks, evidence gaps and next steps are with every other agent&apos;s in{" "}
-        <a href="#actions" className="font-semibold text-primary-700 underline">Risks &amp; next steps</a>.
+        This report&apos;s cost estimate, with the reasoning for each number, is in{" "}
+        <a href="#economics" className="font-semibold text-primary-700 underline">Unit economics</a>; its risks, evidence gaps and next
+        steps are with every other agent&apos;s in <a href="#actions" className="font-semibold text-primary-700 underline">Risks &amp; next steps</a>.
       </p>
 
       <p className="text-center text-[11px] text-slate-400">

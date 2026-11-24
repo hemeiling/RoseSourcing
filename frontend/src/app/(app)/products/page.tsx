@@ -117,7 +117,7 @@ export default function ProductsPage() {
                   <div className="flex flex-wrap gap-2 pt-1">
                     <Button size="sm" onClick={() => setDeciding(p)}>Decide</Button>
                     <Button size="sm" variant="secondary" onClick={() => open(p, "market")}>Research</Button>
-                    <Button size="sm" variant="ghost" onClick={() => open(p, "review")} title="What is still missing or weak for this product">To-dos</Button>
+                    <Button size="sm" variant="ghost" onClick={() => open(p, "actions")} title="Risks, next steps and what is still left to do for this product">To-dos</Button>
                     <Button size="sm" variant="ghost" className="ml-auto text-slate-500 hover:bg-red-50 hover:text-red-700" onClick={() => remove(p)}
                       aria-label={`Delete ${p.name}`}><Trash2 className="h-3.5 w-3.5" /> Delete</Button>
                   </div>

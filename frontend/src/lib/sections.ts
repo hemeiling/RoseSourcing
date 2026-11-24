@@ -14,7 +14,7 @@ export type Tab = { id: TabId; title: string; route?: string; description?: stri
 export const SECTIONS: Tab[] = [
   { id: "overview", title: "Overview", parts: [
     { id: "decision", title: "AI recommendation & decision", route: "/dashboard", description: "The AI's go / no-go call with a confidence score, the price range, materials and first channel it recommends, and your decision." },
-    { id: "review", title: "To-dos", description: "What is still missing or weak for this product, and the research agents that fill it. Each item jumps to the part that fixes it." },
+    { id: "review", title: "Research agents", description: "The same agents work on every product. Each run is saved with this product, with its sources and cost." },
   ] },
   { id: "market", title: "Market & demand", parts: [
     { id: "market-size", title: "Market size", shownWhen: ["market_size_findings"], description: "How big the industry and this category are, and how much competitors sell - each figure with its year and source." },
@@ -41,7 +41,7 @@ export const SECTIONS: Tab[] = [
   { id: "compliance", title: "Compliance & IP", shownWhen: ["compliance_checks"], description: "Design patents and trademarks, labelling rules, and UFLPA forced-labour requirements - with questions for your supplier." },
   { id: "channels", title: "Shipping & channels", route: "/channels", description: "Where to sell, fees, and how to ship." },
   { id: "economics", title: "Unit economics", route: "/analytics", description: "Cost scenarios, margins and experiments." },
-  { id: "actions", title: "Risks & next steps", shownWhen: ["reports", "channel_plans", "open_recommendations"], description: "Every agent's risks, open questions and recommended next steps in one place." },
+  { id: "actions", title: "Risks & next steps", description: "Every agent's risks, open questions and recommended next steps, then what is still left to do - after the research." },
 ];
 
 /** The tab each anchor lives in (a tab is its own parent). "listings" was its own part; it now sits inside "brands". */

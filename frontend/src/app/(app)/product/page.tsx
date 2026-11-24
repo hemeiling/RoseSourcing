@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { AlertTriangle, ArrowRight, Bot, ChevronDown, ChevronsDownUp, ChevronsUpDown, ListChecks, Loader2, Pencil, PlayCircle, RotateCw } from "lucide-react";
+import { Bot, ChevronDown, ChevronsDownUp, ChevronsUpDown, Loader2, Pencil, PlayCircle, RotateCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from "react";
@@ -22,7 +22,7 @@ import { AGENTS } from "@/lib/agents";
 import { errorText, post } from "@/lib/api";
 import { ago } from "@/lib/format";
 import { SECTIONS, SECTION_BY_ROUTE, TAB_OF, type Part, type SectionId } from "@/lib/sections";
-import type { Opportunity, ResearchRun } from "@/lib/types";
+import type { ResearchRun } from "@/lib/types";
 import { ActionPlan } from "@/components/action-plan";
 import AnalyticsPage from "../analytics/page";
 import BrandPage from "../brand/page";
@@ -45,15 +45,6 @@ const PAGES: Partial<Record<SectionId, () => ReactNode>> = {
 };
 const FOLD_KEY = "136sourcing.foldedSections";
 const RUN_FINISHED = "136sourcing:run-finished";
-
-type Dashboard = {
-  counts: Record<string, number>;
-  findings_by_type: Record<string, number>;
-  latest_run: { status: string } | null;
-  latest_scenario: { contribution_margin: number | null; retail_price: number | null; costs_assumed: boolean } | null;
-};
-
-type Todo = { text: string; detail?: string; section: string; tone: "red" | "amber" | "slate" };
 
 type RunAllStep = { kind: ResearchRun["kind"]; action: "done" | "running" | "resume" | "new"; run_id: string | null; estimate_usd: number };
 type RunAllPlan = {
@@ -210,7 +201,7 @@ function AgentRow({ projectId, agent, last, estimate, otherRunning, onChange }: 
 }
 
 /** Every research agent, with its latest run for this product, a Run button and live progress. */
-function AgentsPanel({ projectId, extra }: { projectId: string; extra?: ReactNode }) {
+function AgentsPanel({ projectId }: { projectId: string }) {
   const runs = useApi<ResearchRun[]>(`/api/projects/${projectId}/research-runs`);
   const plan = useApi<RunAllPlan>(`/api/projects/${projectId}/research-runs/run-all`);
   const { reload: reloadRuns } = runs;
@@ -233,8 +224,8 @@ function AgentsPanel({ projectId, extra }: { projectId: string; extra?: ReactNod
   }, [runs.data]);
   return (
     <Card >
-      <CardHeader title="Research agents" icon={<Bot className="h-4 w-4" />}
-        subtitle="The same agents work on every product. Each run is saved with this product, with its sources and cost."
+      <CardHeader title="Agents" icon={<Bot className="h-4 w-4" />}
+        subtitle="Run them one by one, or all at once in this order - each reads what the ones before it saved."
         actions={<RunAll projectId={projectId} plan={plan.data} onChange={() => { reloadRuns(); reloadPlan(); }} />} />
       {plan.data?.progress?.done && plan.data.progress.stopped && (
         <p className="mx-5 mb-2 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{plan.data.progress.stopped}</p>
@@ -251,55 +242,14 @@ function AgentsPanel({ projectId, extra }: { projectId: string; extra?: ReactNod
           );
         })}
       </ul>
-      {extra}
     </Card>
   );
 }
 
-/** A short, linked checklist of what is missing or weak for this product. */
-function Review({ projectId, decision }: { projectId: string; decision: string }) {
-  const dash = useApi<Dashboard>(`/api/projects/${projectId}/dashboard`);
-  const reports = useApi<Opportunity[]>(`/api/projects/${projectId}/opportunities`);
-  if (!dash.data || !reports.data) return <Spinner />;
-  const c = dash.data.counts;
-  const unavailable = dash.data.findings_by_type.unavailable ?? 0;
-  const todos: Todo[] = [];
-  const sc = dash.data.latest_scenario;
-  const cm = sc?.contribution_margin;
-  if (!sc || sc.costs_assumed)
-    todos.push({ text: "Margin not worked out yet", detail: sc ? "The research estimate uses assumed factory, freight and fee costs. Work out the margin in Unit economics with supplier quotes." : "Model cost, price and margin.", section: "economics", tone: "slate" });
-  else if (cm !== null && cm !== undefined && cm < 0)
-    todos.push({ text: `Unit contribution is negative (${money(cm)})`, detail: `At ${money(sc.retail_price)} retail you lose money on each sale - revisit price or costs.`, section: "economics", tone: "red" });
-  if (c.suppliers && !c.spec_sheets) todos.push({ text: "No spec sheet yet", detail: "Draft the spec sheet suppliers will quote against.", section: "outreach", tone: "amber" });
-  if (c.suppliers && c.rfqs_sent < 5)
-    todos.push({ text: c.rfqs_sent ? `Only ${c.rfqs_sent} supplier${c.rfqs_sent === 1 ? "" : "s"} asked for quotes` : "No supplier asked for quotes yet",
-      detail: "Send the spec sheet to 5+ suppliers for prices at 100 / 300 / 500 units.", section: "outreach", tone: "amber" });
-  if (c.rfq_quotes && c.sample_orders < 2) todos.push({ text: "Order 2-3 samples", detail: "Pick the best quotes and track each sample until you have scored it.", section: "outreach", tone: "slate" });
-  if (unavailable) todos.push({ text: `${unavailable} research questions had no reliable data`, detail: "Listed as 'data unavailable' findings - these are your evidence gaps.", section: "research", tone: "slate" });
-  if (decision === "undecided") todos.push({ text: "Record your go / no-go decision", detail: "Your decision is saved with a snapshot of the evidence.", section: "decision", tone: "slate" });
-
-  // One card: the agents (each row shows what is missing and runs it), then the steps no agent covers.
-  return (
-    <AgentsPanel projectId={projectId} extra={todos.length > 0 && (
-      <div className="border-t border-line px-5 py-2.5">
-        <h3 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><ListChecks className="h-3.5 w-3.5" aria-hidden />Also to do</h3>
-            <ul>
-              {todos.map((t) => (
-                <li key={t.text} className="border-b border-slate-100 last:border-b-0">
-                  <a href={`#${t.section}`} className="group flex items-start gap-2.5 py-2">
-                    <AlertTriangle className={clsx("mt-0.5 h-4 w-4 shrink-0", t.tone === "red" ? "text-red-600" : t.tone === "amber" ? "text-amber-600" : "text-slate-400")} aria-hidden />
-                    <span className="min-w-0 flex-1">
-                      <span className={clsx("block text-sm font-medium", t.tone === "red" ? "text-red-700" : "text-ink")}>{t.text}</span>
-                      {t.detail && <span className="block text-xs text-slate-500">{t.detail}</span>}
-                    </span>
-                    <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-primary-600 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
-                  </a>
-                </li>
-              ))}
-            </ul>
-      </div>
-    )} />
-  );
+/** The agents, at the top of the report: run them one by one or all at once. What is left to do after the research is in
+ * the last tab (Risks & next steps). */
+function Review({ projectId }: { projectId: string }) {
+  return <AgentsPanel projectId={projectId} />;
 }
 
 function ProductReport({ id }: { id: string }) {
@@ -405,7 +355,7 @@ function ProductReport({ id }: { id: string }) {
 
   // The content of one tab (without parts) or part.
   const body = (sid: SectionId, part?: Part): ReactNode => {
-    if (sid === "review") return <Review key={dataVersion} projectId={id} decision={project?.decision ?? "undecided"} />;
+    if (sid === "review") return <Review key={dataVersion} projectId={id} />;
     const Custom = CUSTOM[sid];
     if (Custom) return <Custom key={dataVersion} projectId={id} />;
     const Page = PAGES[sid];

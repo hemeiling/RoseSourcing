@@ -1,12 +1,14 @@
 "use client";
 
-import { AlertTriangle, CircleHelp, ListChecks } from "lucide-react";
+import clsx from "clsx";
+import { AlertTriangle, ArrowRight, CircleHelp, ListChecks, ListTodo } from "lucide-react";
 import { useMemo, useState } from "react";
 import { FindingCard } from "./evidence";
 import { SEVERITY_TONE } from "./market/shared";
+import { useProjects } from "./providers";
 import { Badge, Button, Card, CardBody, CardHeader, Modal, Spinner } from "./ui";
 import { patch } from "@/lib/api";
-import { date, titleCase } from "@/lib/format";
+import { date, money, titleCase } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
 import type { ChannelPlan, Finding, Opportunity } from "@/lib/types";
 
@@ -15,6 +17,57 @@ type Risk = { risk: string; severity: string; mitigation: string; finding_ids: s
 type Question = { gap: string; why_it_matters?: string; how_to_close?: string; from: string };
 
 const RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
+type Dashboard = {
+  counts: Record<string, number>;
+  findings_by_type: Record<string, number>;
+  latest_scenario: { contribution_margin: number | null; retail_price: number | null; costs_assumed: boolean } | null;
+};
+type Todo = { text: string; detail?: string; section: string; tone: "red" | "amber" | "slate" };
+
+/** What is still missing that no agent fills - work for after the research, so it sits at the very end. */
+function AlsoToDo({ projectId }: { projectId: string }) {
+  const dash = useApi<Dashboard>(`/api/projects/${projectId}/dashboard`);
+  const { projects } = useProjects();
+  const decision = projects.find((p) => p.id === projectId)?.decision ?? "undecided";
+  if (!dash.data) return <Spinner />;
+  const c = dash.data.counts;
+  const unavailable = dash.data.findings_by_type.unavailable ?? 0;
+  const todos: Todo[] = [];
+  const sc = dash.data.latest_scenario;
+  const cm = sc?.contribution_margin;
+  if (!sc || sc.costs_assumed)
+    todos.push({ text: "Margin not worked out yet", detail: sc ? "The research estimate uses assumed factory, freight and fee costs. Work out the margin in Unit economics with supplier quotes." : "Model cost, price and margin.", section: "economics", tone: "slate" });
+  else if (cm !== null && cm !== undefined && cm < 0)
+    todos.push({ text: `Unit contribution is negative (${money(cm)})`, detail: `At ${money(sc.retail_price)} retail you lose money on each sale - revisit price or costs.`, section: "economics", tone: "red" });
+  if (c.suppliers && !c.spec_sheets) todos.push({ text: "No spec sheet yet", detail: "Draft the spec sheet suppliers will quote against.", section: "outreach", tone: "amber" });
+  if (c.suppliers && c.rfqs_sent < 5)
+    todos.push({ text: c.rfqs_sent ? `Only ${c.rfqs_sent} supplier${c.rfqs_sent === 1 ? "" : "s"} asked for quotes` : "No supplier asked for quotes yet",
+      detail: "Send the spec sheet to 5+ suppliers for prices at 100 / 300 / 500 units.", section: "outreach", tone: "amber" });
+  if (c.rfq_quotes && c.sample_orders < 2) todos.push({ text: "Order 2-3 samples", detail: "Pick the best quotes and track each sample until you have scored it.", section: "outreach", tone: "slate" });
+  if (unavailable) todos.push({ text: `${unavailable} research questions had no reliable data`, detail: "Listed as 'data unavailable' findings - these are your evidence gaps.", section: "research", tone: "slate" });
+  if (decision === "undecided") todos.push({ text: "Record your go / no-go decision", detail: "Your decision is saved with a snapshot of the evidence.", section: "decision", tone: "slate" });
+  if (!todos.length) return null;
+  return (
+    <Card>
+      <CardHeader title="Also to do" icon={<ListTodo className="h-4 w-4" />} subtitle="What is still missing that no agent fills. Each item jumps to where you do it." />
+      <ul className="px-5 py-1">
+        {todos.map((t) => (
+          <li key={t.text} className="border-b border-slate-100 last:border-b-0">
+            <a href={`#${t.section}`} className="group flex items-start gap-2.5 py-2">
+              <AlertTriangle className={clsx("mt-0.5 h-4 w-4 shrink-0", t.tone === "red" ? "text-red-600" : t.tone === "amber" ? "text-amber-600" : "text-slate-400")} aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className={clsx("block text-sm font-medium", t.tone === "red" ? "text-red-700" : "text-ink")}>{t.text}</span>
+                {t.detail && <span className="block text-xs text-slate-500">{t.detail}</span>}
+              </span>
+              <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-primary-600 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
+            </a>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
 
 /** Evidence links for an item; each opens the finding it rests on. */
 function Evidence({ ids, byId, onOpen }: { ids: string[]; byId: Map<string, Finding>; onOpen: (f: Finding) => void }) {
@@ -67,15 +120,16 @@ export function ActionPlan({ projectId }: { projectId: string }) {
     await patch(`/api/recommendations/${id}`, { status }).catch(() => {});
     recs.reload();
   };
-  const empty = <p className="text-sm text-slate-500">Nothing yet. The Market Research and Channels & Shipping agents add these when they run.</p>;
-
   return (
     <div className="grid gap-4">
-      <Card>
-        <CardHeader title="Next steps" icon={<ListChecks className="h-4 w-4" />}
-          subtitle="What every agent and the copilot recommend, most urgent first. Mark each done or dismiss it." />
-        <CardBody>
-          {steps.length === 0 ? empty : (
+      {!steps.length && !risks.length && !questions.length && (
+        <p className="text-sm text-slate-500">Risks, open questions and next steps appear here once the Market Analyst or the Sales &amp; Shipping Planner has run.</p>
+      )}
+      {steps.length > 0 && (
+        <Card>
+          <CardHeader title="Next steps" icon={<ListChecks className="h-4 w-4" />}
+            subtitle="What every agent and the copilot recommend, most urgent first. Mark each done or dismiss it." />
+          <CardBody>
             <ul className="divide-y divide-line">
               {steps.map((r) => (
                 <li key={r.id} className="py-2.5 first:pt-0 last:pb-0">
@@ -94,14 +148,14 @@ export function ActionPlan({ projectId }: { projectId: string }) {
                 </li>
               ))}
             </ul>
-          )}
-        </CardBody>
-      </Card>
+          </CardBody>
+        </Card>
+      )}
 
-      <Card>
-        <CardHeader title="Risks" icon={<AlertTriangle className="h-4 w-4" />} subtitle="From the market research and the channel & shipping plan, most severe first." />
-        <CardBody>
-          {risks.length === 0 ? empty : (
+      {risks.length > 0 && (
+        <Card>
+          <CardHeader title="Risks" icon={<AlertTriangle className="h-4 w-4" />} subtitle="From the market research and the channel & shipping plan, most severe first." />
+          <CardBody>
             <ul className="divide-y divide-line">
               {risks.map((r, i) => (
                 <li key={`${r.from}-${i}`} className="py-2.5 first:pt-0 last:pb-0">
@@ -115,14 +169,14 @@ export function ActionPlan({ projectId }: { projectId: string }) {
                 </li>
               ))}
             </ul>
-          )}
-        </CardBody>
-      </Card>
+          </CardBody>
+        </Card>
+      )}
 
-      <Card>
-        <CardHeader title="Open questions" icon={<CircleHelp className="h-4 w-4" />} subtitle="What you still need to know or confirm before investing." />
-        <CardBody>
-          {questions.length === 0 ? empty : (
+      {questions.length > 0 && (
+        <Card>
+          <CardHeader title="Open questions" icon={<CircleHelp className="h-4 w-4" />} subtitle="What you still need to know or confirm before investing." />
+          <CardBody>
             <ul className="divide-y divide-line">
               {questions.map((q, i) => (
                 <li key={`${q.from}-${i}`} className="py-2.5 text-sm first:pt-0 last:pb-0">
@@ -133,9 +187,11 @@ export function ActionPlan({ projectId }: { projectId: string }) {
                 </li>
               ))}
             </ul>
-          )}
-        </CardBody>
-      </Card>
+          </CardBody>
+        </Card>
+      )}
+
+      <AlsoToDo projectId={projectId} />
 
       <Modal open={!!open} onClose={() => setOpen(null)} title="Evidence" wide>
         {open && <FindingCard finding={open} />}

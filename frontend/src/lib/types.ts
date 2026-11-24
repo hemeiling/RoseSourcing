@@ -164,6 +164,8 @@ export interface OpportunityReport {
   evidence_gaps: { gap: string; why_it_matters: string; how_to_close: string }[];
   next_steps: { action: string; rationale: string; priority: "high" | "medium" | "low" }[];
   evidence_summary: { findings: number; by_type: Record<string, number>; source_linked: number };
+  /** Finding id -> the F-number the report's text uses (reports from Nov 2026 on; older ones number the run's findings in order). */
+  finding_numbers?: Record<string, number>;
   generated_by: { model: string; generated_at: string };
 }
 

@@ -1372,6 +1372,8 @@ def _run_synthesis(run_id: uuid.UUID, ctx: dict[str, str]) -> None:
         "risks": [{"risk": r.risk, "severity": r.severity, "mitigation": r.mitigation, "finding_ids": ids(r.finding_refs)} for r in synth.risks],
         "evidence_gaps": [g.model_dump() for g in synth.evidence_gaps],
         "next_steps": [n.model_dump() for n in synth.next_steps],
+        # The F-number each cited finding had in the prompt, so "F12" in a note matches its evidence chip.
+        "finding_numbers": {str(f.id): int(ref[1:]) for ref, f in fmap.items()},
         "evidence_summary": {
             "findings": len(lines),
             "by_type": {t: sum(1 for f in fmap.values() if f.evidence_type == t) for t in ("sourced", "ai_inference", "assumption", "unavailable")},
