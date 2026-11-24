@@ -111,8 +111,11 @@ def _product_research(db: Session, project: BusinessProject) -> list[str]:
     """Market size, competitor revenue, price tiers, tracked listings, review complaints, the spec sheet and recommended
     numbers - what the offer rests on."""
     out: list[str] = []
-    sizes = db.scalars(select(ResearchFinding).where(ResearchFinding.project_id == project.id, ResearchFinding.section.in_(["market_size", "growth"]),
-                                                     ResearchFinding.metric.is_not(None)).order_by(ResearchFinding.created_at.desc()).limit(12)).all()
+    # A finding without a number stores its metric as JSON null, which SQL "IS NOT NULL" lets through - so filter here.
+    sizes = [f for f in db.scalars(select(ResearchFinding).where(ResearchFinding.project_id == project.id,
+                                                                 ResearchFinding.section.in_(["market_size", "growth"]))
+                                   .order_by(ResearchFinding.created_at.desc())).all()
+             if isinstance(f.metric, dict) and f.metric.get("name")][:12]
     if sizes:
         out.append("=== MARKET SIZE & GROWTH ===\n" + "\n".join(
             f"- {f.metric['name']}: {f.metric.get('value_low')}{'-' + str(f.metric['value_high']) if f.metric.get('value_high') not in (None, f.metric.get('value_low')) else ''} "

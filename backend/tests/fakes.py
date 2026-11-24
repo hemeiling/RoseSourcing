@@ -108,7 +108,13 @@ class FakeLLM:
         if output_model.__name__.startswith("Extraction_") and "Populate supplier_listings" in prompt:
             m = re.search(r"\[(S\d+)\] Brand A Dress", prompt)
             ref = m.group(1) if m else "S1"
-            return _ext(supplier_listings=[
+            # A 1688 search page in the dossier: its first listing, copied as shown (Chinese seller name, USD price, MOQ).
+            m1688 = re.search(r"\[(S\d+)\] 1688\.com search", prompt)
+            from_1688 = [ExtractedSupplierListing(supplier_name="义乌市干益宠物用品厂", platform="1688", product_title="Enclosed warm cat bed",
+                                                  listing_url="https://detail.1688.com/offer/870287373391.html", price_low=3.85, price_high=None,
+                                                  currency="USD", moq=2, customization=[], lead_time_days=None,
+                                                  seller_signals=["100+ sold", "repeat order rate 36%"], source_ref=m1688.group(1))] if m1688 else []
+            return _ext(supplier_listings=from_1688 + [
                 ExtractedSupplierListing(supplier_name="Yiwu Knot Co", platform="alibaba", product_title="Knotted headband", listing_url=None,
                                          price_low=79, price_high=None, currency="USD", moq=500, customization=["Custom logo"],
                                          lead_time_days=None, seller_signals=["5 years"], source_ref=ref),

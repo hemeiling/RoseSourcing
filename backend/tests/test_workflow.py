@@ -139,7 +139,18 @@ def test_photo_scan_without_any_project(authed, fake_llm, monkeypatch):
 
 
 def test_decisions_and_brief(authed, project, fake_llm):
+    from app.db import SessionLocal
+    from app.models import ResearchFinding
+
     pid = project["id"]
+    with SessionLocal() as db:
+        # A market-size finding stated in words has no number: its metric is JSON null, not SQL NULL.
+        db.add(ResearchFinding(project_id=uuid.UUID(pid), section="market_size", claim="Demand is growing", evidence_type="ai_inference",
+                               confidence="low", verification_status="unverified", flags=[], metric=None))
+        db.add(ResearchFinding(project_id=uuid.UUID(pid), section="market_size", claim="US market $4.09B", evidence_type="sourced",
+                               confidence="medium", verification_status="unverified", flags=[],
+                               metric={"name": "US market size", "value_low": 4.09, "value_high": None, "unit": "USD billion", "year": "2025"}))
+        db.commit()
     b = authed.post(f"/api/projects/{pid}/decision-brief")
     assert b.status_code == 200 and b.json()["content"]["recommendation"] == "go"  # first literal from the fake
     c = b.json()["content"]

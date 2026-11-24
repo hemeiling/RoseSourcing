@@ -383,6 +383,7 @@ class QuoteOut(ORM):
     valid_until: date | None
     source: str
     source_url: str | None = None
+    image_url: str | None = None
     notes: str | None
 
 

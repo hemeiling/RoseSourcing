@@ -7,7 +7,7 @@ import { ApiError, del, errorText, patch, post } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import type { Communication, Product, Quote, Scenario, Supplier } from "@/lib/types";
 import { date, dateTime, domainOf, money, num, titleCase } from "@/lib/format";
-import { Alert, Badge, Button, ConfigNotice, ExternalLink, Field, Input, Modal, Select, Spinner, Tabs, Td, Textarea, Th, type Tone } from "@/components/ui";
+import { Alert, Badge, Button, ConfigNotice, ExternalLink, Field, Input, Modal, ProductThumb, Select, Spinner, Tabs, Td, Textarea, Th, type Tone } from "@/components/ui";
 
 export const VERIFICATION_TONE: Record<string, Tone> = {
   unverified: "slate",
@@ -444,12 +444,17 @@ function QuotesTab({ supplier, projectId, products, onChanged }: { supplier: Sup
               {supplier.quotes.map((q) => (
                 <tr key={q.id}>
                   <Td className="font-medium text-slate-900">
-                    {q.source_url ? <ExternalLink href={q.source_url}>{q.product_name}</ExternalLink> : q.product_name}
-                    <div className="text-[11px] font-normal text-slate-400">
-                      {titleCase(q.source)}
-                      {q.source_url && <> · listing on {domainOf(q.source_url)}</>}
-                      {/* The listing link is shown above, so the "Source: <url>" tail of research notes is dropped. */}
-                      {q.notes ? ` · ${q.source_url ? q.notes.replace(/\s*Source: \S+$/, "") : q.notes}` : ""}
+                    <div className="flex items-start gap-2.5">
+                      {q.image_url && <ProductThumb src={q.image_url} href={q.source_url} alt={q.product_name} size={48} />}
+                      <div className="min-w-0">
+                        {q.source_url ? <ExternalLink href={q.source_url}>{q.product_name}</ExternalLink> : q.product_name}
+                        <div className="text-[11px] font-normal text-slate-400">
+                          {titleCase(q.source)}
+                          {q.source_url && <> · listing on {domainOf(q.source_url)}</>}
+                          {/* The listing link is shown above, so the "Source: <url>" tail of research notes is dropped. */}
+                          {q.notes ? ` · ${q.source_url ? q.notes.replace(/\s*Source: \S+$/, "") : q.notes}` : ""}
+                        </div>
+                      </div>
                     </div>
                   </Td>
                   <Td className="whitespace-nowrap">{fmtMoney(q.unit_price, q.currency)}</Td>

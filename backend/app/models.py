@@ -403,6 +403,7 @@ class SupplierQuote(IdMixin, TimestampMixin, Base):
     valid_until: Mapped[date | None] = mapped_column(Date)
     source: Mapped[str] = mapped_column(String(32), default="manual")  # manual | csv | email | integration | research_listing
     source_url: Mapped[str | None] = mapped_column(Text)  # the listing or document the price came from
+    image_url: Mapped[str | None] = mapped_column(Text)  # the listing's photo, as the marketplace published it
     notes: Mapped[str | None] = mapped_column(Text)
 
     supplier: Mapped[Supplier] = relationship(back_populates="quotes")

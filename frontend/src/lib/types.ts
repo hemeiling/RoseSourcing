@@ -253,6 +253,7 @@ export interface Quote {
   valid_until: string | null;
   source: string;
   source_url: string | null;
+  image_url?: string | null;
   notes: string | null;
 }
 

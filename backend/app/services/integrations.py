@@ -59,7 +59,8 @@ def integration_statuses() -> list[IntegrationStatus]:
         IntegrationStatus("alibaba", "Alibaba.com", "sourcing", "planned",
                           "Planned via authorized partner APIs only. Use manual entry or CSV import today."),
         IntegrationStatus("1688", "1688.com", "sourcing", "planned",
-                          "Planned via authorized partner APIs only. Use manual entry or CSV import today."),
+                          "The Supplier Finder reads 1688's public English search pages (free, no sign-in). Full Chinese search, "
+                          "product details and messaging are planned via the 1688 Open Platform only."),
         IntegrationStatus("ads", "Meta / Google Ads", "commerce", "planned",
                           "Campaign launch is planned and will always require explicit approval."),
         IntegrationStatus("image_gen", "Image generation", "design", "planned",

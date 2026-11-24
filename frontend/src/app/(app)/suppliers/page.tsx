@@ -6,7 +6,7 @@ import { RequireProject } from "@/components/app-shell";
 import { CsvImportCard } from "@/components/competitors/csv-import";
 import { SupplierComparison } from "@/components/suppliers/comparison";
 import { QualityStars, SupplierDetailModal, SupplierFormModal, SupplierVerificationBadge, fmtMoney } from "@/components/suppliers/supplier-modals";
-import { Alert, Badge, Button, Card, CardBody, CardHeader, EmptyState, ExternalLink, PageHeader, PlannedBadge, Spinner, Tabs, Td, Th } from "@/components/ui";
+import { Alert, Badge, Button, Card, CardBody, CardHeader, EmptyState, ExternalLink, PageHeader, PlannedBadge, ProductThumb, Spinner, Tabs, Td, Th } from "@/components/ui";
 import { del, errorText } from "@/lib/api";
 import { useApi } from "@/lib/hooks";
 import { domainOf, titleCase } from "@/lib/format";
@@ -133,18 +133,24 @@ function Suppliers({ projectId }: { projectId: string }) {
                   {data.map((s) => {
                     const usdPrices = s.quotes.filter((q) => q.unit_price !== null && q.currency === "USD").map((q) => q.unit_price as number);
                     const best = usdPrices.length ? Math.min(...usdPrices) : null;
+                    const pictured = s.quotes.find((q) => q.image_url);
                     return (
                       <tr key={s.id} className="hover:bg-slate-50/50">
                         <Td className="min-w-[11rem]">
-                          <button onClick={() => setDetailId(s.id)} className="text-left font-medium text-slate-900 hover:text-primary-800 hover:underline">
-                            {s.name}
-                          </button>
-                          {s.website && (
-                            <div className="text-xs">
-                              <ExternalLink href={s.website}>{domainOf(s.website)}</ExternalLink>
+                          <div className="flex items-start gap-2.5">
+                            {pictured && <ProductThumb src={pictured.image_url} href={pictured.source_url} alt={pictured.product_name} size={44} />}
+                            <div className="min-w-0">
+                              <button onClick={() => setDetailId(s.id)} className="text-left font-medium text-slate-900 hover:text-primary-800 hover:underline">
+                                {s.name}
+                              </button>
+                              {s.website && (
+                                <div className="text-xs">
+                                  <ExternalLink href={s.website}>{domainOf(s.website)}</ExternalLink>
+                                </div>
+                              )}
+                              {s.capabilities.length > 0 && <div className="mt-0.5 max-w-xs break-words text-xs text-slate-500">{s.capabilities.join(", ")}</div>}
                             </div>
-                          )}
-                          {s.capabilities.length > 0 && <div className="mt-0.5 max-w-xs break-words text-xs text-slate-500">{s.capabilities.join(", ")}</div>}
+                          </div>
                         </Td>
                         <Td className="text-xs">
                           <div className="text-slate-700">{platformLabel(s.platform)}</div>

@@ -255,6 +255,53 @@ def test_b2b_listing_evidence_uses_google_snippets(monkeypatch):
     assert obs[0].url.startswith("https://www.alibaba.com/") and obs[0].excerpts == ["US$0.39 - 0.59. Min. order: 50 pieces. 5 yrs CN Supplier"]
 
 
+P1688_PAGE = (
+    '<html><script>window.data = {"products":['
+    '{"productId":"662353827990","title":"Velvet Cat Hammock","priceMin":0.45,"priceMax":0.45,"currency":"USD","moq":2,"unit":"pc",'
+    '"supplierName":"河北雄安万兴荣供应链管理有限公司","isAd":true,"imageUrl":"https://cbu01.alicdn.com/img/ad.jpg"},'
+    '{"productId":"870287373391","title":"Enclosed warm cat bed","priceMin":3.85,"priceMax":4.5,"currency":"USD","moq":2,"unit":"pc",'
+    '"supplierName":"义乌市干益宠物用品厂","saleText":"100+ sold","repeatRate":"36%","membershipYears":3,"tradeAssurance":true,'
+    '"sellerIdentities":["super_factory"],"isAd":false,"imageUrl":"https://cbu01.alicdn.com/img/bed.jpg"},'
+    '{"productId":"870287373391","title":"Enclosed warm cat bed","priceMin":3.85}'
+    ']}</script></html>'
+)
+
+
+def test_1688_search_page_listings_are_parsed_and_cached(monkeypatch):
+    from app.services import demand
+
+    pages = []
+
+    def fake_page(http, url):
+        pages.append(url)
+        return P1688_PAGE
+
+    monkeypatch.setattr(demand, "_p1688_page", fake_page)
+    obs, errors, fetched = demand.p1688_listing_evidence(["Heated cat bed", "heated  cat bed!", "cat cave"])
+    assert pages == ["https://www.1688.com/en/product-search/heated-cat-bed.html", "https://www.1688.com/en/product-search/cat-cave.html"]
+    assert fetched == 2 and errors == []
+    assert len(obs[0].excerpts) == 2  # the price note and one listing: the ad and the repeat are left out
+    line = obs[0].excerpts[1]
+    assert line == ("Enclosed warm cat bed - US$3.85-4.5 per pc - MOQ 2 pc - supplier: 义乌市干益宠物用品厂 - 100+ sold; "
+                    "repeat order rate 36%; 3 years on 1688; trade assurance; Super Factory - https://detail.1688.com/offer/870287373391.html")
+    assert obs[0].media[line] == {"url": "https://detail.1688.com/offer/870287373391.html", "image": "https://cbu01.alicdn.com/img/bed.jpg"}
+    # The same search again is answered from the cache.
+    again, _, fetched_again = demand.p1688_listing_evidence(["heated cat bed"])
+    assert fetched_again == 0 and again[0].excerpts == obs[0].excerpts
+
+
+def test_supplier_listing_run_saves_1688_factories_with_photos(authed, project, fake_llm, monkeypatch):
+    monkeypatch.setattr("app.api.research.submit_run", opportunity.execute_run)
+    monkeypatch.setattr("app.services.demand._p1688_page", lambda http, url: P1688_PAGE)
+    r = authed.post(f"/api/projects/{project['id']}/research-runs", json={"kind": "supplier_listings"})
+    assert authed.get(f"/api/research-runs/{r.json()['id']}").json()["status"] == "completed"
+    s = next(x for x in authed.get(f"/api/projects/{project['id']}/suppliers").json() if x["platform"] == "1688")
+    assert s["name"] == "义乌市干益宠物用品厂" and s["country"] == "China" and s["verification_status"] == "unverified"
+    q = s["quotes"][0]
+    assert float(q["unit_price"]) == 3.85 and q["moq"] == 2 and q["currency"] == "USD"
+    assert q["source_url"] == "https://detail.1688.com/offer/870287373391.html" and q["image_url"] == "https://cbu01.alicdn.com/img/bed.jpg"
+
+
 def test_competitor_tiers_from_price_tier_listings(authed, project, fake_llm, monkeypatch):
     from app.db import SessionLocal
     from app.models import AnalysisSnapshot, EvidenceSource, ResearchRun

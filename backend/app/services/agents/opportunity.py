@@ -889,6 +889,7 @@ def _persist_supplier_listings(db, run: ResearchRun, bundle: EvidenceBundle, ext
     refs = bundle.by_ref()
     today = datetime.now(timezone.utc).date()
     dropped = 0
+    pictures = {m["url"]: m.get("image") for m in bundle.media.values() if m.get("url")}  # listing link -> its photo
     for li in ext.supplier_listings:
         src = refs.get(li.source_ref)
         if src is None:
@@ -910,7 +911,8 @@ def _persist_supplier_listings(db, run: ResearchRun, bundle: EvidenceBundle, ext
         name = name[:300]
         sup = db.scalars(select(Supplier).where(Supplier.project_id == run.project_id, Supplier.name.ilike(name))).first()
         if sup is None:
-            sup = Supplier(project_id=run.project_id, name=name, country=None, platform=PLATFORM.get(li.platform, "other"),
+            sup = Supplier(project_id=run.project_id, name=name, country="China" if li.platform == "1688" else None,
+                           platform=PLATFORM.get(li.platform, "other"),
                            website=url, source="research", verification_status="unverified",
                            capabilities=li.customization[:10],
                            notes=(f"Found by research on {where}. " + (f"Seller signals as listed: {'; '.join(li.seller_signals)}. " if li.seller_signals else "")
@@ -921,9 +923,10 @@ def _persist_supplier_listings(db, run: ResearchRun, bundle: EvidenceBundle, ext
         rng = f"{li.currency.upper()} {low:g}-{high:g}" if low is not None and high is not None and low != high else (f"{li.currency.upper()} {price:g}" if price is not None else "not shown")
         note = (f"Listed price {rng} per unit on {where} (a listing price, not a quote). Source: {url}" if price is not None or moq is not None else
                 f"Price and MOQ were not shown in the text retrieved from {where} - open the listing to see them. Source: {url}")
+        image = pictures.get(url) or (demand.match_listing(li.product_title, {x: bundle.media[x] for x in src.excerpts if x in bundle.media}) or {}).get("image")
         values = dict(product_name=li.product_title[:300], moq=moq, unit_price=Decimal(str(price)) if price is not None else None,
                       currency=li.currency.upper()[:8], lead_time_days=lead, quote_date=today, source="research_listing", source_url=url,
-                      notes=note[:2000])
+                      image_url=image, notes=note[:2000])
         # The same listing found again (a re-run) refreshes its quote instead of adding a duplicate.
         same = next((q for q in sup.quotes if q.source == "research_listing" and (clean_url(q.source_url or "") or q.source_url) == url
                      and q.product_name.lower() == li.product_title[:300].lower()), None)
@@ -1014,7 +1017,9 @@ def _extraction_prompt(step_key: str, ctx: dict[str, str], bundle: EvidenceBundl
         "supplier_listings": ("Populate supplier_listings with each specific supplier listing in an excerpt. Fill price, MOQ and lead time "
                               "only with numbers visible in that listing's excerpt; otherwise null. Include a product listing even when its "
                               "page showed no price (price null, with its listing_url) - it is still a lead the founder can open. Use the seller name only if the excerpt "
-                              "shows it, otherwise write 'unknown'. Never invent a supplier."),
+                              "shows it, otherwise write 'unknown'. Never invent a supplier. When a '1688.com search' source is present, also add "
+                              "up to 10 of its listings that are the same kind of product (skip unrelated ones), with platform 1688, the supplier "
+                              "name exactly as written (in Chinese), the detail.1688.com link as listing_url and currency USD."),
     }
     rec = STEP_RECORDS.get(step_key)
     return (
@@ -1192,6 +1197,16 @@ def execute_run(run_id: uuid.UUID) -> None:
                                                         excerpts=o.excerpts, provider="serpapi"))
                     bundle.errors += errs
                     api_meta = {**api_meta, "serpapi_calls": calls}
+                if key == "supplier_listings":
+                    # 1688's English search pages are free and need no key: factory listings with price, MOQ, seller and photo.
+                    obs, errs, pages = demand.p1688_listing_evidence(keywords or _shopper_keywords(run_id, ctx, llm, usage))
+                    nxt = max([int(s.ref[1:]) for s in bundle.sources if s.ref[1:].isdigit()] or [0])
+                    for i, o in enumerate(obs, 1):
+                        bundle.sources.append(SourceDoc(ref=f"S{nxt + i}", url=o.url, title=o.title, page_age="1688.com English search page",
+                                                        excerpts=o.excerpts, provider="1688"))
+                        bundle.media.update(o.media)
+                    bundle.errors += errs
+                    api_meta = {**api_meta, "p1688_pages": pages}
                 if not bundle.sources:
                     ext = to_step_extraction(step_output_model(key)(findings=[], evidence_gaps=[f"No sources were retrieved for: {question}"],
                                                                     **({STEP_RECORDS[key]: []} if key in STEP_RECORDS else {})))

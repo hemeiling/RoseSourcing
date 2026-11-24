@@ -403,6 +403,106 @@ def b2b_listing_evidence(keywords: list[str], max_calls: int = 3) -> tuple[list[
     return obs, errors, network_calls() - sent0
 
 
+# ----------------------------------------------------------------------------- 1688.com English search pages
+
+# 1688's public English search pages (robots.txt allows /*/product-search/) - free and no sign-in. Search itself, product pages
+# and messaging sellers need a 1688 account; the pages embed each product's data as JSON, which is what is read here.
+P1688_SEARCH = "https://www.1688.com/en/product-search/{slug}.html"
+P1688_OFFER = "https://detail.1688.com/offer/{id}.html"
+P1688_PER_PAGE = 30
+_BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+
+
+def p1688_slug(keyword: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", keyword.lower()).strip("-")[:80]
+
+
+def p1688_products(html: str) -> list[dict[str, Any]]:
+    """Every product object embedded in a 1688 English search page, in page order, without repeats."""
+    dec = json.JSONDecoder()
+    found: dict[str, dict[str, Any]] = {}
+    i = html.find('{"productId":')
+    while i >= 0:
+        try:
+            obj, end = dec.raw_decode(html, i)
+        except ValueError:
+            end = i + 13
+        else:
+            if isinstance(obj, dict) and obj.get("productId") and obj.get("title"):
+                found.setdefault(str(obj["productId"]), obj)
+        i = html.find('{"productId":', end)
+    return list(found.values())
+
+
+def _p1688_line(p: dict[str, Any]) -> str:
+    """One listing as the page shows it. Prices are 1688's own USD conversion of the China wholesale price."""
+    lo, hi = _num(p.get("priceMin")), _num(p.get("priceMax"))
+    unit = str(p.get("unit") or "pc")
+    bits = [str(p.get("title") or "").strip()[:200]]
+    if lo is not None:
+        bits.append(f"US${lo:g}" + (f"-{hi:g}" if hi is not None and hi > lo else "") + f" per {unit}")
+    if isinstance(p.get("moq"), int):
+        bits.append(f"MOQ {p['moq']} {unit}")
+    if p.get("supplierName"):
+        bits.append(f"supplier: {p['supplierName']}")
+    signals = [str(p["saleText"])] if p.get("saleText") else []
+    if p.get("repeatRate"):
+        signals.append(f"repeat order rate {p['repeatRate']}")
+    if isinstance(p.get("membershipYears"), int) and p["membershipYears"] > 0:
+        signals.append(f"{p['membershipYears']} years on 1688")
+    if p.get("tradeAssurance"):
+        signals.append("trade assurance")
+    signals += [str(x).replace("_", " ").title() for x in p.get("sellerIdentities") or [] if x]
+    if signals:
+        bits.append("; ".join(signals))
+    bits.append(P1688_OFFER.format(id=p["productId"]))
+    return " - ".join(bits)
+
+
+def _p1688_page(http: httpx2.Client, url: str) -> str:
+    """The download itself."""
+    r = http.get(url)
+    r.raise_for_status()
+    return r.text
+
+
+def p1688_listing_evidence(keywords: list[str], max_pages: int = 2) -> tuple[list[DemandObservation], list[str], int]:
+    """Products from 1688's English search pages, one source per search phrase. Paid placements are left out. Returns the
+    sources, errors and how many pages were downloaded (cache answers excluded)."""
+    obs: list[DemandObservation] = []
+    errors: list[str] = []
+    fetched = 0
+    slugs = list(dict.fromkeys(s for s in (p1688_slug(k) for k in keywords) if s))[:max_pages]
+    with httpx2.Client(timeout=30, follow_redirects=True, headers={"User-Agent": _BROWSER_UA, "Accept-Language": "en"}) as http:
+        for slug in slugs:
+            url = P1688_SEARCH.format(slug=slug)
+            ckey = _cache_key({"engine": "1688_en", "slug": slug})
+            data = _cached(ckey, CACHE_TTL)
+            if data is None:
+                try:
+                    html = _p1688_page(http, url)
+                    fetched += 1
+                    data = {"products": p1688_products(html)}
+                    if not data["products"]:
+                        errors.append(f"1688.com returned no products for '{slug}' (the page may have asked for a sign-in or check).")
+                        continue
+                    _store(ckey, "1688_en", data)
+                except Exception as e:  # noqa: BLE001
+                    log.warning("1688 search page failed: %s", e)
+                    errors.append(f"1688.com: {str(e)[:250]}")
+                    continue
+            products = [p for p in data.get("products") or [] if not p.get("isAd")][:P1688_PER_PAGE]
+            if not products:
+                continue
+            lines = [_p1688_line(p) for p in products]
+            obs.append(DemandObservation(
+                title=f"1688.com search: {slug.replace('-', ' ')} ({len(products)} listings)", url=url,
+                excerpts=["Prices are shown in USD by 1688 (China wholesale, before shipping, export and sourcing-agent costs).", *lines],
+                media={line: {"url": P1688_OFFER.format(id=p["productId"]), "image": image_url(p.get("imageUrl"))}
+                       for line, p in zip(lines, products)}))
+    return obs, errors, fetched
+
+
 # ----------------------------------------------------------------------------- comparable listings and reviews
 
 

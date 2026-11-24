@@ -22,6 +22,12 @@ def fresh_db():
     yield
 
 
+@pytest.fixture(autouse=True)
+def no_1688(monkeypatch):
+    """1688 pages are free to read, so agents fetch them without a key - tests get an empty page instead of the network."""
+    monkeypatch.setattr("app.services.demand._p1688_page", lambda http, url: "")
+
+
 @pytest.fixture
 def client() -> TestClient:
     return TestClient(app)
