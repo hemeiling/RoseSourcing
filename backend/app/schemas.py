@@ -63,6 +63,7 @@ class ProjectIn(BaseModel):
 
 class ProjectPatch(BaseModel):
     name: str | None = None
+    short_name: str | None = Field(None, max_length=60)
     product_category: str | None = None
     target_country: str | None = None
     sourcing_country: str | None = None
@@ -78,6 +79,7 @@ class ProjectPatch(BaseModel):
 class ProjectOut(ORM):
     id: uuid.UUID
     name: str
+    short_name: str | None = None
     product_category: str
     target_country: str
     sourcing_country: str | None

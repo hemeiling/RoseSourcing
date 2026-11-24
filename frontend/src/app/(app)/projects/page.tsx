@@ -12,6 +12,7 @@ import type { Assumption, Project } from "@/lib/types";
 
 type Form = {
   name: string;
+  short_name: string;
   product_category: string;
   target_country: string;
   sourcing_country: string;
@@ -24,13 +25,13 @@ type Form = {
 };
 
 const EMPTY: Form = {
-  name: "", product_category: "", target_country: "United States", sourcing_country: "", budget_usd: "",
+  name: "", short_name: "", product_category: "", target_country: "United States", sourcing_country: "", budget_usd: "",
   target_customers: "", price_min: "", price_max: "", notes: "", assumptions: [],
 };
 
 // The first use case. Every value is an untested business assumption.
 const EXAMPLE: Form = {
-  name: "Latin & Ballroom Dancewear (US)",
+  name: "Latin & Ballroom Dancewear (US)", short_name: "",
   product_category: "Latin and ballroom dancewear",
   target_country: "United States",
   sourcing_country: "China",
@@ -51,7 +52,7 @@ const EXAMPLE: Form = {
 function toForm(p: Project): Form {
   const s = (v: number | null) => (v === null || v === undefined ? "" : String(v));
   return {
-    name: p.name, product_category: p.product_category, target_country: p.target_country, sourcing_country: p.sourcing_country ?? "",
+    name: p.name, short_name: p.short_name ?? "", product_category: p.product_category, target_country: p.target_country, sourcing_country: p.sourcing_country ?? "",
     budget_usd: s(p.budget_usd), target_customers: p.target_customers ?? "", price_min: s(p.price_min), price_max: s(p.price_max),
     notes: p.notes ?? "", assumptions: p.assumptions ?? [],
   };
@@ -75,7 +76,8 @@ function ProjectForm({ initial, onSaved, onCancel, editingId }: { initial: Form;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const payload = toPayload(f);
+    // The short name is sent only when edited: otherwise a renamed product gets a fresh one suggested.
+    const payload = { ...toPayload(f), ...(editingId && f.short_name !== initial.short_name ? { short_name: f.short_name.trim() } : {}) };
     if (payload.price_min !== null && payload.price_max !== null && payload.price_min > payload.price_max) {
       setError("Minimum price must be below maximum price.");
       return;
@@ -106,6 +108,11 @@ function ProjectForm({ initial, onSaved, onCancel, editingId }: { initial: Form;
         <Field label="Project name" className="sm:col-span-2">
           <Input required value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Dancewear launch" />
         </Field>
+        {editingId && (
+          <Field label="Short name (sidebar)" hint="2-4 words. Leave empty to have one suggested." className="sm:col-span-2">
+            <Input maxLength={60} value={f.short_name} onChange={(e) => set("short_name", e.target.value)} placeholder="e.g. Heated cat bed" />
+          </Field>
+        )}
         <Field label="Product category">
           <Input required value={f.product_category} onChange={(e) => set("product_category", e.target.value)} placeholder="e.g. Latin and ballroom dancewear" />
         </Field>

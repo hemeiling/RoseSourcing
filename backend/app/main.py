@@ -32,6 +32,7 @@ from .api import (
 )
 from .config import get_settings
 from .mcp_server import MCPMiddleware, session_manager
+from .services import naming
 from .services.agents.opportunity import recover_interrupted_runs
 from .services.llm.base import LLMError, LLMNotConfigured, LLMRefusal, LLMTransientError
 
@@ -48,6 +49,7 @@ async def lifespan(app: FastAPI):
         n = recover_interrupted_runs()
         if n:
             log.warning("Marked %d in-flight research run(s) as interrupted", n)
+        naming.backfill_in_background()
     except Exception:  # noqa: BLE001 - DB may not be migrated yet in dev
         log.exception("Could not check for interrupted runs")
     async with session_manager.run():  # Claude connector (MCP) transport

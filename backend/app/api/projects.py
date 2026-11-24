@@ -6,6 +6,7 @@ from fastapi import APIRouter
 from sqlalchemy import func, select
 
 from .. import audit
+from ..services import naming
 from ..models import (
     AgentExecution,
     AuditEvent,
@@ -54,6 +55,7 @@ def create_project(body: ProjectIn, db: DB, user: CurrentUser) -> BusinessProjec
     )
     db.add(p)
     db.flush()
+    p.short_name = naming.suggest(db, p, user.id)
     audit.record(db, "project.created", user_id=user.id, project_id=p.id, entity_type="project", entity_id=p.id)
     db.commit()
     return p
@@ -73,6 +75,10 @@ def update_project(body: ProjectPatch, project: ProjectDep, db: DB, user: Curren
         if key == "assumptions" and value is not None:
             value = [dict(a) for a in value]
         setattr(project, key, value)
+    if "short_name" in data:
+        project.short_name = (data["short_name"] or "").strip()[:60] or naming.suggest(db, project, user.id)
+    elif "name" in data:
+        project.short_name = naming.suggest(db, project, user.id)  # a new full name gets a new short one
     audit.record(db, "project.updated", user_id=user.id, project_id=project.id, entity_type="project",
                  entity_id=project.id, details={"fields": sorted(data)})
     db.commit()

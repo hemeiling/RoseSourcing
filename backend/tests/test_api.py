@@ -109,3 +109,22 @@ def test_csv_template_and_frontend_fallback(authed):
     assert r.status_code == 200 and r.text.startswith("supplier,")
     assert authed.get("/api/nope").status_code in (404, 405)
     assert authed.get("/api/health").json() == {"status": "ok"}
+
+
+def test_short_names_for_the_sidebar(authed, monkeypatch):
+    from app.services.llm import anthropic_provider
+    from app.services.naming import heuristic
+
+    from .fakes import FakeLLM
+
+    monkeypatch.setattr(anthropic_provider, "_provider", FakeLLM())
+
+    assert heuristic("Heated covered cat bed cave (igloo style) with plug-in controller") == "Heated covered cat bed cave"
+    assert heuristic("Women's knotted tweed and plaid fabric headband") == "Knotted tweed and plaid fabric"
+    assert heuristic("Men's Latin & ballroom wear and shoes") == "Latin & ballroom wear"  # no trailing "and"
+    assert heuristic("Women's rhinestone fringe Latin dance competition dress") == "Rhinestone fringe Latin dance"  # whole words
+    p = authed.post("/api/projects", json={"name": "Women's Latin practice skirts and dresses for beginners",
+                                           "product_category": "Dancewear", "target_country": "United States"}).json()
+    assert p["short_name"] == "Dance Practice Wear"  # suggested by the AI once, at creation
+    r = authed.patch(f"/api/projects/{p['id']}", json={"short_name": "Practice Skirts"}).json()
+    assert r["short_name"] == "Practice Skirts" and r["name"].startswith("Women's Latin")  # editable; the full name stays

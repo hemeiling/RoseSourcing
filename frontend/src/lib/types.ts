@@ -20,6 +20,8 @@ export interface Assumption {
 export interface Project {
   id: string;
   name: string;
+  /** 2-4 words for the sidebar; the full name is shown everywhere else. */
+  short_name?: string | null;
   product_category: string;
   target_country: string;
   sourcing_country: string | null;

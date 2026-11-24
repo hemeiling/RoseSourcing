@@ -225,6 +225,8 @@ class FakeLLM:
                 {"source_ref": ref, "product": "Knot headband", "stars": 1, "quote": "An invented complaint nobody wrote",
                  "tags": ["fit"], "problem": "invented"},
             ]), usage
+        if output_model.__name__ == "ShortName":
+            return output_model(short_name="Dance Practice Wear"), usage
         if output_model.__name__ == "CommentTagging":
             refs = {m.group(2): m.group(1) for m in re.finditer(r"^\[(C\d+)\] (.*)$", prompt, re.M)}
             ref = lambda part: next((r for t, r in refs.items() if part in t), None)  # noqa: E731

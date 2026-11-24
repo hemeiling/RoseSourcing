@@ -210,13 +210,13 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <AgentsPanel projectId={projectId} />
-      <Card>
+      <Card className="lg:col-span-2">
         <CardHeader title="Checklist" icon={<ListChecks className="h-4 w-4" />} subtitle="What is missing or weak, based on everything saved for this product." />
         <CardBody>
           {todos.length === 0 ? <p className="text-sm text-slate-600">Nothing obvious is missing. Evidence gaps are listed in the market research report.</p> : (
-            <ul className="divide-y divide-slate-100">
+            <ul className="grid gap-x-8 md:grid-cols-2">
               {todos.map((t) => (
-                <li key={t.text}>
+                <li key={t.text} className="border-b border-slate-100">
                   <a href={`#${t.section}`} className="group flex items-start gap-2.5 py-2.5">
                     <AlertTriangle className={clsx("mt-0.5 h-4 w-4 shrink-0", t.tone === "red" ? "text-red-600" : t.tone === "amber" ? "text-amber-600" : "text-slate-400")} aria-hidden />
                     <span className="min-w-0 flex-1">

@@ -21,7 +21,7 @@ function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () 
   const { status } = useStatus();
   const { projects, project } = useProjects();
   const [q, setQ] = useState("");
-  const shown = projects.filter((p) => !q.trim() || `${p.name} ${p.product_category}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const shown = projects.filter((p) => !q.trim() || `${p.short_name ?? ""} ${p.name} ${p.product_category}`.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <nav className="flex h-full flex-col" aria-label="Main">
       <div className={clsx("flex items-center border-b border-line pb-4 pt-5", collapsed ? "flex-col gap-3 px-2" : "justify-between gap-2 px-4")}>
@@ -55,7 +55,7 @@ function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () 
               className="w-full bg-transparent text-[13px] text-primary-800 placeholder:text-primary-300 focus:outline-none" />
           </label>
         )}
-        <ul className={clsx("mt-1.5 min-h-0 flex-1 space-y-0.5 overflow-y-auto", collapsed && "flex flex-col items-center")}>
+        <ul className={clsx("mt-2 min-h-0 flex-1 overflow-y-auto", collapsed ? "flex flex-col items-center gap-1" : "divide-y divide-line border-y border-line")}>
           {shown.map((p) => {
             const active = pathname === "/product" && project?.id === p.id;
             return (
@@ -65,19 +65,20 @@ function Sidebar({ onNavigate, collapsed = false, onToggle }: { onNavigate?: () 
                   onClick={onNavigate}
                   title={p.name}
                   className={clsx(
-                    "flex items-start gap-2 rounded-md text-[13.5px] leading-snug transition-colors",
-                    collapsed ? "justify-center py-1.5" : "px-3 py-1.5",
-                    active ? "bg-primary-50 font-semibold text-primary-800" : "text-primary-700 hover:bg-primary-50",
+                    "flex items-start gap-2 text-[13.5px] leading-snug transition-colors",
+                    collapsed ? "justify-center rounded-md py-1.5" : "px-3 py-2",
+                    !collapsed && (active ? "bg-primary-600 font-semibold text-white" : "text-primary-800 hover:bg-primary-50"),
                   )}
                   aria-current={active ? "page" : undefined}
                 >
                   {collapsed ? (
                     <span className={clsx("flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold",
-                      active ? "bg-primary-600 text-white" : "bg-primary-50 text-primary-700")}>{initials(p.name)}</span>
+                      active ? "bg-primary-600 text-white" : "bg-primary-50 text-primary-700")}>{initials(p.short_name || p.name)}</span>
                   ) : (
                     <>
-                      <span className="min-w-0 flex-1">{p.name}</span>
-                      {DECISION_LABEL[p.decision] && <span className={clsx("mt-0.5 shrink-0 text-[10px] font-semibold", DECISION_COLOR[p.decision])}>{DECISION_LABEL[p.decision]}</span>}
+                      <span className="min-w-0 flex-1">{p.short_name || p.name}</span>
+                      {DECISION_LABEL[p.decision] && <span className={clsx("mt-0.5 shrink-0 text-[10px] font-semibold",
+                        active ? "text-white/85" : DECISION_COLOR[p.decision])}>{DECISION_LABEL[p.decision]}</span>}
                     </>
                   )}
                 </Link>

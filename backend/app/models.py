@@ -71,6 +71,7 @@ class BusinessProject(IdMixin, TimestampMixin, Base):
 
     owner_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(200))
+    short_name: Mapped[str | None] = mapped_column(String(60))  # 2-4 words for the sidebar
     product_category: Mapped[str] = mapped_column(String(200))
     target_country: Mapped[str] = mapped_column(String(100))
     sourcing_country: Mapped[str | None] = mapped_column(String(100))
