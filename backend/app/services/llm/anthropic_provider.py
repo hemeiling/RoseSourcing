@@ -200,12 +200,19 @@ class AnthropicProvider:
 
         result = WebResearchResult()
         messages: list[dict[str, Any]] = [{"role": "user", "content": prompt}]
-        for _ in range(MAX_PAUSE_CONTINUATIONS + 1):
+        for round_no in range(MAX_PAUSE_CONTINUATIONS + 1):
             try:
                 response = self._call(self.client.beta.messages.create, model=self.model, max_tokens=16000, system=system,
                                       messages=messages, tools=tools, output_config={"effort": self.effort}, cache_control=AUTO_CACHE,
                                       **self._extra())
             except LLMError as e:
+                if round_no > 0 and "prompt is too long" in str(e).lower():
+                    # A continuation re-sends everything read so far; a very large page or PDF can push it past the model's
+                    # input limit. Keep what the earlier rounds found (already paid for) instead of losing the whole step.
+                    log.warning("Web research stopped at the input limit after %d rounds: %s", round_no, str(e)[:200])
+                    result.errors.append("Research stopped early: the pages read grew past the AI's input limit (a very large "
+                                         "page or file). The results found up to then were kept.")
+                    break
                 if len(tools) < 2 or "fetch" not in str(e).lower() and "allowed_callers" not in str(e).lower():
                     raise
                 log.warning("Web fetch unavailable (%s); continuing with search only", str(e)[:200])

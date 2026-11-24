@@ -124,3 +124,29 @@ def test_web_research_falls_back_to_search_only_when_fetch_is_rejected(monkeypat
     monkeypatch.setattr(p, "_call", fake_call)
     out = p.web_research(system="s", prompt="p", max_searches=3, country_code="US", max_fetches=3)
     assert calls == [["web_search", "web_fetch"], ["web_search"]] and "search results only" in out.errors[0]
+
+
+def test_web_research_keeps_earlier_rounds_when_a_continuation_is_too_long(monkeypatch):
+    p = AnthropicProvider()
+    p._api_key, p._fallbacks = "test", "off"
+    p._client = SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(create=object())))
+    rounds = []
+
+    def fake_call(fn, **kw):
+        rounds.append(len(kw["messages"]))
+        if len(rounds) == 1:
+            return SimpleNamespace(content=[SimpleNamespace(type="text", text="Duty is 6.5% (S1)", citations=None)], stop_reason="pause_turn",
+                                   model="claude-opus-5-5", usage=SimpleNamespace(input_tokens=90000, output_tokens=500, server_tool_use=None))
+        raise LLMError("Bad request to Anthropic API: Error code: 400 - prompt is too long: 1092965 tokens > 1000000 maximum")
+
+    monkeypatch.setattr(p, "_call", fake_call)
+    out = p.web_research(system="s", prompt="p", max_searches=3, country_code="US", max_fetches=3)
+    assert rounds == [1, 2] and out.usage.input_tokens == 90000  # the first round is kept and its cost counted
+    assert "input limit" in out.errors[0]
+
+    def too_long_first(fn, **kw):
+        raise LLMError("Bad request to Anthropic API: prompt is too long: 1200000 tokens > 1000000 maximum")
+
+    monkeypatch.setattr(p, "_call", too_long_first)
+    with pytest.raises(LLMError, match="too long"):  # nothing found yet: still an error
+        p.web_research(system="s", prompt="p", max_searches=3, country_code="US", max_fetches=0)
