@@ -1,20 +1,19 @@
 "use client";
 
 import clsx from "clsx";
-import { CheckCircle2, Copy, CopyPlus, ExternalLink as ExtIcon, FileSearch, ImagePlus, Loader2, Pencil, Plus, Ruler, Share2, Trash2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { CheckCircle2, Copy, CopyPlus, ExternalLink as ExtIcon, FileSearch, Pencil, Ruler, Share2, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { RequireProject } from "@/components/app-shell";
 import { FindingCard } from "@/components/evidence";
 import { ConfirmModal } from "@/components/market/shared";
 import { ChartEditor } from "@/components/sizing/chart-editor";
-import { FitFinder, SizeTable, UnitToggle } from "@/components/sizing/fit-finder";
-import { Alert, Badge, Button, Card, CardBody, CardHeader, EmptyState, ExternalLink, Field, PageHeader, Select, Spinner } from "@/components/ui";
-import { api, del, errorText, post } from "@/lib/api";
+import { SizeTable, UnitToggle } from "@/components/sizing/fit-finder";
+import { Alert, Badge, Button, Card, CardBody, CardHeader, EmptyState, ExternalLink, PageHeader, Spinner } from "@/components/ui";
+import { del, errorText, post } from "@/lib/api";
 import { date } from "@/lib/format";
 import { useApi } from "@/lib/hooks";
-import { prepareImage } from "@/lib/image";
 import { GARMENT_LABEL, type Unit } from "@/lib/sizing";
-import type { Finding, FitResult, SizeChart } from "@/lib/types";
+import type { Finding, SizeChart } from "@/lib/types";
 
 const ROLE_META: Record<SizeChart["role"], { title: string; badge: string; blurb: string }> = {
   published: { title: "Your size guides", badge: "Your size guide", blurb: "What customers see. Share one as a public fit finder link." },
@@ -53,77 +52,9 @@ function FitResearch({ projectId }: { projectId: string }) {
   );
 }
 
-// ----------------------------------------------------------------------------- add charts
-
-function AddChart({ projectId, onAdded, onManual }: { projectId: string; onAdded: (c: SizeChart) => void; onManual: (g: SizeChart["garment_type"]) => void }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [role, setRole] = useState<SizeChart["role"]>("supplier");
-  const [garment, setGarment] = useState<SizeChart["garment_type"]>("dress");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function send(file: File) {
-    if (busy) return;
-    if (!file.type.startsWith("image/")) return setError("Please choose an image of the size chart.");
-    setBusy(true);
-    setError(null);
-    try {
-      const form = new FormData();
-      form.append("file", await prepareImage(file, 2400));
-      form.append("role", role);
-      onAdded(await api<SizeChart>(`/api/projects/${projectId}/size-charts/extract`, { method: "POST", form }));
-    } catch (e) {
-      setError(errorText(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Card>
-      <CardHeader title="Add a size chart" icon={<Plus className="h-4 w-4" />} subtitle="From a screenshot of a supplier's or brand's chart, or typed in." />
-      <CardBody className="space-y-4">
-        <div onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) send(f); }}
-          className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-line bg-canvas/60 px-4 py-6 text-center">
-          {busy ? (
-            <span className="flex items-center gap-2 text-sm text-brand-700"><Loader2 className="h-4 w-4 animate-spin" /> Reading the size chart...</span>
-          ) : (
-            <>
-              <ImagePlus className="h-7 w-7 text-brand-400" aria-hidden />
-              <span className="text-sm text-slate-600">Drop a size chart screenshot here, or</span>
-              <Button size="sm" onClick={() => input.current?.click()}>Choose image</Button>
-              <span className="text-[11px] text-slate-500">AI copies the numbers exactly as printed; check them before you rely on the chart.</span>
-            </>
-          )}
-          <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) send(f); e.target.value = ""; }} />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Whose chart is it?">
-            <Select value={role} onChange={(e) => setRole(e.target.value as SizeChart["role"])}>
-              <option value="supplier">A supplier / factory</option>
-              <option value="reference">A competitor or reference brand</option>
-              <option value="published">Mine (our size guide)</option>
-            </Select>
-          </Field>
-          <Field label="Type it in instead">
-            <div className="flex gap-2">
-              <Select value={garment} onChange={(e) => setGarment(e.target.value as SizeChart["garment_type"])}>
-                {Object.entries(GARMENT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </Select>
-              <Button size="sm" variant="secondary" onClick={() => onManual(garment)}><Pencil className="h-3.5 w-3.5" /> Enter</Button>
-            </div>
-          </Field>
-        </div>
-        {error && <Alert tone="red">{error}</Alert>}
-      </CardBody>
-    </Card>
-  );
-}
-
 // ----------------------------------------------------------------------------- chart card
 
-function ChartCard({ c, unit, onEdit, onChanged, onTry }: { c: SizeChart; unit: Unit; onEdit: () => void; onChanged: () => void; onTry: () => void }) {
+function ChartCard({ c, unit, onEdit, onChanged }: { c: SizeChart; unit: Unit; onEdit: () => void; onChanged: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -177,7 +108,6 @@ function ChartCard({ c, unit, onEdit, onChanged, onTry }: { c: SizeChart; unit: 
         </div>
       )}
       <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={onTry}><Ruler className="h-3.5 w-3.5" /> Try the fit finder</Button>
         <Button size="sm" variant="secondary" onClick={onEdit}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
         {c.verification_status !== "human_verified" && (
           <Button size="sm" variant="secondary" loading={busy === "verify"} onClick={() => act("verify", () => post(`/api/size-charts/${c.id}/verify`))}>
@@ -221,42 +151,21 @@ function SizingView({ projectId }: { projectId: string }) {
   const charts = useApi<SizeChart[]>(`/api/projects/${projectId}/size-charts`);
   const [unit, setUnit] = useState<Unit>("cm");
   const [editing, setEditing] = useState<{ chart: SizeChart | null; garment?: SizeChart["garment_type"] } | null>(null);
-  const [finderId, setFinderId] = useState<string | null>(null);
-  const finderRef = useRef<HTMLDivElement>(null);
   const list = charts.data ?? [];
-  const finderChart = list.find((c) => c.id === finderId) ?? list.find((c) => c.role === "published") ?? list[0];
 
   return (
     <>
       <PageHeader title="Sizing & Fit"
-        description="Size scales for every product: your own size guide, supplier charts and competitors' charts. Compare them, test sizes against real measurements, and share a fit finder with customers so they order the right size the first time." />
+        description="What the Size & Fit Checker found: competitors' size charts and what customers say about fit, returns and exchanges." />
       <div className="grid gap-5">
         <FitResearch projectId={projectId} />
-        <AddChart projectId={projectId} onAdded={(c) => { charts.reload(); setEditing({ chart: c }); }} onManual={(g) => setEditing({ chart: null, garment: g })} />
-
-        <Card>
-          <CardHeader title="Fit finder" icon={<Ruler className="h-4 w-4" />} subtitle="Check which size a customer should order. Deterministic: same measurements, same answer." />
-          <CardBody>
-            {!finderChart ? <p className="text-sm text-slate-500">Add a size chart to try the fit finder.</p> : (
-              <div className="space-y-3" ref={finderRef}>
-                <Field label="Size chart">
-                  <Select value={finderChart.id} onChange={(e) => setFinderId(e.target.value)}>
-                    {list.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </Select>
-                </Field>
-                <FitFinder key={finderChart.id} chart={finderChart} unit={unit} onUnitChange={setUnit} showTips={false}
-                  recommend={(m, u) => post<FitResult>(`/api/size-charts/${finderChart.id}/recommend`, { measurements: m, unit: u })} />
-              </div>
-            )}
-          </CardBody>
-        </Card>
 
         <div className="space-y-5">
           {charts.loading && !charts.data && <Spinner />}
           {charts.error && <Alert tone="red">{errorText(charts.error)}</Alert>}
           {charts.data && list.length === 0 && (
             <EmptyState icon={<Ruler className="h-5 w-5" />} title="No size charts yet">
-              Run fit research to collect competitors&apos; size charts, upload a supplier&apos;s chart, or type in your own size guide.
+              Run the Size &amp; Fit Checker from the agents list at the top to collect competitors&apos; size charts.
             </EmptyState>
           )}
           {list.length > 0 && <div className="flex justify-end"><UnitToggle unit={unit} onChange={setUnit} /></div>}
@@ -269,8 +178,7 @@ function SizingView({ projectId }: { projectId: string }) {
                 <p className={clsx("text-xs text-slate-500")}>{ROLE_META[role].blurb}</p>
                 <div className="grid gap-3">
                   {items.map((c) => (
-                    <ChartCard key={c.id} c={c} unit={unit} onChanged={charts.reload} onEdit={() => setEditing({ chart: c })}
-                      onTry={() => { setFinderId(c.id); finderRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); }} />
+                    <ChartCard key={c.id} c={c} unit={unit} onChanged={charts.reload} onEdit={() => setEditing({ chart: c })} />
                   ))}
                 </div>
               </section>

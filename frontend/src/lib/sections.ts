@@ -28,7 +28,7 @@ export const SECTIONS: Tab[] = [
   { id: "fit", title: "Customers & fit", parts: [
     { id: "reviews", title: "Low-star reviews", shownWhen: ["review_reports"], description: "Complaints in 1-3 star reviews of the leading listings, tagged for comfort, fit and durability - each quote checked against its source." },
     { id: "buyers", title: "Buyers & style", shownWhen: ["buyer_reports"], description: "Who buys this, what they wear it for and which patterns, colours and materials they like - counted from every customer comment collected, with personas and design directions." },
-    { id: "sizing", title: "Sizing & fit", route: "/sizing", description: "Size charts, the fit finder and fit research for this product." },
+    { id: "sizing", title: "Sizing & fit", route: "/sizing", shownWhen: ["size_charts", "fit_findings"], description: "Competitors' size charts and what customers say about fit, returns and exchanges." },
   ] },
   { id: "brand", title: "Brand & launch", parts: [
     { id: "brand-concepts", title: "Brand & content", route: "/brand", description: "Brand drafts (names, positioning, voice, palettes) and launch content (social posts, video script, image briefs) written from your research." },

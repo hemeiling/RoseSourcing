@@ -124,6 +124,7 @@ def dashboard(project: ProjectDep, db: DB) -> dict:
             "buyer_reports": count(AnalysisSnapshot, AnalysisSnapshot.kind == "buyer_style"),
             "channel_plans": count(AnalysisSnapshot, AnalysisSnapshot.kind == "channel_logistics_plan"),
             "market_size_findings": count(ResearchFinding, ResearchFinding.section.in_(("market_size", "growth"))),
+            "fit_findings": count(ResearchFinding, ResearchFinding.section == "fit"),
             "open_recommendations": count(Recommendation, Recommendation.status.in_(("open", "accepted"))),
             "spec_sheets": count(AnalysisSnapshot, AnalysisSnapshot.kind == "spec_sheet"),
             "rfqs_sent": db.scalar(select(func.count(SupplierCommunication.id)).join(Supplier).where(

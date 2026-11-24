@@ -1,6 +1,6 @@
 "use client";
 
-import { Palette, Sparkles, UserRound, Users } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Palette, Sparkles, UserRound, Users } from "lucide-react";
 import { useState } from "react";
 import type { Snapshot } from "@/components/listing-insights";
 import { Badge, Card, CardBody, CardHeader, ExternalLink, ProductThumb, Spinner } from "@/components/ui";
@@ -15,6 +15,71 @@ type Style = {
   term: string; kind: string; synonyms: string[]; liked: number; disliked: number; mentioned: number; top_listings: number; top_listing_reviews: number;
   examples: { title: string; url: string | null; image: string | null }[];
 };
+type SortKey = "term" | "liked" | "disliked" | "mentioned" | "top_listings";
+
+/** A header that sorts its column: the first click puts the most (or A first for names) on top, the next reverses. */
+function SortTh({ label, k, sort, onSort, className }: { label: string; k: SortKey; sort: { key: SortKey; desc: boolean } | null;
+  onSort: (k: SortKey) => void; className: string }) {
+  const active = sort?.key === k;
+  const Icon = !active ? ArrowUpDown : sort.desc ? ArrowDown : ArrowUp;
+  return (
+    <th className={className} aria-sort={active ? (sort.desc ? "descending" : "ascending") : "none"}>
+      <button type="button" onClick={() => onSort(k)} className={`inline-flex items-start gap-1 text-left uppercase tracking-wide hover:text-primary-700 ${active ? "text-primary-700" : ""}`}>
+        {label}<Icon className={`mt-px h-3.5 w-3.5 shrink-0 ${active ? "" : "text-slate-300"}`} aria-hidden />
+      </button>
+    </th>
+  );
+}
+
+/** Each look: how often it is praised, criticised and mentioned, and how many top sellers use it - sortable by any column. */
+function LooksTable({ styles }: { styles: Style[] }) {
+  const [sort, setSort] = useState<{ key: SortKey; desc: boolean } | null>(null);
+  const onSort = (k: SortKey) => setSort((cur) => (cur?.key === k ? { key: k, desc: !cur.desc } : { key: k, desc: k !== "term" }));
+  const rows = !sort ? styles : [...styles].sort((a, b) => {
+    const d = sort.key === "term" ? a.term.localeCompare(b.term)
+      : sort.key === "top_listings" ? a.top_listings - b.top_listings || a.top_listing_reviews - b.top_listing_reviews
+      : a[sort.key] - b[sort.key];
+    return sort.desc ? -d : d;
+  });
+  const th = { sort, onSort };
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[560px] text-sm">
+        <thead className="border-b border-line bg-slate-50/60 text-left text-xs uppercase tracking-wide text-slate-500">
+          <tr>
+            <SortTh label="Look" k="term" className="px-4 py-2" {...th} />
+            <SortTh label="Praised" k="liked" className="px-2 py-2" {...th} />
+            <SortTh label="Criticised" k="disliked" className="px-2 py-2" {...th} />
+            <SortTh label="Mentioned" k="mentioned" className="px-2 py-2" {...th} />
+            <SortTh label="In top sellers" k="top_listings" className="px-2 py-2" {...th} />
+            <th className="px-4 py-2">Examples</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {rows.map((s) => (
+            <tr key={s.term}>
+              <td className="px-4 py-2 align-top">
+                <div className="font-medium text-ink">{s.term}</div>
+                <div className="text-xs text-slate-500">{titleCase(s.kind)}{s.synonyms.length ? ` · ${s.synonyms.join(", ")}` : ""}</div>
+              </td>
+              <td className="px-2 py-2 align-top font-semibold text-green-700">{s.liked || <span className="font-normal text-slate-400">0</span>}</td>
+              <td className="px-2 py-2 align-top font-semibold text-red-700">{s.disliked || <span className="font-normal text-slate-400">0</span>}</td>
+              <td className="px-2 py-2 align-top text-slate-700">{s.mentioned}</td>
+              <td className="px-2 py-2 align-top text-slate-700">{s.top_listings}{s.top_listings > 0 && <div className="text-xs text-slate-500">{num(s.top_listing_reviews)} reviews</div>}</td>
+              <td className="px-4 py-2 align-top">
+                <div className="flex flex-wrap gap-1.5">
+                  {s.examples.map((e) => e.image ? <ProductThumb key={e.title} src={e.image} href={e.url} alt={e.title} size={36} />
+                    : e.url ? <ExternalLink key={e.title} href={e.url} className="text-xs">{e.title.slice(0, 40)}</ExternalLink> : null)}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 type BuyerStyle = {
   summary: string;
   stats: {
@@ -127,34 +192,7 @@ export function BuyerStyleSection({ projectId }: { projectId: string }) {
           <Card>
             <CardHeader title="Looks they like" icon={<Palette className="h-4 w-4" />}
               subtitle="Praised and criticised in comments, and how many of the best-selling tracked listings use each look." />
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] text-sm">
-                <thead className="border-b border-line bg-slate-50/60 text-left text-xs uppercase tracking-wide text-slate-500">
-                  <tr><th className="px-4 py-2">Look</th><th className="px-2 py-2">Praised</th><th className="px-2 py-2">Criticised</th>
-                    <th className="px-2 py-2">Mentioned</th><th className="px-2 py-2">In top sellers</th><th className="px-4 py-2">Examples</th></tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {c.styles.map((s) => (
-                    <tr key={s.term}>
-                      <td className="px-4 py-2 align-top">
-                        <div className="font-medium text-ink">{s.term}</div>
-                        <div className="text-xs text-slate-500">{titleCase(s.kind)}{s.synonyms.length ? ` · ${s.synonyms.join(", ")}` : ""}</div>
-                      </td>
-                      <td className="px-2 py-2 align-top font-semibold text-green-700">{s.liked || <span className="font-normal text-slate-400">0</span>}</td>
-                      <td className="px-2 py-2 align-top font-semibold text-red-700">{s.disliked || <span className="font-normal text-slate-400">0</span>}</td>
-                      <td className="px-2 py-2 align-top text-slate-700">{s.mentioned}</td>
-                      <td className="px-2 py-2 align-top text-slate-700">{s.top_listings}{s.top_listings > 0 && <div className="text-xs text-slate-500">{num(s.top_listing_reviews)} reviews</div>}</td>
-                      <td className="px-4 py-2 align-top">
-                        <div className="flex flex-wrap gap-1.5">
-                          {s.examples.map((e) => e.image ? <ProductThumb key={e.title} src={e.image} href={e.url} alt={e.title} size={36} />
-                            : e.url ? <ExternalLink key={e.title} href={e.url} className="text-xs">{e.title.slice(0, 40)}</ExternalLink> : null)}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <LooksTable styles={c.styles} />
           </Card>
 
           <div className="grid gap-4">
