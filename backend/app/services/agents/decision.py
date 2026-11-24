@@ -134,6 +134,16 @@ def _product_research(db: Session, project: BusinessProject) -> list[str]:
     if (rv := _latest(db, project.id, "review_insights")):
         out.append("=== LOW-STAR REVIEW COMPLAINTS ===\n" + "\n".join(
             f"- {x['tag']} ({x['count']}): {x['summary']} Fix: {x['fix']}" for x in rv.content.get("themes") or []))
+    if (bs := _latest(db, project.id, "buyer_style")):
+        st = bs.content.get("stats") or {}
+        age = st.get("age") or {}
+        out.append("=== BUYERS & STYLE (counted from verified customer comments) ===\n"
+                   + f"{bs.content.get('summary')}\nComments read: {st.get('comments_read')}, tagged: {st.get('tagged')}. "
+                   + (f"Stated ages: {age.get('stated')} (median {age.get('median')}). " if age.get("stated") else "No ages stated. ")
+                   + "Occasions: " + ", ".join(f"{o['tag']} ({o['count']})" for o in (st.get("occasions") or [])[:6])
+                   + "\nMost-praised looks: " + ", ".join(f"{s['term']} ({s['liked']} praise, in {s['top_listings']} top listings)"
+                                                          for s in (bs.content.get("styles") or [])[:8])
+                   + "\nDesign directions: " + "; ".join(d["title"] for d in bs.content.get("design_directions") or []))
     if (sp := _latest(db, project.id, "spec_sheet")):
         out.append("=== SPEC SHEET DRAFT ===\nMaterials: " + "; ".join(sp.content.get("materials") or [])
                    + "\nQuality requirements: " + "; ".join(sp.content.get("quality_requirements") or []))

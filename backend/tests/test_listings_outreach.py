@@ -43,12 +43,16 @@ def fake_serpapi(http, params):
     if e == "google_immersive_product":
         return {"product_results": {"ratings": [{"stars": 5, "amount": 200}, {"stars": 2, "amount": 30}, {"stars": 1, "amount": 20}],
                                     "user_reviews": [{"rating": 2, "title": "Pretty but", "text": REVIEW, "source": "etsy.com", "date": "2 months ago"},
-                                                     {"rating": 5, "text": "Love it, so comfortable and cute!"}]}}
+                                                     {"rating": 5, "text": "Love it, so comfortable and cute!"},
+                                                     {"rating": 5, "text": "I'm 34 and wear the plaid one to work every day, so comfy."},
+                                                     {"rating": 4, "text": "Bought this for my teenage daughter for school, she loves the velvet."}]}}
     if e == "amazon_product":
         return {"reviews_information": {"summary": {
             "customer_reviews": {"5 star": 70, "4 star": 12, "3 star": 6, "2 star": 4, "1 star": 8},
             "insights": [{"title": "Comfort", "sentiment": "mixed", "mentions": 40, "summary": "Some find it tight.",
-                          "examples": [{"snippet": "squeezes behind my ears"}]},
+                          "examples": [{"snippet": "squeezes behind my ears"}, {"snippet": "Five Stars"},
+                                       {"snippet": "My mom wears it to church every Sunday, the leopard is so classy",
+                                        "link": "https://www.amazon.com/portal/customer-reviews/srp/-/R1"}]},
                          {"title": "Looks", "sentiment": "positive", "summary": "Cute."}]}}}
     raise AssertionError(e)
 
@@ -350,8 +354,6 @@ def test_recommended_price_is_raised_until_each_sale_earns():
 
 
 def test_run_all_skips_done_resumes_failed_and_never_repeats(authed, project, fake_llm, monkeypatch):
-    import threading
-
     from app.services.agents import run_all
 
     pid = project["id"]
@@ -367,7 +369,9 @@ def test_run_all_skips_done_resumes_failed_and_never_repeats(authed, project, fa
     assert plan["market_opportunity"]["action"] == "new"
 
     # Run the chain in this thread so the test can check the result.
-    monkeypatch.setattr(threading, "Thread", lambda target, args, **kw: type("T", (), {"start": lambda self: target(*args)})())
+    # Only Run all's own thread runs inline (agents may still use their own worker threads).
+    inline = lambda target, args, **kw: type("T", (), {"start": lambda self: target(*args)})()  # noqa: E731
+    monkeypatch.setattr(run_all, "threading", type("Threading", (), {"Thread": staticmethod(inline)}))
     r = authed.post(f"/api/projects/{pid}/research-runs/run-all")
     assert r.status_code == 202 and "price_tiers" not in r.json()["started"]
     runs = authed.get(f"/api/projects/{pid}/research-runs").json()
@@ -403,3 +407,34 @@ def test_competitor_revenue_kept_only_when_the_source_states_it(authed, project,
     comps = authed.get(f"/api/projects/{pid}/competitors").json()
     brand_a = next(x for x in comps if x["name"] == "Brand A")
     assert brand_a["revenue"] is None
+
+
+def test_buyer_style_counts_verified_comment_tags(authed, project, fake_llm, serp):
+    pid = project["id"]
+    _run(authed, pid, "listing_tracker")
+    _run(authed, pid, "review_mining")  # its low-star reviews join the comment pool (no new SerpApi calls needed for them)
+    run = _run(authed, pid, "buyer_style")
+    assert [s["key"] for s in run["steps"]] == ["style_collect", "style_web", "style_profile"]
+    assert all(s["status"] == "completed" for s in run["steps"]), run["steps"]
+    snap = authed.get(f"/api/projects/{pid}/snapshots/buyer_style").json()["content"]
+    st = snap["stats"]
+    # The same reviews on two listings and in the earlier run count once; Amazon's quoted review snippets count too
+    # ("Five Stars" alone says nothing and is skipped).
+    assert st["reviews"] == 6
+    assert st["tagged"] == 3 and st["unverified_dropped"] == 1  # the invented quote is dropped
+    assert st["age"]["stated"] == 1 and st["age"]["median"] == 34  # "99" is not in the comment, so it is not an age
+    assert st["age"]["bands"]["30s"] == 1 and st["age"]["bands"]["teen"] == 1
+    assert st["wearer"] == {"self": 1, "daughter": 1} and st["gift"] == 1
+    assert st["occasions"] == [{"tag": "Work & school", "count": 2, "includes": ["work", "school"]}]  # grouped, counted per comment
+    styles = {s["term"]: s for s in snap["styles"]}
+    assert styles["plaid"]["liked"] == 1 and styles["plaid"]["top_listings"] >= 1 and styles["velvet"]["liked"] == 1
+    assert styles["knot"]["disliked"] == 1 and styles["knot"]["top_listings"] > styles["plaid"]["top_listings"]
+    assert snap["personas"][0]["comment_refs"] == [snap["comments"][0]["ref"]]  # unknown refs removed
+    assert snap["design_directions"][0]["refs"] == [snap["comments"][0]["ref"], "L1"]
+    claims = [f["claim"] for f in authed.get(f"/api/projects/{pid}/findings", params={"section": "customer_segments"}).json()]
+    assert any(c.startswith("Customers say they wear it for: Work & school (2)") for c in claims)
+    praised = next(c for c in claims if c.startswith("Most-praised looks in 3 tagged customer comments:"))
+    assert "plaid (1)" in praised and "velvet (1)" in praised and "knot" not in praised
+    assert authed.get(f"/api/projects/{pid}/dashboard").json()["counts"]["buyer_reports"] == 1
+    plan = {s["kind"]: s["action"] for s in authed.get(f"/api/projects/{pid}/research-runs/run-all").json()["steps"]}
+    assert plan["buyer_style"] == "done"

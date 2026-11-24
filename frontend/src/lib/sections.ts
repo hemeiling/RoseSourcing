@@ -2,7 +2,7 @@
 // (e.g. #listings), so links and deep links reach the exact part. `route` is the old standalone page it replaces.
 
 export type TabId = "overview" | "market" | "competitors" | "fit" | "suppliers" | "compliance" | "channels" | "economics" | "brand";
-export type PartId = "review" | "decision" | "market-size" | "research" | "trends" | "pricing" | "listings" | "brands" | "reviews" | "sizing"
+export type PartId = "review" | "decision" | "market-size" | "research" | "buyers" | "trends" | "pricing" | "listings" | "brands" | "reviews" | "sizing"
   | "supplier-list" | "outreach" | "brand-concepts" | "commerce";
 export type SectionId = TabId | PartId;
 
@@ -35,6 +35,7 @@ export const SECTIONS: Tab[] = [
   { id: "channels", title: "Shipping & channels", route: "/channels", description: "Where to sell, fees, and how to ship." },
   { id: "economics", title: "Unit economics", route: "/analytics", description: "Cost scenarios, margins and experiments." },
   { id: "brand", title: "Brand & launch", parts: [
+    { id: "buyers", title: "Buyers & style", description: "Who buys this, what they wear it for and which patterns, colours and materials they like - counted from every customer comment collected, with personas and design directions." },
     { id: "brand-concepts", title: "Brand", route: "/brand", description: "Names, positioning, personas and palettes." },
     { id: "commerce", title: "Inventory & listings", route: "/commerce", description: "Products, stock and listing approvals." },
   ] },

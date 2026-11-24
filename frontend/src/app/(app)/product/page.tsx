@@ -9,6 +9,7 @@ import { AiRecommendationLine, DecisionBadge } from "@/components/decision";
 import { RunStatusBadge, fmtCost } from "@/components/market/shared";
 import { ReviewInsightsSection } from "@/components/listing-insights";
 import { MarketSizeSection } from "@/components/market-size";
+import { BuyerStyleSection } from "@/components/buyer-style";
 import { OutreachSection } from "@/components/outreach";
 import { TrendsExplorer } from "@/components/trends-explorer";
 import { ComplianceSection, PriceTiersSection } from "@/components/product-insights";
@@ -35,7 +36,7 @@ import SuppliersPage from "../suppliers/page";
 
 // What each tab or part shows. Tabs with parts render each part under its own heading and anchor.
 const CUSTOM: Partial<Record<SectionId, (p: { projectId: string }) => ReactNode>> = {
-  "market-size": MarketSizeSection, trends: TrendsExplorer, pricing: PriceTiersSection, reviews: ReviewInsightsSection, outreach: OutreachSection,
+  "market-size": MarketSizeSection, buyers: BuyerStyleSection, trends: TrendsExplorer, pricing: PriceTiersSection, reviews: ReviewInsightsSection, outreach: OutreachSection,
   compliance: ComplianceSection,
 };
 const PAGES: Partial<Record<SectionId, () => ReactNode>> = {
@@ -196,6 +197,7 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
   if (!c.price_tier_reports) todos.push({ text: "Price tiers not researched", detail: "See what budget, mid, premium and luxury buyers each want before you pick a price.", section: "pricing", tone: "slate" });
   if (!c.compliance_checks) todos.push({ text: "No compliance check yet", detail: "Design patents, labelling and UFLPA forced-labour rules - and questions for your supplier.", section: "compliance", tone: "amber" });
   if (!c.listing_reports) todos.push({ text: "Comparable listings not tracked", detail: "Log Google Trends plus price, rating, review count and badges for 15-20 directly comparable listings.", section: "listings", tone: "slate" });
+  if (!c.buyer_reports) todos.push({ text: "Buyers & style not profiled", detail: "Count who buys (stated ages, who wears it, occasions) and which looks they like from every customer comment collected.", section: "buyers", tone: "slate" });
   if (!c.review_reports) todos.push({ text: "Low-star reviews not tagged", detail: "Find the comfort, fit and durability complaints in competitors' 1-3 star reviews.", section: "reviews", tone: "slate" });
   if (c.suppliers && !c.spec_sheets) todos.push({ text: "No spec sheet yet", detail: "Draft the spec sheet suppliers will quote against.", section: "outreach", tone: "amber" });
   if (c.suppliers && c.rfqs_sent < 5)

@@ -225,6 +225,31 @@ class FakeLLM:
                 {"source_ref": ref, "product": "Knot headband", "stars": 1, "quote": "An invented complaint nobody wrote",
                  "tags": ["fit"], "problem": "invented"},
             ]), usage
+        if output_model.__name__ == "CommentTagging":
+            refs = {m.group(2): m.group(1) for m in re.finditer(r"^\[(C\d+)\] (.*)$", prompt, re.M)}
+            ref = lambda part: next((r for t, r in refs.items() if part in t), None)  # noqa: E731
+            tag = dict(age=None, age_band="unknown", wearer="unknown", gift=False, occasions=[], liked=[], disliked=[])
+            wanted = [
+                (ref("I'm 34"), {"age": 34, "age_band": "30s", "wearer": "self", "occasions": ["Work"], "liked": ["plaid"],
+                                 "quote": "I'm 34 and wear the plaid one to work every day"}),
+                (ref("teenage daughter"), {"age": 99, "age_band": "teen", "wearer": "daughter", "gift": True,  # 99 is not stated
+                                           "occasions": ["school"], "liked": ["velvet"], "quote": "Bought this for my teenage daughter for school"}),
+                (ref("knot came undone"), {"disliked": ["knot"], "quote": "The knot came undone after two wears"}),
+                (ref("Love it"), {"liked": ["tweed"], "quote": "An invented sentence nobody ever wrote"}),
+            ]
+            return output_model(comments=[{**tag, "ref": r, **t} for r, t in wanted if r]), usage
+        if output_model.__name__ == "StyleSynthesis":
+            first = re.search(r"^\[(C\d+)\] .*I'm 34", prompt, re.M).group(1)  # only verified tags reach this call
+            assert "invented sentence" not in prompt
+            assert "work: 1" in prompt and "school: 1" in prompt  # the occasion tags are listed for grouping
+            return output_model(summary="Plaid and velvet knots, worn to work and school.",
+               occasion_groups=[{"name": "Work & school", "tags": ["work", "school"]}],
+               style_terms=[{"term": "Plaid", "kind": "pattern", "synonyms": ["tartan"]}, {"term": "velvet", "kind": "material", "synonyms": []},
+                            {"term": "knot", "kind": "shape", "synonyms": ["knotted"]}],
+               personas=[{"name": "Office professional", "age_range": "30s", "description": "Wears it to work.", "wants": ["plaid"],
+                          "comment_refs": [first, "C999"]}],
+               design_directions=[{"title": "Plaid wide knot", "description": "Autumn plaid, padded wide knot.", "why": "Praised and best-selling.",
+                                   "refs": [first, "L1", "X9"]}]), usage
         if output_model.__name__ == "UERecommendation":
             ref = re.search(r"\[(E\d+)\] Supplier listing price", prompt)
             return output_model(summary="Price in the premium tier.", inputs=[

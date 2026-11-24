@@ -360,6 +360,24 @@ STEP_DEFS["review_web"] = {
     ],
 }
 
+STEP_DEFS["style_web"] = {
+    "label": "Buyers & style trends on the web",
+    "sections": ["customer_segments", "demand", "other"],
+    "question": (
+        "Who buys and wears {category} in {country}, and which looks do they want? Find who the buyers are (age groups, "
+        "who they buy for, as published surveys or the buyers themselves say), what they do and where they wear it (work, school, "
+        "sport, events, everyday), and which patterns, colours, materials and shapes are popular or rising now - on TikTok, "
+        "Pinterest, Instagram, Reddit, Etsy trend pages, retailer best-seller pages and fashion press. Quote buyers' and "
+        "commenters' own words with where they said it. Do not assume an age: give it only when a source states it. {focus}"
+    ),
+    "hints": [
+        "{category} trend {year}",
+        "{category} tiktok pinterest aesthetic",
+        "{category} reddit who wears",
+        "{category} best selling patterns colors",
+    ],
+}
+
 RUN_STEPS = {
     "market_opportunity": ["demand_signals", "market_size", "customers", "competitors", "sourcing", "risks", "synthesis"],
     "channels_logistics": ["channels", "logistics", "plan"],
@@ -370,9 +388,10 @@ RUN_STEPS = {
     "compliance": ["design_ip", "labeling", "uflpa", "compliance_plan"],
     "listing_tracker": ["listing_scan"],
     "review_mining": ["review_collect", "review_web", "review_tags"],
+    "buyer_style": ["style_collect", "style_web", "style_profile"],
 }
 # Steps that run their own code (marketplace APIs) instead of a web research question.
-CUSTOM_STEPS = ("listing_scan", "review_collect")
+CUSTOM_STEPS = ("listing_scan", "review_collect", "style_collect")
 
 STEP_LABELS = {k: v["label"] for k, v in STEP_DEFS.items()} | {
     "synthesis": "Opportunity report synthesis",
@@ -381,12 +400,15 @@ STEP_LABELS = {k: v["label"] for k, v in STEP_DEFS.items()} | {
     "listing_scan": "Google Trends & comparable listings",
     "review_collect": "Low-star reviews of leading listings",
     "review_tags": "Complaint tags & themes",
+    "style_collect": "Reviews of leading listings (all stars)",
+    "style_profile": "Commenter statistics & style profile",
 }
-SYNTHESIS_STEP = {"market_opportunity": "synthesis", "channels_logistics": "plan", "compliance": "compliance_plan", "review_mining": "review_tags"}
+SYNTHESIS_STEP = {"market_opportunity": "synthesis", "channels_logistics": "plan", "compliance": "compliance_plan", "review_mining": "review_tags",
+                  "buyer_style": "style_profile"}
 STEP_AGENT = {"competitors": "competitor_intelligence", "channels": "commerce", "logistics": "sourcing", "demand_signals": "analytics",
               "fit_charts": "fit", "fit_experience": "fit", "price_tiers": "price_tier",
               "design_ip": "compliance", "labeling": "compliance", "uflpa": "compliance", "supplier_listings": "supplier_sourcing",
-              "review_web": "review_insights"}
+              "review_web": "review_insights", "style_web": "buyer_style"}
 
 
 # Each step asks for findings, gaps and only the record list it fills, with its own section choices. One schema with
@@ -1085,7 +1107,10 @@ def execute_run(run_id: uuid.UUID) -> None:
             if key in CUSTOM_STEPS:
                 from . import listings
 
-                return {"listing_scan": listings.run_listing_scan, "review_collect": listings.run_review_collect}[key](run_id, ctx, keywords, cc)
+                from . import buyers
+
+                return {"listing_scan": listings.run_listing_scan, "review_collect": listings.run_review_collect,
+                        "style_collect": buyers.run_style_collect}[key](run_id, ctx, keywords, cc)
             step = STEP_DEFS[key]
             question = step["question"].format(**ctx)
             hints = [h.format(**ctx) for h in step["hints"]]
@@ -1109,12 +1134,12 @@ def execute_run(run_id: uuid.UUID) -> None:
                             run.params = {**(run.params or {}), "demand_collected_for": kws}
                     hints = [f"{k} best sellers" for k in kws[:2]] + hints
                 step_urls, passages = read_urls, None
-                if key == "review_web":
-                    from . import listings
+                if key in ("review_web", "style_web"):
+                    from . import buyers, listings
 
                     with session_scope() as db:
                         step_urls = list(dict.fromkeys(read_urls + listings.tracked_page_urls(db, project_id)))[:8]
-                    passages = listings.REVIEW_PASSAGES
+                    passages = listings.REVIEW_PASSAGES if key == "review_web" else buyers.STYLE_PASSAGES
                 bundle = provider.gather(question=question, context=context_block(ctx), query_hints=hints, country_code=cc,
                                          read_urls=step_urls, **({"passage_pattern": passages} if passages else {}))
                 usage.add(bundle.usage)
@@ -1179,10 +1204,11 @@ def execute_run(run_id: uuid.UUID) -> None:
 
     synth_key = SYNTHESIS_STEP.get(kind)
     if fatal is None and synth_key and _step_status(run_id, synth_key) == "pending" and _run_status(run_id) != "cancelled":
+        from .buyers import run_style_profile
         from .listings import run_review_tags
 
         {"synthesis": _run_synthesis, "plan": _run_channel_plan, "compliance_plan": _run_compliance_plan,
-         "review_tags": run_review_tags}[synth_key](run_id, ctx)
+         "review_tags": run_review_tags, "style_profile": run_style_profile}[synth_key](run_id, ctx)
 
     with session_scope() as db:
         run = db.get(ResearchRun, run_id)

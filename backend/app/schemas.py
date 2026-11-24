@@ -102,7 +102,7 @@ class ProjectOut(ORM):
 
 class ResearchStartIn(BaseModel):
     kind: Literal["market_opportunity", "competitor_discovery", "channels_logistics", "fit_sizing", "price_tiers", "compliance", "supplier_listings",
-                  "listing_tracker", "review_mining"] = "market_opportunity"
+                  "listing_tracker", "review_mining", "buyer_style"] = "market_opportunity"
     category: str | None = None
     geography: str | None = None
     budget_usd: float | None = Field(None, ge=0)

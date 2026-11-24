@@ -488,6 +488,11 @@ class ListingReviews:
     star_unit: str = "reviews"
     low_star: list[dict[str, Any]] = field(default_factory=list)  # {stars, title, text, date, source}
     insights: list[str] = field(default_factory=list)  # Amazon "customers say" themes with negative or mixed sentiment
+    reviews: list[dict[str, Any]] = field(default_factory=list)  # every review read, any star rating
+    praise: list[str] = field(default_factory=list)  # Amazon "customers say" themes with positive sentiment
+    # Amazon gives no review list through SerpApi, but each theme quotes real reviews: {text, theme, sentiment, link}
+    snippets: list[dict[str, Any]] = field(default_factory=list)
+    summary: str = ""  # Amazon's own AI summary of the reviews
 
 
 def _walk_reviews(obj: Any, found: list[dict[str, Any]]) -> None:
@@ -518,6 +523,7 @@ def listing_reviews(c: dict[str, Any], http: httpx2.Client) -> ListingReviews | 
                 out.star_counts[int(r["stars"])] = int(r["amount"])
         reviews: list[dict[str, Any]] = []
         _walk_reviews(pr.get("user_reviews") or [], reviews)
+        out.reviews = reviews
         out.low_star = [r for r in reviews if r["stars"] <= 3]
     elif c.get("asin"):
         data = _get(http, {"engine": "amazon_product", "asin": c["asin"], "amazon_domain": "amazon.com"})
@@ -528,13 +534,24 @@ def listing_reviews(c: dict[str, Any], http: httpx2.Client) -> ListingReviews | 
             if m and _num(v) is not None:
                 out.star_counts[int(m.group(1))] = int(v)
         out.star_unit = "percent"
+        out.summary = str(summary.get("text") or "")[:1500]
+        seen: set[str] = set()
         for ins in summary.get("insights") or []:
+            for e in ins.get("examples") or []:
+                text = str(e.get("snippet") or "").strip()
+                if len(text) > 20 and text not in seen:  # "Five Stars" and other bare titles say nothing
+                    seen.add(text)
+                    out.snippets.append({"text": text[:1500], "theme": str(ins.get("title") or ""), "sentiment": str(ins.get("sentiment") or ""),
+                                         "link": str(e.get("link") or "")})
+            ex = "; ".join(f'"{e.get("snippet")}"' for e in (ins.get("examples") or [])[:3] if e.get("snippet"))
+            line = f"{ins.get('title')} ({ins.get('sentiment')}, {ins.get('mentions') or '?'} mentions): {ins.get('summary') or ''} {ex}".strip()
             if str(ins.get("sentiment") or "").lower() in ("negative", "mixed"):
-                ex = "; ".join(f'"{e.get("snippet")}"' for e in (ins.get("examples") or [])[:3] if e.get("snippet"))
-                out.insights.append(f"{ins.get('title')} ({ins.get('sentiment')}, {ins.get('mentions') or '?'} mentions): "
-                                    f"{ins.get('summary') or ''} {ex}".strip())
+                out.insights.append(line)
+            else:
+                out.praise.append(line)
         reviews = []
         _walk_reviews({k: v for k, v in info.items() if k != "summary"}, reviews)
+        out.reviews = reviews
         out.low_star = [r for r in reviews if r["stars"] <= 3]
     else:
         return None
