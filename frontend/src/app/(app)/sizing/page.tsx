@@ -75,7 +75,7 @@ function FitResearch({ projectId, onChartsChanged }: { projectId: string; onChar
   }
 
   return (
-    <Card className="lg:col-span-2">
+    <Card >
       <CardHeader title="Fit & sizing research" icon={<FileSearch className="h-4 w-4" />}
         subtitle="Finds competitors' published size charts and what customers say about fit, returns and exchanges. Size charts are saved only with numbers that appear on the source page." />
       <CardBody className="space-y-4">
@@ -103,7 +103,7 @@ function FitResearch({ projectId, onChartsChanged }: { projectId: string; onChar
         {findings.data && findings.data.length > 0 && (
           <details open className="space-y-2">
             <summary className="cursor-pointer text-sm font-semibold text-brand-700">Fit & sizing findings ({findings.data.length})</summary>
-            <div className="mt-2 grid gap-2 lg:grid-cols-2">{findings.data.map((f) => <FindingCard key={f.id} finding={f} compact />)}</div>
+            <div className="mt-2 grid gap-2">{findings.data.map((f) => <FindingCard key={f.id} finding={f} compact />)}</div>
           </details>
         )}
         {findings.data?.length === 0 && !fitRun && <p className="text-sm text-slate-500">No fit research yet for this product.</p>}
@@ -293,7 +293,7 @@ function SizingView({ projectId }: { projectId: string }) {
     <>
       <PageHeader title="Sizing & Fit"
         description="Size scales for every product: your own size guide, supplier charts and competitors' charts. Compare them, test sizes against real measurements, and share a fit finder with customers so they order the right size the first time." />
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-5">
         <FitResearch projectId={projectId} onChartsChanged={charts.reload} />
         <AddChart projectId={projectId} onAdded={(c) => { charts.reload(); setEditing({ chart: c }); }} onManual={(g) => setEditing({ chart: null, garment: g })} />
 
@@ -314,7 +314,7 @@ function SizingView({ projectId }: { projectId: string }) {
           </CardBody>
         </Card>
 
-        <div className="space-y-5 lg:col-span-2">
+        <div className="space-y-5">
           {charts.loading && !charts.data && <Spinner />}
           {charts.error && <Alert tone="red">{errorText(charts.error)}</Alert>}
           {charts.data && list.length === 0 && (
@@ -330,7 +330,7 @@ function SizingView({ projectId }: { projectId: string }) {
               <section key={role} className="space-y-2">
                 <h2 className="font-serif text-lg font-semibold text-brand-700">{ROLE_META[role].title}</h2>
                 <p className={clsx("text-xs text-slate-500")}>{ROLE_META[role].blurb}</p>
-                <div className="grid gap-3 xl:grid-cols-2">
+                <div className="grid gap-3">
                   {items.map((c) => (
                     <ChartCard key={c.id} c={c} unit={unit} onChanged={charts.reload} onEdit={() => setEditing({ chart: c })}
                       onTry={() => { setFinderId(c.id); finderRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); }} />

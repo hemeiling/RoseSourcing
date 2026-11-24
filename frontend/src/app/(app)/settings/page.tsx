@@ -58,7 +58,7 @@ export default function SettingsPage() {
     <>
       <PageHeader title="Settings" description="Server configuration, AI providers, guardrails and integrations. Secrets are set as environment variables on the server (Render dashboard) and are never shown here." />
       {!status ? <Spinner /> : (
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid gap-5">
           <Card>
             <CardHeader title="AI model" icon={<Server className="h-4 w-4" />} />
             <CardBody className="divide-y divide-slate-100 py-1">
@@ -108,7 +108,7 @@ export default function SettingsPage() {
             </CardBody>
           </Card>
 
-          <Card className="lg:col-span-2">
+          <Card >
             <CardHeader title="Agents" subtitle="Logical agents in this release. Each runs as a bounded, single-purpose service with explicit tools and an execution log." />
             <CardBody>
               <div className="flex flex-wrap gap-2">
@@ -121,7 +121,7 @@ export default function SettingsPage() {
           <ClaudeConnectorSection />
 
           {project && (
-            <Card className="lg:col-span-2">
+            <Card >
               <CardHeader title={`Audit log - ${project.name}`} icon={<ScrollText className="h-4 w-4" />} subtitle="Every change by you or an agent is recorded." />
               <AuditLog projectId={project.id} />
             </Card>

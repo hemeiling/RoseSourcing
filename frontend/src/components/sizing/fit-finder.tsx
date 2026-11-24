@@ -70,7 +70,7 @@ export function FitResultView({ result, unit }: { result: FitResult; unit: Unit 
         <div className="flex items-center gap-2 font-semibold text-red-700"><XCircle className="h-4 w-4" /> No size on this chart fits every measurement</div>
       )}
       {rec && (
-        <ul className="grid gap-1.5 sm:grid-cols-2">
+        <ul className="grid gap-1.5">
           {rec.checks.map((c) => (
             <li key={c.dimension} className="flex items-center gap-2 text-sm">
               {c.result === "fits" ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Info className="h-4 w-4 text-amber-600" />}

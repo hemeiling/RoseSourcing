@@ -233,7 +233,7 @@ function Rfqs({ projectId, data, onChange }: { projectId: string; data: Outreach
                   <span className="text-sm font-medium text-ink">Choose suppliers to ask</span>
                   <button className="text-xs font-semibold text-primary-700 hover:underline" onClick={() => setPicked(fresh.map((s) => s.id))}>Select all {fresh.length}</button>
                 </div>
-                <div className="grid gap-1.5 sm:grid-cols-2">
+                <div className="grid gap-1.5">
                   {fresh.map((s) => (
                     <label key={s.id} className="flex items-start gap-2 text-sm">
                       <input type="checkbox" className="mt-1 accent-primary-600" checked={picked.includes(s.id)}

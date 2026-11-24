@@ -190,7 +190,7 @@ function CopilotView({ projectId }: { projectId: string }) {
             {!loadingThread && messages.length === 0 && !pending && (
               <div className="py-6">
                 <div className="mb-4 flex items-center gap-2 text-sm font-medium text-slate-800"><Bot className="h-4 w-4 text-brand-600" /> Try asking</div>
-                <div className="grid gap-2 sm:grid-cols-2">
+                <div className="grid gap-2">
                   {EXAMPLES.map((ex) => (
                     <button key={ex} disabled={!aiReady} onClick={() => ask(ex)}
                       className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-left text-sm text-slate-700 hover:border-brand-300 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-50">

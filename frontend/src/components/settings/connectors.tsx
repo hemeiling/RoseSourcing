@@ -123,7 +123,7 @@ export function ConnectorsSection() {
   const changed = () => { reload(); reloadStatus(); };
 
   return (
-    <Card className="lg:col-span-2">
+    <Card >
       <CardHeader title="Data sources & connectors" icon={<PlugZap className="h-4 w-4" />}
         subtitle="Connect the platforms research and the copilot can use. Keys are encrypted and never shown again; the last 4 characters identify them. Platforms marked Planned are gateways: credentials can be stored now, and their data sync will switch on when the adapter ships." />
       <CardBody className="space-y-6">
@@ -135,7 +135,7 @@ export function ConnectorsSection() {
             <section key={g.key}>
               <h3 className="font-serif text-lg font-semibold text-brand-700">{g.title}</h3>
               <p className="mb-2 text-xs text-slate-500">{g.blurb}</p>
-              <div className="grid gap-3 md:grid-cols-2">{items.map((c) => <ConnectorCard key={c.key} c={c} owner={owner} onChanged={changed} />)}</div>
+              <div className="grid gap-3">{items.map((c) => <ConnectorCard key={c.key} c={c} owner={owner} onChanged={changed} />)}</div>
             </section>
           );
         })}

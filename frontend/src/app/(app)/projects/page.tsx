@@ -238,7 +238,7 @@ function ProjectsInner() {
           </EmptyState>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4">
           {projects.map((p) => (
             <Card key={p.id} className={p.id === current?.id ? "ring-2 ring-brand-200" : undefined}>
               <CardBody>

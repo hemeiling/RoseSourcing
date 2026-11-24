@@ -91,7 +91,7 @@ export function BuyerStyleSection({ projectId }: { projectId: string }) {
               subtitle={`Counted from ${c.stats.comments_read} customer comments (${c.stats.reviews} marketplace reviews, ${c.stats.web_comments} web) on ${date(c.generated_by.generated_at)} · ${c.stats.tagged} say something about the buyer or the look${c.stats.unverified_dropped ? ` · ${c.stats.unverified_dropped} AI tags dropped (quote not found)` : ""}`} />
             <CardBody className="space-y-4">
               <p className="text-sm text-ink">{c.summary}</p>
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4">
                 <div>
                   <h3 className="mb-1.5 text-sm font-semibold text-ink">Age</h3>
                   <p className="mb-2 text-xs text-slate-600">
@@ -167,7 +167,7 @@ export function BuyerStyleSection({ projectId }: { projectId: string }) {
             </div>
           </Card>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4">
             <Card>
               <CardHeader title="Buyer personas" icon={<UserRound className="h-4 w-4" />} subtitle="Grounded in the tagged comments (hover a ref to read it)." />
               <CardBody className="space-y-3">

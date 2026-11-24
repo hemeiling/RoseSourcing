@@ -263,7 +263,7 @@ export function ChannelsTab({ projectId, version }: { projectId: string; version
       {(channels.data ?? []).some((c) => c.audience_fit || c.requirements || c.pros.length || c.cons.length) && (
         <Card>
           <CardHeader title="Channel notes" subtitle="Audience fit, requirements, pros and cons" />
-          <div className="grid gap-px bg-slate-100 sm:grid-cols-2">
+          <div className="grid gap-px bg-slate-100">
             {(channels.data ?? []).filter((c) => c.audience_fit || c.requirements || c.pros.length || c.cons.length).map((c) => (
               <div key={c.id} className="bg-white px-5 py-3.5 text-sm">
                 <div className="font-medium text-slate-900">{c.name}</div>

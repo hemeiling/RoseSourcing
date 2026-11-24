@@ -151,7 +151,7 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
         {chips(r.attractiveness_finding_ids)}
       </Section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4">
         <Section icon={<Users className="h-4 w-4" />} title="Recommended first segment">
           {r.recommended_segment?.name ? (
             <p className="text-sm font-medium text-slate-900">{r.recommended_segment.name}</p>
@@ -273,7 +273,7 @@ export function ReportView({ projectId, report, onDeleted }: { projectId: string
         </Section>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4">
         {r.evidence_gaps?.length > 0 && (
           <Section icon={<Target className="h-4 w-4" />} title="Evidence gaps" subtitle="What you still need to know before investing">
             <ul className="space-y-3">

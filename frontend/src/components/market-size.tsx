@@ -48,7 +48,7 @@ export function MarketSizeSection({ projectId }: { projectId: string }) {
   const revenues = comps.data.filter((c) => c.revenue).sort((a, b) => usdValue(b.revenue!) - usdValue(a.revenue!));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4">
       <Card>
         <CardHeader title="Industry & category size" icon={<Globe2 className="h-4 w-4" />}
           subtitle="From the Market Research Agent. Each figure says what it covers, its year and who published it." />

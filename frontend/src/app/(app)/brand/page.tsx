@@ -99,8 +99,8 @@ function BrandStudio({ projectId }: { projectId: string }) {
         description="Generate brand drafts grounded in this project's research, segments and competitors. Everything here is an AI-generated draft for you to refine."
       />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
+      <div className="grid gap-6">
+        <Card >
           <CardHeader title="Generate a draft" icon={<Sparkles className="h-4 w-4" />} subtitle="Uses your project context and saved research findings." />
           <CardBody className="space-y-4">
             {aiMissing && <ConfigNotice message={status?.ai.requirement} />}
@@ -139,7 +139,7 @@ function BrandStudio({ projectId }: { projectId: string }) {
           </CardBody>
         </Card>
 
-        <div className="space-y-6 lg:col-span-2">
+        <div className="space-y-6">
           <Card>
             <CardHeader title="Saved concepts" icon={<Palette className="h-4 w-4" />} subtitle="Shortlist, select or reject drafts. Newest first." />
             <CardBody>

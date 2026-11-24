@@ -64,7 +64,7 @@ function NamesView({ c }: { c: Obj }) {
         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
         Trademark and domain availability have not been checked. Search USPTO and domain registrars before using a name.
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2">
         {ideas.map((n, i) => (
           <div key={i} className="rounded-lg border border-slate-200 p-3">
             <div className="flex items-center justify-between gap-2">
@@ -83,7 +83,7 @@ function PositioningView({ c }: { c: Obj }) {
   return (
     <div className="space-y-3">
       <blockquote className="rounded-lg border-l-4 border-brand-400 bg-brand-50 px-3 py-2 text-sm text-slate-800">{asStr(c.statement)}</blockquote>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3">
         <Section title="Target customer">
           <p className="text-sm text-slate-700">{asStr(c.target_customer)}</p>
         </Section>
@@ -107,7 +107,7 @@ function PositioningView({ c }: { c: Obj }) {
 function PersonasView({ c }: { c: Obj }) {
   const personas = asArr(c.personas).map(asObj);
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3">
       {personas.map((p, i) => (
         <div key={i} className="rounded-lg border border-slate-200 p-3">
           <div className="text-sm font-semibold text-slate-900">{asStr(p.name)}</div>
@@ -156,7 +156,7 @@ function VoiceView({ c }: { c: Obj }) {
           </tbody>
         </table>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3">
         <Section title="Sample lines"><List items={asArr(c.sample_lines)} /></Section>
         <Section title="Words to avoid"><List items={asArr(c.words_to_avoid)} /></Section>
       </div>
@@ -200,7 +200,7 @@ const HEX = /^#(?:[0-9a-fA-F]{3}){1,2}$/;
 function PalettesView({ c }: { c: Obj }) {
   const palettes = asArr(c.palettes).map(asObj);
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3">
       {palettes.map((p, i) => (
         <div key={i} className="rounded-lg border border-slate-200 p-3">
           <div className="text-sm font-semibold text-slate-900">{asStr(p.name)}</div>
@@ -256,7 +256,7 @@ function MessagingView({ c }: { c: Obj }) {
           </div>
         </Section>
       )}
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3">
         <Section title="Taglines"><CopyList items={asArr(c.taglines)} /></Section>
         <Section title="Value propositions"><CopyList items={asArr(c.value_propositions)} /></Section>
         <Section title="Ad hooks"><CopyList items={asArr(c.ad_hooks)} /></Section>

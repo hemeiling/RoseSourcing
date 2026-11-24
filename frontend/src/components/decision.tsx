@@ -83,7 +83,7 @@ const fmtPrice = (o: DecisionOffer) => o.price_low === null ? "Price not support
 /** What the AI says to sell: price range and tier, materials, must-have features, first channel - with the margin the calculator gives. */
 function OfferView({ o }: { o: DecisionOffer }) {
   return (
-    <div className="grid gap-3 rounded-lg border border-primary-200 bg-primary-50/60 p-3 text-sm sm:grid-cols-2">
+    <div className="grid gap-3 rounded-lg border border-primary-200 bg-primary-50/60 p-3 text-sm">
       <div>
         <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Sell at</div>
         <div className="font-semibold text-ink">{fmtPrice(o)}{o.price_tier !== "unknown" && <span className="font-normal text-slate-600"> · {o.price_tier} tier</span>}</div>
@@ -139,7 +139,7 @@ function BriefView({ c }: { c: DecisionBriefContent }) {
       </div>
       <p className="text-base font-semibold text-ink">{c.headline}</p>
       {c.offer && <OfferView o={c.offer} />}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4">
         <div>
           <h4 className="mb-1 text-xs font-bold uppercase tracking-wide text-emerald-700">For</h4>
           <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">{c.reasons_for.map((r) => <li key={r.point}>{r.point}</li>)}</ul>
@@ -160,7 +160,7 @@ function BriefView({ c }: { c: DecisionBriefContent }) {
           ))}
         </div>
       )}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4">
         <div>
           <h4 className="mb-1 text-xs font-bold uppercase tracking-wide text-slate-500">Conditions to go</h4>
           <ul className="list-disc space-y-1 pl-5 text-sm text-slate-700">{c.conditions_to_go.map((x) => <li key={x}>{x}</li>)}</ul>

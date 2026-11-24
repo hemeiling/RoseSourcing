@@ -204,7 +204,7 @@ export function FindingsExplorer({ projectId, runs, version }: { projectId: stri
           </EmptyState>
         </Card>
       )}
-      <div className="grid gap-3 xl:grid-cols-2">
+      <div className="grid gap-3">
         {data?.map((f) => (
           <FindingCard key={f.id} finding={f} onReview={setReviewing} />
         ))}

@@ -754,7 +754,7 @@ export function SupplierDetailModal({
               <Pencil className="h-3.5 w-3.5" aria-hidden /> Edit supplier
             </Button>
           </div>
-          <div className="grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+          <div className="grid gap-2 text-sm text-slate-700">
             <div>
               <span className="font-medium">Verification:</span> {labels?.[s.verification_status] ?? titleCase(s.verification_status)}
             </div>

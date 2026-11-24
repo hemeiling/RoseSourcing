@@ -51,7 +51,7 @@ function PlanView({ plan, findings, onOpen, onRefresh }: { plan: ChannelPlan; fi
             </Alert>
           )}
           <p className="text-sm leading-relaxed text-slate-800">{c.summary}</p>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4">
             <div>
               <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500"><Store className="h-3.5 w-3.5" /> Launch channels</h3>
               <ul className="space-y-2">
@@ -80,7 +80,7 @@ function PlanView({ plan, findings, onOpen, onRefresh }: { plan: ChannelPlan; fi
           </div>
         </CardBody>
       </Card>
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-5">
         <Card>
           <CardHeader title="Customs & compliance to confirm" icon={<ClipboardCheck className="h-4 w-4" />} subtitle="Rules change - confirm each with a customs broker or the official source." />
           <CardBody><ul className="list-disc space-y-1 pl-5 text-[13px] text-slate-700">{c.customs_and_compliance.map((x) => <li key={x}>{x}</li>)}</ul></CardBody>
@@ -225,7 +225,7 @@ export function PlanTab({ projectId, onDataChanged }: { projectId: string; onDat
       {evidence.length > 0 && (
         <Card>
           <CardHeader title="Evidence from the latest run" subtitle={`${evidence.length} findings with sources, evidence type and verification status`} />
-          <CardBody className="grid gap-3 lg:grid-cols-2">{evidence.map((f) => <FindingCard key={f.id} finding={f} compact />)}</CardBody>
+          <CardBody className="grid gap-3">{evidence.map((f) => <FindingCard key={f.id} finding={f} compact />)}</CardBody>
         </Card>
       )}
 

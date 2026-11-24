@@ -208,7 +208,7 @@ export function TrendsExplorer({ projectId }: { projectId: string }) {
                 <Button size="sm" variant="secondary" onClick={() => loadRelated(relTerm)} loading={busy === relTerm}>Load related searches for “{relTerm}”</Button>
               )}
               {rel && (
-                <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-5">
                   <RankedList title="Top searches" items={rel.queries.top} />
                   <RankedList title="Rising searches" items={rel.queries.rising} rising />
                   <RankedList title="Top topics" items={rel.topics.top} />

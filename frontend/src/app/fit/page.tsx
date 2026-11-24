@@ -52,7 +52,7 @@ function Guide() {
 
       <section className="space-y-2">
         <h2 className="font-serif text-xl font-semibold text-ink">How to measure</h2>
-        <dl className="grid gap-3 sm:grid-cols-2">
+        <dl className="grid gap-3">
           {dims.filter((d) => HOW_TO_MEASURE[d]).map((d) => (
             <div key={d} className="rounded-lg border border-line bg-white p-3">
               <dt className="text-sm font-semibold text-brand-700">{dimLabel(d, guide.dimension_labels)}</dt>

@@ -87,7 +87,7 @@ export function ReviewInsightsSection({ projectId }: { projectId: string }) {
           <Card>
             <CardBody className="space-y-4">
               <p className="text-sm text-ink">{c.summary}</p>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-3">
                 {c.themes.map((t) => (
                   <div key={t.tag} className="rounded-lg border border-line p-3">
                     <div className="flex items-center justify-between gap-2">

@@ -46,7 +46,7 @@ export function ClaudeConnectorSection() {
   }
 
   return (
-    <Card className="lg:col-span-2">
+    <Card >
       <CardHeader title="Claude connector" icon={<Bot className="h-4 w-4" />}
         subtitle="Work on any product from Claude (claude.ai, desktop or Claude Code) alongside your other Claude connectors. Claude can list your product projects, start research, add competitors and suppliers, draft RFQs, compare channels and shipping, generate decision briefs and record your go / no-go decisions." />
       <CardBody className="space-y-4">

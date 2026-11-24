@@ -439,8 +439,8 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-5">
-      <Card className="lg:col-span-3">
+    <div className="grid gap-5">
+      <Card >
         <CardHeader
           title={editing ? `Editing: ${editing.name}` : "Unit economics calculator"}
           subtitle={`${assumptionCount} of ${Object.keys(spec.defaults).length} inputs are assumptions. Tag each input with where the number came from. Channels, suppliers and plans use your latest saved scenario - save to use these numbers there.`}
@@ -487,7 +487,7 @@ function CalculatorTab({ projectId, spec, scenarios, reload, loadId, onLoaded }:
           ))}
         </CardBody>
       </Card>
-      <Card className="lg:col-span-2 lg:sticky lg:top-20 lg:self-start">
+      <Card >
         <CardHeader title="Results" subtitle="Deterministic model - same math the AI copilot uses" icon={<Gauge className="h-4 w-4" />} />
         <CardBody>{calcError ? <Alert tone="red">{calcError}</Alert>
           : <ResultsPanel r={results} inputs={inputs} onSet={(k, v) => setInputs((cur) => ({ ...cur, [k]: v }))} />}</CardBody>

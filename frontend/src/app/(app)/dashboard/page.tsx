@@ -79,9 +79,9 @@ function DashboardView({ projectId }: { projectId: string }) {
         <StatCard label="Cost scenarios" value={c.scenarios} icon={<BarChart3 className="h-4 w-4" />} hint={`${c.reports} opportunity report${c.reports === 1 ? "" : "s"}`} />
       </div>
 
-      {/* In the product report every card is full width (no narrow side column); lists inside use two columns. */}
-      <div className={embed ? "mt-5 space-y-5" : "mt-5 grid gap-5 lg:grid-cols-3"}>
-        <div className={embed ? "space-y-5" : "space-y-5 lg:col-span-2"}>
+      {/* One column: every card full width. */}
+      <div className="mt-5 space-y-5">
+        <div className="space-y-5">
           {!embed && (
           <Card>
             <CardHeader title="Latest opportunity assessment" icon={<TrendingUp className="h-4 w-4" />}
@@ -122,7 +122,7 @@ function DashboardView({ projectId }: { projectId: string }) {
               {data.open_recommendations.length === 0 ? (
                 <p className="px-5 py-6 text-sm text-slate-500">No open recommendations.</p>
               ) : (
-                <ul className="grid gap-3 p-4 md:grid-cols-2">
+                <ul className="grid gap-3 p-4">
                   {data.open_recommendations.map((r) => (
                     <li key={r.id} className="flex flex-col gap-2 rounded-lg border border-line p-3">
                       <span className="text-sm text-slate-800">{r.title}</span>
@@ -211,7 +211,7 @@ function DashboardView({ projectId }: { projectId: string }) {
               {data.recent_activity.length === 0 ? (
                 <p className="px-5 py-4 text-sm text-slate-500">No activity yet.</p>
               ) : (
-                <ul className="grid gap-x-6 px-5 py-1 sm:grid-cols-2 lg:grid-cols-3">
+                <ul className="grid gap-x-6 px-5 py-1">
                   {data.recent_activity.slice(0, 6).map((a, i) => (
                     <li key={i} className="flex items-center justify-between gap-2 border-b border-slate-100 py-2 text-xs">
                       <span className="text-slate-700">{titleCase(a.action.replace(".", " "))}</span>

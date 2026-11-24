@@ -311,7 +311,7 @@ export function PositioningCard({ projectId, hasCompetitors }: { projectId: stri
                 </span>
               ))}
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4">
               <ListBlock title="White space" items={c.white_space} />
               <ListBlock title="Differentiation options" items={c.differentiation_options} />
               <ListBlock title="Caveats & data gaps" items={c.caveats} tone="amber" />

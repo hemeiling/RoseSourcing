@@ -131,21 +131,99 @@ function RunAll({ projectId, plan, onChange }: { projectId: string; plan: RunAll
   );
 }
 
-/** Every research agent, with its latest run for this product. "Run" jumps to the section where it is started. */
+const RUNNING = ["queued", "running"];
+const RESUMABLE = ["interrupted", "failed", "cancelled"];
+
+/** One agent: Run starts it right here (after showing the cost); an interrupted run continues instead of starting over;
+ *  while it runs, a progress bar shows the step it is on. */
+function AgentRow({ projectId, agent, last, estimate, otherRunning, onChange }: {
+  projectId: string; agent: (typeof AGENTS)[number]; last: ResearchRun | undefined; estimate: number | undefined; otherRunning: boolean;
+  onChange: () => void;
+}) {
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const running = !!last && RUNNING.includes(last.status);
+  const resume = !!last && RESUMABLE.includes(last.status);
+  const steps = last?.steps ?? [];
+  const done = steps.filter((st) => st.status === "completed" || st.status === "skipped" || st.status === "failed").length;
+  const current = steps.find((st) => st.status === "running") ?? steps.find((st) => st.status === "pending");
+  const cost = resume ? estimate : last ? last.cost_usd : estimate;
+  const start = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (resume && last) await post(`/api/research-runs/${last.id}/resume`);
+      else await post(`/api/projects/${projectId}/research-runs`, { kind: agent.kind });
+      setConfirm(false);
+      onChange();
+    } catch (e) {
+      setError(errorText(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <li className="flex flex-col gap-1.5 px-5 py-2.5 sm:flex-row sm:items-start sm:gap-4">
+      <div className="min-w-0 flex-1">
+        <div className="font-semibold text-ink">{agent.name}</div>
+        <div className="text-xs text-slate-500">{agent.does}</div>
+        {running && (
+          <div className="mt-2" aria-live="polite">
+            <div className="h-1.5 overflow-hidden rounded-full bg-canvas" role="progressbar" aria-valuemin={0} aria-valuemax={steps.length} aria-valuenow={done}
+              aria-label={`${agent.name} progress`}>
+              <div className="h-1.5 rounded-full bg-primary-500 transition-[width] duration-500"
+                style={{ width: `${Math.max(6, Math.round((100 * done) / Math.max(1, steps.length)))}%` }} />
+            </div>
+            <div className="mt-1 text-[11px] text-slate-600">
+              Step {Math.min(done + 1, steps.length)} of {steps.length}{current ? ` · ${current.label}` : ""} · {fmtCost(last?.cost_usd)} so far
+            </div>
+          </div>
+        )}
+        {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 text-xs text-slate-600 sm:justify-end">
+        <span className="whitespace-nowrap">
+          {last ? <><RunStatusBadge status={last.status} /> <span className="ml-1">{ago(last.created_at)} · {fmtCost(last.cost_usd)}</span></> : <span className="text-slate-400">Not run yet</span>}
+        </span>
+        {running ? (
+          <span className="flex items-center gap-1 whitespace-nowrap font-semibold text-primary-700"><Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />Running</span>
+        ) : confirm ? (
+          <span className="flex items-center gap-1.5 whitespace-nowrap">
+            <span className="text-slate-700">{resume ? "Continue" : "Run"}{cost !== undefined ? ` (~${fmtCost(cost)})` : ""}?</span>
+            <Button size="sm" onClick={start} loading={busy}>Yes</Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirm(false)}>Cancel</Button>
+          </span>
+        ) : (
+          <span className="flex items-center gap-3 whitespace-nowrap">
+            <Button size="sm" variant={last && !resume ? "secondary" : "primary"} onClick={() => setConfirm(true)} disabled={otherRunning}
+              title={otherRunning ? "Another agent is running for this product - this one can start when it finishes" : undefined}>
+              <PlayCircle className="h-3.5 w-3.5" /> {resume ? "Continue" : last ? "Run again" : "Run"}
+            </Button>
+            <a href={`#${agent.section}`} className="font-semibold text-primary-700 hover:underline">{last ? "Open" : "Details"} →</a>
+          </span>
+        )}
+      </div>
+    </li>
+  );
+}
+
+/** Every research agent, with its latest run for this product, a Run button and live progress. */
 function AgentsPanel({ projectId }: { projectId: string }) {
   const runs = useApi<ResearchRun[]>(`/api/projects/${projectId}/research-runs`);
   const plan = useApi<RunAllPlan>(`/api/projects/${projectId}/research-runs/run-all`);
   const { reload: reloadRuns } = runs;
   const { reload: reloadPlan } = plan;
-  const active = (!!plan.data?.progress && !plan.data.progress.done) || !!runs.data?.some((r) => r.status === "queued" || r.status === "running");
-  // While anything runs, refresh every 10 s (this also keeps a sleeping free server awake).
+  const anyRunning = !!runs.data?.some((r) => RUNNING.includes(r.status));
+  const active = (!!plan.data?.progress && !plan.data.progress.done) || anyRunning;
+  // While anything runs, refresh every 5 s so the progress bars move.
   useEffect(() => {
     if (!active) return;
-    const t = setInterval(() => { reloadRuns(); reloadPlan(); }, 10000);
+    const t = setInterval(() => { reloadRuns(); reloadPlan(); }, 5000);
     return () => clearInterval(t);
   }, [active, reloadRuns, reloadPlan]);
   return (
-    <Card className="lg:col-span-2">
+    <Card >
       <CardHeader title="Research agents" icon={<Bot className="h-4 w-4" />}
         subtitle="The same agents work on every product. Each run is saved with this product, with its sources and cost."
         actions={<RunAll projectId={projectId} plan={plan.data} onChange={() => { reloadRuns(); reloadPlan(); }} />} />
@@ -156,19 +234,11 @@ function AgentsPanel({ projectId }: { projectId: string }) {
       <ul className="divide-y divide-slate-100 text-sm">
         {AGENTS.map((a) => {
           const last = runs.data?.find((r) => r.kind === a.kind);
+          const step = plan.data?.steps.find((st) => st.kind === a.kind);
           return (
-            <li key={a.kind} className="flex flex-col gap-1.5 px-5 py-2.5 sm:flex-row sm:items-start sm:gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="font-semibold text-ink">{a.name}</div>
-                <div className="text-xs text-slate-500">{a.does}</div>
-              </div>
-              <div className="flex items-center justify-between gap-3 text-xs text-slate-600 sm:justify-end">
-                <span className="whitespace-nowrap">
-                  {last ? <><RunStatusBadge status={last.status} /> <span className="ml-1">{ago(last.created_at)} · {fmtCost(last.cost_usd)}</span></> : <span className="text-slate-400">Not run yet</span>}
-                </span>
-                <a href={`#${a.section}`} className="whitespace-nowrap font-semibold text-primary-700 hover:underline">{last ? "Open" : "Run"} →</a>
-              </div>
-            </li>
+            <AgentRow key={a.kind} projectId={projectId} agent={a} last={last} estimate={step?.estimate_usd || undefined}
+              otherRunning={(anyRunning && !(last && RUNNING.includes(last.status))) || (!!plan.data?.progress && !plan.data.progress.done)}
+              onChange={() => { reloadRuns(); reloadPlan(); }} />
           );
         })}
       </ul>
@@ -208,13 +278,13 @@ function Review({ projectId, decision }: { projectId: string; decision: string }
   if (decision === "undecided") todos.push({ text: "Record your go / no-go decision", detail: "Your decision is saved with a snapshot of the evidence.", section: "decision", tone: "slate" });
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4">
       <AgentsPanel projectId={projectId} />
-      <Card className="lg:col-span-2">
+      <Card >
         <CardHeader title="Checklist" icon={<ListChecks className="h-4 w-4" />} subtitle="What is missing or weak, based on everything saved for this product." />
         <CardBody>
           {todos.length === 0 ? <p className="text-sm text-slate-600">Nothing obvious is missing. Evidence gaps are listed in the market research report.</p> : (
-            <ul className="grid gap-x-8 md:grid-cols-2">
+            <ul className="grid gap-x-8">
               {todos.map((t) => (
                 <li key={t.text} className="border-b border-slate-100">
                   <a href={`#${t.section}`} className="group flex items-start gap-2.5 py-2.5">

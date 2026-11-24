@@ -199,8 +199,8 @@ function Suppliers({ projectId }: { projectId: string }) {
       {tab === "compare" && <SupplierComparison projectId={projectId} labels={labels} version={version} />}
 
       {tab === "import" && (
-        <div className="grid gap-5 lg:grid-cols-3">
-          <div className="lg:col-span-2">
+        <div className="grid gap-5">
+          <div >
             <CsvImportCard
               title="Import suppliers & quotes"
               description="One row per quote. Rows with the same supplier name are merged. Imported suppliers always start as Unverified."

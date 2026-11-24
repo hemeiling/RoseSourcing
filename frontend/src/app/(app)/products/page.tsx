@@ -69,7 +69,7 @@ export default function ProductsPage() {
           Snap a product photo above, or create a project for a category in Business Projects.
         </EmptyState></Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4">
           {rows.map((p) => {
             const rec = p.ai_recommendation ? AI_REC_META[p.ai_recommendation] : null;
             const active = p.latest_run && ["queued", "running"].includes(p.latest_run.status);

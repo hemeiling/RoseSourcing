@@ -65,7 +65,7 @@ export function PriceTiersSection({ projectId }: { projectId: string }) {
             )}
             {pics.note && <span className="text-xs text-slate-600">{pics.note}</span>}
           </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3">
             {tiers.map((t) => (
               <Card key={t.tier} className="flex flex-col">
                 <div className="border-b border-line px-4 py-3">

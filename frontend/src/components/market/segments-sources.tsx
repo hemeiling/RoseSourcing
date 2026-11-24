@@ -37,7 +37,7 @@ export function SegmentsTab({ projectId, version }: { projectId: string; version
     );
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4">
       {segs.data.map((s) => (
         <Card key={s.id}>
           <CardBody className="space-y-2.5">

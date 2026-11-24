@@ -125,7 +125,7 @@ function Catalog({ projectId }: { projectId: string }) {
               Add product concepts (e.g. a practice dress) to generate listing drafts, link supplier quotes and track inventory.
             </EmptyState>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3">
               {(products.data ?? []).map((p) => (
                 <ProductCard
                   key={p.id}
@@ -315,7 +315,7 @@ function ListingPanel({ product, onUpdated, onClose }: { product: Product; onUpd
             <CopyBlock label="Description" text={d.description} multiline />
             <CopyBlock label="Bullet points" text={d.bullets.map((b) => `• ${b}`).join("\n")} multiline />
             <CopyBlock label="Tags" text={d.tags.join(", ")} />
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4">
               <CopyBlock label="SEO title" text={d.seo_title} />
               <CopyBlock label="SEO description" text={d.seo_description} />
             </div>
@@ -472,7 +472,7 @@ function Integrations() {
           )}
         </CardBody>
       </Card>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4">
         {ROADMAP.map(({ icon: Icon, title, body }) => (
           <Card key={title}>
             <CardBody>
